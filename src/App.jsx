@@ -46,9 +46,9 @@ import {
 } from 'firebase/firestore';
 
 /**
- * SB-CasTrack v3.4 (Vite Style Override Fix)
+ * SB-CasTrack v3.5 (Fix: Render GlobalStyles)
  * Features:
- * - Added GlobalStyles to override Vite default CSS conflicts
+ * - Actually renders GlobalStyles to fix layout issues
  * - Robust Auth Handling
  * - Simplified Status
  * - Inline Editable Remarks
@@ -1021,6 +1021,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+      <GlobalStyles />
       {/* Navbar (Desktop) */}
       <nav className="bg-slate-900 text-white sticky top-0 z-50 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

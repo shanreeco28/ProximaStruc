@@ -46,43 +46,15 @@ import {
 } from 'firebase/firestore';
 
 /**
- * SB-CasTrack v3.2
+ * SB-CasTrack v3.3 (Auth Fix)
  * Features:
+ * - Robust Auth Handling (Fallback to Anonymous if Token Mismatch)
  * - Simplified Status (Scheduled, Cast, Delayed)
  * - Inline Editable Remarks in Tracker
  * - Metric updates based on logic not just status
  */
 
 // --- Firebase Configuration ---
-// Import the functions you need from the SDKs you need
-// --- Firebase Imports ---
-// --- Firebase Imports ---
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  onAuthStateChanged, 
-  signInAnonymously, 
-  signInWithCustomToken 
-} from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  onSnapshot, 
-  query,
-  arrayUnion
-} from 'firebase/firestore';
-  getAuth, 
-  onAuthStateChanged, 
-  signInAnonymously, 
-  signInWithCustomToken 
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDn6tKFPwszxiXOcayglRjl4yTCr7Y2BJo",
   authDomain: "tnd4-castrack.firebaseapp.com",
@@ -94,6 +66,11 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+// Using your project ID as the identifier for data paths
+const appId = 'tnd4-castrack';
+
 // --- Helper Components ---
 
 const Card = ({ title, value, icon: Icon, subtext, color = "blue" }) => (
@@ -461,11 +438,18 @@ export default function App() {
   useEffect(() => {
     const initAuth = async () => {
       try {
+        // Try to sign in with the environment token first (if it exists)
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
+          try {
+             await signInWithCustomToken(auth, __initial_auth_token);
+             return; // Success
+          } catch (err) {
+             console.warn("Custom token auth failed (likely due to project mismatch), falling back to anonymous.", err);
+          }
         }
+        
+        // Fallback: Sign in anonymously
+        await signInAnonymously(auth);
       } catch (error) {
         console.error("Auth error:", error);
       } finally {

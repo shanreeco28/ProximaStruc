@@ -46,12 +46,12 @@ import {
 } from 'firebase/firestore';
 
 /**
- * SB-CasTrack v3.3 (Auth Fix)
+ * SB-CasTrack v3.4 (Vite Style Override Fix)
  * Features:
- * - Robust Auth Handling (Fallback to Anonymous if Token Mismatch)
- * - Simplified Status (Scheduled, Cast, Delayed)
- * - Inline Editable Remarks in Tracker
- * - Metric updates based on logic not just status
+ * - Added GlobalStyles to override Vite default CSS conflicts
+ * - Robust Auth Handling
+ * - Simplified Status
+ * - Inline Editable Remarks
  */
 
 // --- Firebase Configuration ---
@@ -70,6 +70,39 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 // Using your project ID as the identifier for data paths
 const appId = 'tnd4-castrack';
+
+// --- Global Style Reset Component ---
+// This forces the app to use the full screen and light mode, overriding standard Vite defaults
+const GlobalStyles = () => (
+  <style>{`
+    :root {
+      font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      font-weight: 400;
+      color-scheme: light;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    body {
+      margin: 0;
+      display: block !important;
+      place-items: unset !important;
+      min-width: 320px;
+      min-height: 100vh;
+      background-color: #f8fafc; /* Match bg-slate-50 */
+      color: #0f172a; /* Match text-slate-900 */
+    }
+    #root {
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      text-align: left !important;
+      width: 100% !important;
+    }
+  `}</style>
+);
 
 // --- Helper Components ---
 

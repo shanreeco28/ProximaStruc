@@ -46,9 +46,9 @@ import {
 } from 'firebase/firestore';
 
 /**
- * SB-CasTrack v3.5 (Fix: Render GlobalStyles)
+ * SB-CasTrack v3.6 (Layout Consistency Fix)
  * Features:
- * - Actually renders GlobalStyles to fix layout issues
+ * - Enhanced GlobalStyles for identical preview/deploy layout
  * - Robust Auth Handling
  * - Simplified Status
  * - Inline Editable Remarks
@@ -72,9 +72,12 @@ const db = getFirestore(app);
 const appId = 'tnd4-castrack';
 
 // --- Global Style Reset Component ---
-// This forces the app to use the full screen and light mode, overriding standard Vite defaults
+// This forces the app to use the full screen and light mode, strictly overriding standard Vite/Browser defaults
 const GlobalStyles = () => (
   <style>{`
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
     :root {
       font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
       line-height: 1.5;
@@ -85,12 +88,17 @@ const GlobalStyles = () => (
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
+    html {
+      height: 100%;
+      width: 100%;
+    }
     body {
       margin: 0;
       display: block !important;
       place-items: unset !important;
       min-width: 320px;
       min-height: 100vh;
+      width: 100%;
       background-color: #f8fafc; /* Match bg-slate-50 */
       color: #0f172a; /* Match text-slate-900 */
     }
@@ -100,6 +108,8 @@ const GlobalStyles = () => (
       padding: 0 !important;
       text-align: left !important;
       width: 100% !important;
+      height: 100%;
+      display: block !important;
     }
   `}</style>
 );

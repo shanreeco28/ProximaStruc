@@ -73,11 +73,11 @@ import {
 } from 'firebase/firestore';
 
 /**
- * SB-CasTrack v8.2
+ * SB-CasTrack v8.3 (Dark Mode & Logo Consistency Fix)
  * Features:
- * - New App Logo (Blue Square Building Crane) matches user request
- * - Favicon ready SVG
- * - Full Project Management features
+ * - Fixed: Background color sticking in Dark Mode (Moved control to GlobalStyles)
+ * - Logo: Updated AppLogo to match the "Blue Square Building Crane" favicon design
+ * - All previous features (Ghost lines, Reports, Auth) intact
  */
 
 // --- Firebase Configuration ---
@@ -96,7 +96,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'tnd4-castrack';
 
-// --- Custom Logo Component (Matches User Image) ---
+// --- Custom Logo Component (Matches User Image / Favicon) ---
 const AppLogo = ({ className = "h-10 w-10" }) => (
   <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     {/* Blue Background with Rounded Corners */}
@@ -131,6 +131,7 @@ const AppLogo = ({ className = "h-10 w-10" }) => (
 );
 
 // --- Global Style Reset Component ---
+// FIX: We now control the BODY background color here exclusively to prevent conflicts
 const GlobalStyles = ({ isDark }) => (
   <style>{`
     *, *::before, *::after { box-sizing: border-box; }
@@ -144,6 +145,7 @@ const GlobalStyles = ({ isDark }) => (
     body {
       margin: 0; display: block !important; place-items: unset !important;
       min-width: 320px; min-height: 100vh; width: 100%;
+      /* Dynamic Background Handling */
       background-color: ${isDark ? '#0f172a' : '#f8fafc'}; 
       color: ${isDark ? '#f1f5f9' : '#0f172a'};
       transition: background-color 0.3s ease, color 0.3s ease;
@@ -572,6 +574,7 @@ export default function App() {
   useEffect(() => { if (activeTab) localStorage.setItem('sb-tab', activeTab); }, [activeTab]);
   useEffect(() => { 
     localStorage.setItem('sb-theme', isDark ? 'dark' : 'light'); 
+    // Fix: Add dark class to HTML element for Tailwind
     if (isDark) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [isDark]);

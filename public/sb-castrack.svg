@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Base Slabs -->
+  <path d="M2 17l10 5l10-5" />
+  <path d="M2 12l10 5l10-5" />
+  <!-- Active Slab being Placed -->
+  <path d="M12 2L2 7l10 5l10-5l-10-5z" />
+  <!-- Crane/Link Line -->
+  <path d="M12 2V0" />
+</svg>

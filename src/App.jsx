@@ -73,11 +73,12 @@ import {
 } from 'firebase/firestore';
 
 /**
- * SB-CasTrack v8.3 (Dark Mode & Logo Consistency Fix)
+ * SB-CasTrack v8.6 (Tooltip Slab Name)
  * Features:
- * - Fixed: Background color sticking in Dark Mode (Moved control to GlobalStyles)
- * - Logo: Updated AppLogo to match the "Blue Square Building Crane" favicon design
- * - All previous features (Ghost lines, Reports, Auth) intact
+ * - Tooltips now include Slab ID as title
+ * - Professional Construction Vector Logo
+ * - Dark Mode Fully Integrated
+ * - Complete Project Management Tool Suite
  */
 
 // --- Firebase Configuration ---
@@ -96,42 +97,17 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'tnd4-castrack';
 
-// --- Custom Logo Component (Matches User Image / Favicon) ---
-const AppLogo = ({ className = "h-10 w-10" }) => (
-  <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    {/* Blue Background with Rounded Corners */}
-    <rect width="100" height="100" rx="22" fill="#3b82f6" />
-    
-    {/* Ground Line */}
-    <path d="M20 82H80" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
-    
-    {/* Tall Building (Right) */}
-    <rect x="52" y="32" width="22" height="50" fill="#334155" />
-    {/* Windows Right */}
-    <rect x="56" y="38" width="14" height="6" fill="#94a3b8" />
-    <rect x="56" y="48" width="14" height="6" fill="#94a3b8" />
-    <rect x="56" y="58" width="14" height="6" fill="#94a3b8" />
-    <rect x="56" y="68" width="14" height="6" fill="#94a3b8" />
-
-    {/* Shorter Building (Left) */}
-    <rect x="26" y="48" width="22" height="34" fill="#475569" />
-    {/* Windows Left */}
-    <rect x="30" y="54" width="14" height="6" fill="#cbd5e1" />
-    <rect x="30" y="64" width="14" height="6" fill="#cbd5e1" />
-    
-    {/* Crane Structure */}
-    <rect x="66" y="22" width="4" height="10" fill="#fbbf24" /> {/* Mast Extension */}
-    <rect x="35" y="22" width="45" height="4" fill="#fbbf24" /> {/* Boom */}
-    <rect x="74" y="22" width="6" height="6" fill="#b45309" /> {/* Counterweight */}
-    <path d="M42 26V36" stroke="#fbbf24" strokeWidth="2" /> {/* Cable */}
-    
-    {/* Slab Load */}
-    <rect x="32" y="36" width="20" height="4" rx="1" fill="#60a5fa" stroke="#1d4ed8" strokeWidth="0.5" />
+// --- Custom Construction Logo ---
+const AppLogo = ({ className = "h-8 w-8" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M2 17l10 5l10-5" />
+    <path d="M2 12l10 5l10-5" />
+    <path d="M12 2L2 7l10 5l10-5l-10-5z" />
+    <path d="M12 2V0" />
   </svg>
 );
 
 // --- Global Style Reset Component ---
-// FIX: We now control the BODY background color here exclusively to prevent conflicts
 const GlobalStyles = ({ isDark }) => (
   <style>{`
     *, *::before, *::after { box-sizing: border-box; }
@@ -145,7 +121,6 @@ const GlobalStyles = ({ isDark }) => (
     body {
       margin: 0; display: block !important; place-items: unset !important;
       min-width: 320px; min-height: 100vh; width: 100%;
-      /* Dynamic Background Handling */
       background-color: ${isDark ? '#0f172a' : '#f8fafc'}; 
       color: ${isDark ? '#f1f5f9' : '#0f172a'};
       transition: background-color 0.3s ease, color 0.3s ease;
@@ -154,12 +129,10 @@ const GlobalStyles = ({ isDark }) => (
       max-width: none !important; margin: 0 !important; padding: 0 !important;
       text-align: left !important; width: 100% !important; height: 100%; display: block !important;
     }
-    /* Scrollbar Styling for Dark Mode */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: ${isDark ? '#1e293b' : '#f1f5f9'}; }
     ::-webkit-scrollbar-thumb { background: ${isDark ? '#475569' : '#cbd5e1'}; borderRadius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: ${isDark ? '#64748b' : '#94a3b8'}; }
-
     @media print {
       body { background-color: white !important; color: black !important; }
       .no-print { display: none !important; }
@@ -184,7 +157,6 @@ const Card = ({ title, value, icon: Icon, subtext, color = "blue" }) => (
 
 const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disabled }) => {
   let statusStyle = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"; 
-
   if (currentStatus === 'Delayed') {
     statusStyle = "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800";
   } else if (currentStatus === 'Cast') {
@@ -198,18 +170,10 @@ const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disable
       statusStyle = "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"; 
     }
   }
-
   return (
     <div className="relative inline-block">
-      <select 
-        value={currentStatus}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className={`appearance-none pl-3 pr-8 py-1 rounded-full text-[10px] md:text-xs font-medium border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-colors ${statusStyle} ${disabled ? 'cursor-default opacity-80' : 'cursor-pointer'}`}
-      >
-        <option value="Scheduled">Scheduled</option>
-        <option value="Cast">Cast</option>
-        <option value="Delayed">Delayed</option>
+      <select value={currentStatus} disabled={disabled} onChange={(e) => onChange(e.target.value)} className={`appearance-none pl-3 pr-8 py-1 rounded-full text-[10px] md:text-xs font-medium border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-colors ${statusStyle} ${disabled ? 'cursor-default opacity-80' : 'cursor-pointer'}`}>
+        <option value="Scheduled">Scheduled</option><option value="Cast">Cast</option><option value="Delayed">Delayed</option>
       </select>
       {!disabled && <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />}
     </div>
@@ -219,7 +183,6 @@ const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disable
 const BbsTags = ({ bbs, castingDate, onEdit, readOnly }) => {
   let list = Array.isArray(bbs) ? bbs : (bbs ? [bbs] : []);
   if (list.length === 0) return <span className="text-slate-400 dark:text-slate-600 italic text-xs">Pending</span>;
-
   return (
     <div className="flex flex-wrap gap-1 justify-end">
       {list.map((b, idx) => {
@@ -228,23 +191,9 @@ const BbsTags = ({ bbs, castingDate, onEdit, readOnly }) => {
         const desc = isObj ? b.description : '';
         const actual = isObj ? b.actualDate : '';
         const isCriticalDelay = castingDate && actual && new Date(actual) > new Date(castingDate);
-
-        // Tooltip showing "Added by"
-        let tooltip = `${desc || text}`; 
-        if (isObj && b.createdBy) tooltip += `\n(Added by: ${b.createdBy})`;
-
+        let tooltip = `${desc || text}`; if (isObj && b.createdBy) tooltip += `\n(Added by: ${b.createdBy})`;
         return (
-          <button 
-            key={idx} 
-            disabled={readOnly}
-            onClick={(e) => { e.stopPropagation(); onEdit && onEdit(idx); }}
-            title={tooltip} 
-            className={`font-mono text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap flex items-center gap-1 transition-colors
-              ${isCriticalDelay 
-                ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' 
-                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400'
-              } ${readOnly ? 'cursor-default' : ''}`}
-          >
+          <button key={idx} disabled={readOnly} onClick={(e) => { e.stopPropagation(); onEdit && onEdit(idx); }} title={tooltip} className={`font-mono text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap flex items-center gap-1 transition-colors ${isCriticalDelay ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400'} ${readOnly ? 'cursor-default' : ''}`}>
             {text} {isCriticalDelay && <AlertTriangle size={8} className="text-red-500" />}
           </button>
         );
@@ -285,13 +234,13 @@ const MobileNav = ({ activeTab, setActiveTab }) => {
 };
 
 // --- Tooltips & Ghost Lines ---
-const BubbleTooltip = ({ content, author, children, onVisible, onHidden, meta }) => {
+const BubbleTooltip = ({ title, content, author, children, onVisible, onHidden, meta }) => {
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [show, setShow] = useState(false);
   const timerRef = useRef(null);
   const handleMouseEnter = (e) => {
     if (onVisible) onVisible(meta);
-    if (!content && !author) return;
+    if (!content && !author && !title) return;
     const rect = e.currentTarget.getBoundingClientRect();
     setPosition({ top: rect.top - 8, left: rect.left + rect.width / 2 });
     timerRef.current = setTimeout(() => setShow(true), 2000); 
@@ -300,8 +249,8 @@ const BubbleTooltip = ({ content, author, children, onVisible, onHidden, meta })
   return (
     <><div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="relative w-full">{children}</div>{show && (
       <div className="fixed z-[9999] bg-slate-800 dark:bg-slate-900 text-white text-[10px] p-2 rounded shadow-2xl pointer-events-none animate-in fade-in zoom-in-95 duration-200 max-w-[200px]" style={{ top: position.top, left: position.left, transform: 'translate(-50%, -100%)' }}>
-        <div className="font-bold border-b border-slate-600 pb-1 mb-1 text-slate-300 uppercase text-[9px] tracking-wider">Details</div>
-        <div className="leading-relaxed">{content}</div>
+        <div className="font-bold border-b border-slate-600 pb-1 mb-1 text-white uppercase text-[10px] tracking-wider">{title || "Details"}</div>
+        <div className="leading-relaxed text-slate-300">{content}</div>
         {author && <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400 italic text-[8px]">Added by: {author}</div>}
         <div className="absolute top-full left-1/2 -ml-1 border-4 border-transparent border-t-slate-800 dark:border-t-slate-900"></div>
       </div>
@@ -365,7 +314,6 @@ const CalendarView = ({ data }) => {
 
   const days = []; for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="h-24 md:h-32 bg-slate-50/50 dark:bg-slate-900/50 border-b border-r border-slate-100 dark:border-slate-800"></div>);
   
-  // Filter data for calendar
   const filteredData = data.filter(item => 
     !filterText || 
     item.slabId.toLowerCase().includes(filterText.toLowerCase()) || 
@@ -405,13 +353,13 @@ const CalendarView = ({ data }) => {
         <div className="mt-1 md:mt-2 space-y-0.5 md:space-y-1 overflow-y-auto max-h-[60px] md:max-h-[85px] scrollbar-hide">
           {dayEvents.map((event, idx) => {
             let colorClass = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"; let icon = <CheckCircle2 size={8} />; let label = event.slabId;
-            if (event.type === 'castTarget') { colorClass = "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800"; icon = <Hammer size={8} />; label = `Plan: ${event.slabId}`; } 
+            if (event.type === 'castTarget') { colorClass = "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-500 dark:border-emerald-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Plan: ${event.slabId}`; } 
             else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-emerald-500 text-white border-emerald-600"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; } 
             else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800"; icon = <Truck size={8} />; } 
             else if (event.type === 'bbsActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800"; icon = <Target size={8} />; label = `BBS: ${event.bbsNum}`; } 
             else if (event.type === 'ghost') { colorClass = "bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 border-dashed text-slate-400 dark:text-slate-500 z-[15]"; icon = <Target size={8} />; label = event.label; }
             return (
-              <BubbleTooltip key={`${event.domId || idx}`} content={event.tooltipContent} author={event.author} onVisible={handleEventHover} onHidden={clearGhost} meta={event}>
+              <BubbleTooltip key={`${event.domId || idx}`} title={event.slabId || event.label} content={event.tooltipContent} author={event.author} onVisible={handleEventHover} onHidden={clearGhost} meta={event}>
                 <div id={event.domId} className={`relative z-20 text-[9px] md:text-[10px] px-1 py-0.5 rounded border truncate flex items-center gap-1 cursor-default ${colorClass}`}><span className="shrink-0">{icon}</span><span className="truncate">{label}</span>{event.tooltipContent && <Info size={6} className="ml-auto shrink-0 opacity-50" />}</div>
               </BubbleTooltip>
             );
@@ -574,7 +522,6 @@ export default function App() {
   useEffect(() => { if (activeTab) localStorage.setItem('sb-tab', activeTab); }, [activeTab]);
   useEffect(() => { 
     localStorage.setItem('sb-theme', isDark ? 'dark' : 'light'); 
-    // Fix: Add dark class to HTML element for Tailwind
     if (isDark) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [isDark]);
@@ -794,7 +741,7 @@ export default function App() {
       <GlobalStyles isDark={isDark} />
       <nav className="bg-slate-900 text-white sticky top-0 z-50 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-          <div className="flex items-center gap-3"><div className="bg-blue-500 p-1.5 rounded-lg"><AppLogo className="h-8 w-auto text-white" /></div><span className="font-bold text-lg md:text-xl tracking-tight">SB-CasTrack</span></div>
+          <div className="flex items-center gap-3"><div className="bg-blue-500 p-1.5 rounded-lg"><AppLogo className="h-8 w-8 text-white" /></div><span className="font-bold text-lg md:text-xl tracking-tight">SB-CasTrack</span></div>
           <div className="hidden md:flex items-center space-x-2">
             {[{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'tracker', label: 'Tracker', icon: FileText }, { id: 'calendar', label: 'Calendar', icon: CalendarIcon }].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.id ? 'bg-slate-800 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`}><tab.icon size={16} />{tab.label}</button>

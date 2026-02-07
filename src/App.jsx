@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
 import { 
   LayoutDashboard, 
@@ -83,19 +82,26 @@ import {
 
 // --- Firebase Configuration ---
 const firebaseConfig = {
-  apiKey: "AIzaSyDn6tKFPwszxiXOcayglRjl4yTCr7Y2BJo",
-  authDomain: "tnd4-castrack.firebaseapp.com",
-  projectId: "tnd4-castrack",
-  storageBucket: "tnd4-castrack.firebasestorage.app",
-  messagingSenderId: "579746948632",
-  appId: "1:579746948632:web:8f806ca4c50543a2dbc56d"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
+
+// Validate Configuration
+const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+const missingKeys = requiredKeys.filter(key => !firebaseConfig[key]);
+if (missingKeys.length > 0) {
+  console.error(`Missing Firebase configuration keys: ${missingKeys.join(', ')}`);
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = 'tnd4-castrack';
+const appId = firebaseConfig.projectId;
 
 // --- Custom Construction Logo ---
 const AppLogo = ({ className = "h-10 w-10" }) => (

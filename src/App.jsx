@@ -46,7 +46,6 @@ import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   onAuthStateChanged, 
-  signInAnonymously, 
   signInWithCustomToken,
   GoogleAuthProvider,
   signInWithPopup,

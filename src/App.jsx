@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
 import { 
   LayoutDashboard, 
@@ -394,11 +393,11 @@ const CalendarView = ({ data }) => {
   const days = []; for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="h-24 md:h-32 bg-slate-50/50 dark:bg-slate-900/50 border-b border-r border-slate-100 dark:border-slate-800"></div>);
   
   // Filter data for calendar
-  const filteredData = data.filter(item => 
+  const filteredData = useMemo(() => data.filter(item =>
     !filterText || 
     item.slabId.toLowerCase().includes(filterText.toLowerCase()) || 
     item.zone.toLowerCase().includes(filterText.toLowerCase())
-  );
+  ), [data, filterText]);
 
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;

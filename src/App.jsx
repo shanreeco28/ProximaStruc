@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
 import { 
   LayoutDashboard, 
   Truck, 
@@ -351,8 +352,6 @@ const CalendarView = ({ data }) => {
   const [ghostConnection, setGhostConnection] = useState(null); 
   const [filterText, setFilterText] = useState(''); // Calendar specific filter
   const hoverTimerRef = useRef(null); 
-  const getDaysInMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  const getFirstDayOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   const daysInMonth = getDaysInMonth(currentDate); const firstDay = getFirstDayOfMonth(currentDate);
   const monthName = currentDate.toLocaleString('default', { month: 'long' }); const year = currentDate.getFullYear();
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));

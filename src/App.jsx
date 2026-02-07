@@ -695,17 +695,19 @@ export default function App() {
     return { total, cast, delivered, pending, early, onTime, late, totalBBS, deliveredBBS };
   }, [data]);
 
-  const filteredData = data.filter(item => {
-    const textMatch = (item.slabId || '').toLowerCase().includes(searchQuery.toLowerCase()) || (Array.isArray(item.bbs) ? item.bbs.map(b => (typeof b === 'object' ? b.number : b)).join(' ') : '').toLowerCase().includes(searchQuery.toLowerCase()) || (item.zone || '').toLowerCase().includes(searchQuery.toLowerCase());
-    let dateMatch = true;
-    if (dateFilter.start && dateFilter.end && item.castingDate) {
-      const cDate = new Date(item.castingDate);
-      const sDate = new Date(dateFilter.start);
-      const eDate = new Date(dateFilter.end);
-      dateMatch = cDate >= sDate && cDate <= eDate;
-    }
-    return textMatch && dateMatch;
-  });
+  const filteredData = useMemo(() => {
+    return data.filter(item => {
+      const textMatch = (item.slabId || '').toLowerCase().includes(searchQuery.toLowerCase()) || (Array.isArray(item.bbs) ? item.bbs.map(b => (typeof b === 'object' ? b.number : b)).join(' ') : '').toLowerCase().includes(searchQuery.toLowerCase()) || (item.zone || '').toLowerCase().includes(searchQuery.toLowerCase());
+      let dateMatch = true;
+      if (dateFilter.start && dateFilter.end && item.castingDate) {
+        const cDate = new Date(item.castingDate);
+        const sDate = new Date(dateFilter.start);
+        const eDate = new Date(dateFilter.end);
+        dateMatch = cDate >= sDate && cDate <= eDate;
+      }
+      return textMatch && dateMatch;
+    });
+  }, [data, searchQuery, dateFilter]);
 
   const ReportView = () => (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">

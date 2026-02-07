@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
+import { calculateMetrics } from './utils/metricsHelpers';
 import { 
   LayoutDashboard, 
   Truck, 
@@ -680,20 +681,7 @@ export default function App() {
   const handleSaveCastingEdit = async (e) => { e.preventDefault(); if (!checkAdmin()) return; const updates = { castingDate: editCastingState.target, actualCastingDate: editCastingState.actual }; if (editCastingState.actual) updates.status = 'Cast'; try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', editCastingState.id), updates); setActiveModal(null); } catch (err) { alert(err.message); } };
 
   // --- Metrics ---
-  const metrics = useMemo(() => {
-    const total = data.length;
-    const cast = data.filter(d => d.status === 'Cast').length;
-    const delivered = data.filter(d => Array.isArray(d.deliveries) && d.deliveries.length > 0).length;
-    const pending = data.filter(d => d.status === 'Scheduled').length;
-    let early = 0, onTime = 0, late = 0;
-    data.filter(d => d.status === 'Cast' && d.castingDate && d.actualCastingDate).forEach(d => {
-      const t = new Date(d.castingDate).getTime(); const a = new Date(d.actualCastingDate).getTime();
-      if (a < t) early++; else if (a > t) late++; else onTime++;
-    });
-    const totalBBS = data.reduce((acc, curr) => acc + (Array.isArray(curr.bbs) ? curr.bbs.length : 0), 0);
-    const deliveredBBS = data.reduce((acc, curr) => acc + (Array.isArray(curr.bbs) ? curr.bbs.filter(b => b.actualDate).length : 0), 0);
-    return { total, cast, delivered, pending, early, onTime, late, totalBBS, deliveredBBS };
-  }, [data]);
+  const metrics = useMemo(() => calculateMetrics(data), [data]);
 
   const filteredData = data.filter(item => {
     const textMatch = (item.slabId || '').toLowerCase().includes(searchQuery.toLowerCase()) || (Array.isArray(item.bbs) ? item.bbs.map(b => (typeof b === 'object' ? b.number : b)).join(' ') : '').toLowerCase().includes(searchQuery.toLowerCase()) || (item.zone || '').toLowerCase().includes(searchQuery.toLowerCase());

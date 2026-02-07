@@ -2,29 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global Style Resets */
-*, *::before, *::after {
-  box-sizing: border-box;
-}
-
-:root {
+/* Global Style Resets (Formerly GlobalStyles component) */
+/* ...existing code... */
+body, html {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   color-scheme: light;
-
-  /* Font smoothing and rendering optimization */
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark mode overrides for root */
-html.dark {
-  color-scheme: dark;
-}
-
+/* Force full height and width to override default Vite styles */
 html {
   height: 100%;
   width: 100%;
@@ -32,69 +23,26 @@ html {
 
 body {
   margin: 0;
-  display: block !important;
-  place-items: unset !important;
+  display: block;
+  place-items: unset; /* Overrides Vite's centering */
   min-width: 320px;
   min-height: 100vh;
   width: 100%;
-  /* Base background and text colors handled here */
-  background-color: #f8fafc;
-  color: #0f172a;
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-html.dark body {
-  background-color: #0f172a;
-  color: #f1f5f9;
+  background-color: #f8fafc; /* Matches bg-slate-50 */
+  color: #0f172a; /* Matches text-slate-900 */
 }
 
 #root {
-  max-width: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  text-align: left !important;
-  width: 100% !important;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  width: 100%;
   height: 100%;
-  display: block !important;
+  display: block;
 }
 
-/* Scrollbar Styles */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-
-html.dark ::-webkit-scrollbar-track {
-  background: #1e293b;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
-
-html.dark ::-webkit-scrollbar-thumb {
-  background: #475569;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
-}
-
-@media print {
-  body {
-    background-color: white !important;
-    color: black !important;
-  }
-  .no-print {
-    display: none !important;
-  }
+/* Ensure border-box sizing everywhere */
+*, *::before, *::after {
+  box-sizing: border-box;
 }

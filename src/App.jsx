@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
 import { 
   LayoutDashboard, 
@@ -15,30 +14,20 @@ import {
   FileText,
   Hammer,
   ChevronDown,
-  Filter,
   X,
   ChevronLeft,
   ChevronRight,
-  Database,
   FileSignature,
   PackagePlus,
   Target,
   Edit2,
   Info,
   BarChart3,
-  PieChart,
   Printer,
   TrendingUp,
   Activity,
-  User,
   Shield,
-  Eye,
   Mail,
-  Lock,
-  CalendarDays,
-  Briefcase,
-  Link as LinkIcon,
-  UserCog,
   Moon,
   Sun
 } from 'lucide-react';

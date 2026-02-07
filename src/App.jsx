@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
 import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
+import { getStatusStyle } from './utils/statusHelpers';
 import { 
   LayoutDashboard, 
   Truck, 
@@ -14,33 +15,26 @@ import {
   FileText,
   Hammer,
   ChevronDown,
-  Filter,
   X,
   ChevronLeft,
   ChevronRight,
-  Database,
   FileSignature,
   PackagePlus,
   Target,
   Edit2,
   Info,
   BarChart3,
-  PieChart,
   Printer,
   TrendingUp,
   Activity,
-  User,
   Shield,
-  Eye,
   Mail,
-  Lock,
-  CalendarDays,
-  Briefcase,
-  Link as LinkIcon,
-  UserCog,
   Moon,
   Sun
 } from 'lucide-react';
+
+import MobileNav from './components/MobileNav';
+import Card from './components/Card';
 
 // --- Firebase Imports ---
 import { initializeApp } from 'firebase/app';
@@ -178,34 +172,8 @@ const GlobalStyles = ({ isDark }) => (
 
 // --- Helper Components ---
 
-const Card = ({ title, value, icon: Icon, subtext, color = "blue" }) => (
-  <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-start justify-between hover:shadow-md transition-shadow">
-    <div>
-      <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium mb-1">{title}</p>
-      <h3 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white">{value}</h3>
-      {subtext && <p className={`text-[10px] md:text-xs mt-2 font-medium ${subtext.includes('+') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>{subtext}</p>}
-    </div>
-    <div className={`p-2 md:p-3 rounded-lg bg-${color}-50 dark:bg-slate-700 text-${color}-600 dark:text-${color}-400`}>
-      <Icon size={20} className="md:w-6 md:h-6" />
-    </div>
-  </div>
-);
-
 const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disabled }) => {
-  let statusStyle = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"; 
-  if (currentStatus === 'Delayed') {
-    statusStyle = "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800";
-  } else if (currentStatus === 'Cast') {
-    if (targetDate && actualDate) {
-      const target = new Date(targetDate).setHours(0,0,0,0);
-      const actual = new Date(actualDate).setHours(0,0,0,0);
-      if (actual > target) statusStyle = "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 font-bold"; 
-      else if (actual < target) statusStyle = "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 font-bold"; 
-      else statusStyle = "bg-white dark:bg-slate-700 text-slate-700 dark:text-white border-slate-300 dark:border-slate-600"; 
-    } else {
-      statusStyle = "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"; 
-    }
-  }
+  const statusStyle = getStatusStyle(currentStatus, targetDate, actualDate);
   return (
     <div className="relative inline-block">
       <select value={currentStatus} disabled={disabled} onChange={(e) => onChange(e.target.value)} className={`appearance-none pl-3 pr-8 py-1 rounded-full text-[10px] md:text-xs font-medium border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-colors ${statusStyle} ${disabled ? 'cursor-default opacity-80' : 'cursor-pointer'}`}>
@@ -262,18 +230,6 @@ const DeliveryTags = ({ deliveries, castingDate }) => {
   );
 };
 
-const MobileNav = ({ activeTab, setActiveTab }) => {
-  const tabs = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'tracker', label: 'Tracker', icon: FileText }, { id: 'calendar', label: 'Calendar', icon: CalendarIcon }];
-  return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-2 pb-safe z-50 shadow-lg flex justify-around items-center no-print">
-      {tabs.map(tab => (
-        <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors w-full ${activeTab === tab.id ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}>
-          <tab.icon size={20} className={activeTab === tab.id ? 'fill-current opacity-20' : ''} /><span className="text-[10px] font-medium">{tab.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-};
 
 // --- Tooltips & Ghost Lines ---
 const BubbleTooltip = ({ title, content, author, children, onVisible, onHidden, meta }) => {
@@ -400,11 +356,7 @@ const CalendarView = ({ data }) => {
   const days = []; for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="h-24 md:h-32 bg-slate-50/50 dark:bg-slate-900/50 border-b border-r border-slate-100 dark:border-slate-800"></div>);
   
   // Filter data for calendar
-  const filteredData = data.filter(item => 
-    !filterText || 
-    item.slabId.toLowerCase().includes(filterText.toLowerCase()) || 
-    item.zone.toLowerCase().includes(filterText.toLowerCase())
-  );
+  const filteredData = useMemo(() => filterCalendarData(data, filterText), [data, filterText]);
 
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -558,6 +510,11 @@ export default function App() {
 
   // --- Persistent State ---
   useEffect(() => {
+    if (!isConfigValid || !auth) {
+      setAuthLoading(false);
+      return;
+    }
+
     // 1. Auth Init
     const initAuth = async () => {
       try {
@@ -613,7 +570,7 @@ export default function App() {
   }, [isDark]);
   
   useEffect(() => {
-    if (!user) return;
+    if (!user || !db || !appId) return;
     const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'slabs'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -627,8 +584,8 @@ export default function App() {
     const userData = { name: role === 'admin' ? 'Project Admin' : 'Guest Viewer', role: role };
     setUser(userData); localStorage.setItem('sb-user', JSON.stringify(userData));
   };
-  const handleLogout = async () => { await signOut(auth); setUser(null); localStorage.removeItem('sb-user'); setActiveTab('dashboard'); };
-  const checkAdmin = useCallback(() => { if (user?.role !== 'admin') { alert("Permission Denied: Admin access required."); return false; } return true; }, [user]);
+  const handleLogout = async () => { if (auth) await signOut(auth); setUser(null); localStorage.removeItem('sb-user'); setActiveTab('dashboard'); };
+  const checkAdmin = () => { if (user?.role !== 'admin') { alert("Permission Denied: Admin access required."); return false; } return true; };
 
   // Profile Update
   const handleUpdateProfile = async (e) => {
@@ -701,17 +658,19 @@ export default function App() {
     return { total, cast, delivered, pending, early, onTime, late, totalBBS, deliveredBBS };
   }, [data]);
 
-  const filteredData = data.filter(item => {
-    const textMatch = (item.slabId || '').toLowerCase().includes(searchQuery.toLowerCase()) || (Array.isArray(item.bbs) ? item.bbs.map(b => (typeof b === 'object' ? b.number : b)).join(' ') : '').toLowerCase().includes(searchQuery.toLowerCase()) || (item.zone || '').toLowerCase().includes(searchQuery.toLowerCase());
-    let dateMatch = true;
-    if (dateFilter.start && dateFilter.end && item.castingDate) {
-      const cDate = new Date(item.castingDate);
-      const sDate = new Date(dateFilter.start);
-      const eDate = new Date(dateFilter.end);
-      dateMatch = cDate >= sDate && cDate <= eDate;
-    }
-    return textMatch && dateMatch;
-  });
+  const filteredData = useMemo(() => {
+    return data.filter(item => {
+      const textMatch = (item.slabId || '').toLowerCase().includes(searchQuery.toLowerCase()) || (Array.isArray(item.bbs) ? item.bbs.map(b => (typeof b === 'object' ? b.number : b)).join(' ') : '').toLowerCase().includes(searchQuery.toLowerCase()) || (item.zone || '').toLowerCase().includes(searchQuery.toLowerCase());
+      let dateMatch = true;
+      if (dateFilter.start && dateFilter.end && item.castingDate) {
+        const cDate = new Date(item.castingDate);
+        const sDate = new Date(dateFilter.start);
+        const eDate = new Date(dateFilter.end);
+        dateMatch = cDate >= sDate && cDate <= eDate;
+      }
+      return textMatch && dateMatch;
+    });
+  }, [data, searchQuery, dateFilter]);
 
   const ReportView = () => (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
@@ -818,6 +777,37 @@ export default function App() {
       </div>
     </div>
   );
+
+  if (!isConfigValid) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 p-4 font-sans">
+        <GlobalStyles isDark={isDark} />
+        <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden p-8 text-center border border-slate-200 dark:border-slate-700">
+          <div className="mx-auto bg-red-100 dark:bg-red-900/30 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+            <Lock className="text-red-600 dark:text-red-400" size={32} />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Configuration Required</h1>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">
+            Firebase environment variables are missing. Please set up your <code>.env</code> file to continue.
+          </p>
+          <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 text-left overflow-x-auto mb-6 border border-slate-100 dark:border-slate-700">
+            <p className="text-xs font-bold text-slate-400 uppercase mb-2">Required variables:</p>
+            <pre className="text-[10px] text-slate-600 dark:text-slate-300 font-mono">
+              VITE_FIREBASE_API_KEY=...{"\n"}
+              VITE_FIREBASE_AUTH_DOMAIN=...{"\n"}
+              VITE_FIREBASE_PROJECT_ID=...{"\n"}
+              VITE_FIREBASE_STORAGE_BUCKET=...{"\n"}
+              VITE_FIREBASE_MESSAGING_SENDER_ID=...{"\n"}
+              VITE_FIREBASE_APP_ID=...
+            </pre>
+          </div>
+          <p className="text-xs text-slate-400">
+            Refer to <code>.env.example</code> for the full list of required keys.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-500">Connecting to Cloud...</div>;
   if (!user) return <LoginView onLogin={(role) => { /* handled inside LoginView now */ }} />;

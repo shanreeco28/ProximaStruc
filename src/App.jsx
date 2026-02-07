@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
-import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
+import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers.js';
 import { 
   LayoutDashboard, 
   Truck, 

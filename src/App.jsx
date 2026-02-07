@@ -482,14 +482,24 @@ const CalendarView = ({ data }) => {
 };
 
 // --- Login View ---
-const LoginView = ({ onLogin }) => {
-  const [mode, setMode] = useState('login'); 
+const LoginView = ({ onLogin, initialMode = 'login' }) => {
+  const [mode, setMode] = useState(initialMode);
   const [formData, setFormData] = useState({ email: '', password: '', name: '', birthday: '', designation: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  const handleConfirmEmail = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      await signInWithEmailLink(auth, formData.email, window.location.href);
+      window.localStorage.removeItem('emailForSignIn');
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  };
 
   const handleGoogle = async () => {
     setLoading(true); setError('');
@@ -522,6 +532,22 @@ const LoginView = ({ onLogin }) => {
           {mode === 'login' && (<><form onSubmit={handleEmailLogin} className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label><input name="email" type="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none" required /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label><input name="password" type="password" value={formData.password} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none" required /></div><button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">{loading ? 'Signing In...' : <><Shield size={18} /> Sign In</>}</button></form><div className="flex items-center gap-2 my-2"><div className="h-px bg-slate-200 flex-1"></div><span className="text-xs text-slate-400">OR</span><div className="h-px bg-slate-200 flex-1"></div></div><button onClick={handleGoogle} className="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="G" /> Sign in with Google</button><button onClick={() => setMode('magic')} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors"><Mail size={18} /> Sign in via Email Link</button><div className="text-center text-sm text-slate-500 mt-4">Don't have an account? <button onClick={() => setMode('register')} className="text-blue-600 font-bold hover:underline">Register</button></div></>)}
           {mode === 'register' && (<form onSubmit={handleRegister} className="space-y-4"><h3 className="text-lg font-bold text-slate-800 mb-2">Create Account</h3><div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Full Name</label><input name="name" type="text" value={formData.name} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none text-sm" required /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Birthday</label><input name="birthday" type="date" value={formData.birthday} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none text-sm" required /></div></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Designation</label><input name="designation" type="text" placeholder="e.g. Site Engineer" value={formData.designation} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none text-sm" required /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label><input name="email" type="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none text-sm" required /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label><input name="password" type="password" value={formData.password} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none text-sm" required /></div><button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">{loading ? 'Creating...' : 'Register Now'}</button><button type="button" onClick={() => setMode('login')} className="w-full text-slate-500 text-sm hover:text-slate-700">Back to Login</button></form>)}
           {mode === 'magic' && (<div className="space-y-4"><h3 className="text-lg font-bold text-slate-800">Passwordless Login</h3>{magicSent ? (<div className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm text-center"><CheckCircle2 className="mx-auto mb-2" size={32} />Check your email ({formData.email}) for the sign-in link!</div>) : (<form onSubmit={handleMagicLink} className="space-y-4"><p className="text-sm text-slate-500">Enter your email and we'll send you a link to sign in instantly.</p><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label><input name="email" type="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none" required /></div><button type="submit" disabled={loading} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">{loading ? 'Sending...' : 'Send Magic Link'}</button></form>)}<button type="button" onClick={() => setMode('login')} className="w-full text-slate-500 text-sm hover:text-slate-700">Back to Login</button></div>)}
+          {mode === 'confirm-email' && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold text-slate-800">Confirm Email</h3>
+              <p className="text-sm text-slate-500">Please confirm your email address to complete sign-in.</p>
+              <form onSubmit={handleConfirmEmail} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>
+                  <input name="email" type="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none" required />
+                </div>
+                <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">
+                  {loading ? 'Verifying...' : 'Complete Sign In'}
+                </button>
+              </form>
+              <button type="button" onClick={() => setMode('login')} className="w-full text-slate-500 text-sm hover:text-slate-700">Back to Login</button>
+            </div>
+          )}
           {error && <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg">{error}</div>}
         </div>
       </div>
@@ -534,6 +560,7 @@ const LoginView = ({ onLogin }) => {
 export default function App() {
   const [user, setUser] = useState(null); 
   const [authLoading, setAuthLoading] = useState(true);
+  const [emailConfirmationNeeded, setEmailConfirmationNeeded] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [data, setData] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -557,7 +584,11 @@ export default function App() {
       try {
         if (isSignInWithEmailLink(auth, window.location.href)) {
           let email = window.localStorage.getItem('emailForSignIn');
-          if (!email) email = window.prompt('Please provide your email for confirmation');
+          if (!email) {
+            setEmailConfirmationNeeded(true);
+            setAuthLoading(false);
+            return;
+          }
           await signInWithEmailLink(auth, email, window.location.href);
           window.localStorage.removeItem('emailForSignIn');
         } else if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -814,7 +845,7 @@ export default function App() {
   );
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-500">Connecting to Cloud...</div>;
-  if (!user) return <LoginView onLogin={(role) => { /* handled inside LoginView now */ }} />;
+  if (!user) return <LoginView initialMode={emailConfirmationNeeded ? 'confirm-email' : 'login'} />;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300">

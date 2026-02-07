@@ -84,22 +84,18 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Defensive check for configuration
-const isConfigValid = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
-
-// Initialize Firebase
-let app, auth, db;
-if (isConfigValid) {
-  try {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-  } catch (err) {
-    console.error("Firebase initialization failed:", err);
-  }
+// Validate Configuration
+const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+const missingKeys = requiredKeys.filter(key => !firebaseConfig[key]);
+if (missingKeys.length > 0) {
+  console.error(`Missing Firebase configuration keys: ${missingKeys.join(', ')}`);
 }
 
-const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = firebaseConfig.projectId;
 
 // --- Custom Construction Logo ---
 const AppLogo = ({ className = "h-10 w-10" }) => (

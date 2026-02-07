@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
+import Card from './components/Card';
 import { 
   LayoutDashboard, 
   Truck, 
@@ -171,19 +171,6 @@ const GlobalStyles = ({ isDark }) => (
 );
 
 // --- Helper Components ---
-
-const Card = ({ title, value, icon: Icon, subtext, color = "blue" }) => (
-  <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-start justify-between hover:shadow-md transition-shadow">
-    <div>
-      <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium mb-1">{title}</p>
-      <h3 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white">{value}</h3>
-      {subtext && <p className={`text-[10px] md:text-xs mt-2 font-medium ${subtext.includes('+') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>{subtext}</p>}
-    </div>
-    <div className={`p-2 md:p-3 rounded-lg bg-${color}-50 dark:bg-slate-700 text-${color}-600 dark:text-${color}-400`}>
-      <Icon size={20} className="md:w-6 md:h-6" />
-    </div>
-  </div>
-);
 
 const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disabled }) => {
   let statusStyle = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"; 

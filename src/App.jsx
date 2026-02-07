@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
 import { 
   LayoutDashboard, 
   Truck, 
@@ -209,7 +209,7 @@ const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disable
   );
 };
 
-const BbsTags = ({ bbs, castingDate, onEdit, readOnly }) => {
+const BbsTags = memo(({ bbs, castingDate, onEdit, readOnly }) => {
   let list = Array.isArray(bbs) ? bbs : (bbs ? [bbs] : []);
   if (list.length === 0) return <span className="text-slate-400 dark:text-slate-600 italic text-xs">Pending</span>;
   return (
@@ -229,7 +229,13 @@ const BbsTags = ({ bbs, castingDate, onEdit, readOnly }) => {
       })}
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.bbs === nextProps.bbs &&
+    prevProps.castingDate === nextProps.castingDate &&
+    prevProps.readOnly === nextProps.readOnly
+  );
+});
 
 const DeliveryTags = ({ deliveries, castingDate }) => {
   let list = Array.isArray(deliveries) ? deliveries : [];
@@ -617,7 +623,7 @@ export default function App() {
     setUser(userData); localStorage.setItem('sb-user', JSON.stringify(userData));
   };
   const handleLogout = async () => { await signOut(auth); setUser(null); localStorage.removeItem('sb-user'); setActiveTab('dashboard'); };
-  const checkAdmin = () => { if (user?.role !== 'admin') { alert("Permission Denied: Admin access required."); return false; } return true; };
+  const checkAdmin = useCallback(() => { if (user?.role !== 'admin') { alert("Permission Denied: Admin access required."); return false; } return true; }, [user]);
 
   // Profile Update
   const handleUpdateProfile = async (e) => {
@@ -669,7 +675,7 @@ export default function App() {
   const updateStatus = async (item, newStatus) => { if (!checkAdmin()) return; try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', item.id), { status: newStatus }); } catch (err) { alert(err.message); } };
   const startEditingRemark = (item) => { if(!checkAdmin()) return; setEditingRemark({ id: item.id, text: item.remarks || '' }); };
   const saveRemark = async () => { if (!editingRemark.id) return; try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', editingRemark.id), { remarks: editingRemark.text }); setEditingRemark({ id: null, text: '' }); } catch (err) { alert(err.message); } };
-  const initiateEditBBS = (slab, bbsIndex) => { if (!checkAdmin()) return; const item = slab.bbs[bbsIndex]; setEditBbsState({ slabId: slab.id, bbsIndex, data: typeof item === 'object' ? item : { number: item, description: '' } }); setActiveModal('edit-bbs'); };
+  const initiateEditBBS = useCallback((slab, bbsIndex) => { if (!checkAdmin()) return; const item = slab.bbs[bbsIndex]; setEditBbsState({ slabId: slab.id, bbsIndex, data: typeof item === 'object' ? item : { number: item, description: '' } }); setActiveModal('edit-bbs'); }, [checkAdmin, setEditBbsState, setActiveModal]);
   const handleSaveBbsEdit = async (e) => { e.preventDefault(); if (!checkAdmin()) return; const slab = data.find(d => d.id === editBbsState.slabId); if (!slab) return; const updated = [...slab.bbs]; updated[editBbsState.bbsIndex] = editBbsState.data; try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', editBbsState.slabId), { bbs: updated }); setActiveModal(null); } catch (err) { alert(err.message); } };
   const initiateEditCasting = (item) => { if (!checkAdmin()) return; setEditCastingState({ id: item.id, target: item.castingDate || '', actual: item.actualCastingDate || '' }); setActiveModal('edit-casting'); };
   const handleSaveCastingEdit = async (e) => { e.preventDefault(); if (!checkAdmin()) return; const updates = { castingDate: editCastingState.target, actualCastingDate: editCastingState.actual }; if (editCastingState.actual) updates.status = 'Cast'; try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', editCastingState.id), updates); setActiveModal(null); } catch (err) { alert(err.message); } };

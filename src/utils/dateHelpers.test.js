@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { getDaysInMonth, getFirstDayOfMonth } from './dateHelpers.js';
+import { getDaysInMonth, getFirstDayOfMonth, isDateAfter } from './dateHelpers.js';
 
 describe('Date Helpers', () => {
   describe('getDaysInMonth', () => {
@@ -44,6 +44,26 @@ describe('Date Helpers', () => {
     test('should return 1 for January 2024 (starts on Monday)', () => {
       const date = new Date(2024, 0, 1); // Jan 1, 2024
       assert.strictEqual(getFirstDayOfMonth(date), 1);
+    });
+  });
+
+  describe('isDateAfter', () => {
+    test('should return true if first date is after second date', () => {
+      assert.strictEqual(isDateAfter('2023-10-28', '2023-10-27'), true);
+    });
+
+    test('should return false if first date is before second date', () => {
+      assert.strictEqual(isDateAfter('2023-10-26', '2023-10-27'), false);
+    });
+
+    test('should return false if dates are equal', () => {
+      assert.strictEqual(isDateAfter('2023-10-27', '2023-10-27'), false);
+    });
+
+    test('should return false if either date is missing', () => {
+      assert.strictEqual(isDateAfter(null, '2023-10-27'), false);
+      assert.strictEqual(isDateAfter('2023-10-27', null), false);
+      assert.strictEqual(isDateAfter(undefined, undefined), false);
     });
   });
 });

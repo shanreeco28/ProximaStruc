@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
-import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers.js';
+import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
+import DeliveryTags from './components/DeliveryTags';
 import { 
   LayoutDashboard, 
   Truck, 
@@ -237,23 +238,6 @@ const BbsTags = memo(({ bbs, castingDate, onEdit, readOnly }) => {
   );
 });
 
-const DeliveryTags = ({ deliveries, castingDate }) => {
-  let list = Array.isArray(deliveries) ? deliveries : [];
-  return (
-    <div className="flex flex-col gap-1.5">
-      {list.length > 0 ? list.map((d, idx) => {
-          const isCriticalDelay = castingDate && new Date(d.date) > new Date(castingDate);
-          return (
-            <div key={idx} className="flex items-center gap-2 text-xs" title={d.description + (d.createdBy ? ` (By: ${d.createdBy})` : '')}>
-               <Truck size={12} className={isCriticalDelay ? "text-red-500" : "text-emerald-500"} />
-               <span className={`font-medium ${isCriticalDelay ? "text-red-700 dark:text-red-400 font-bold" : "text-slate-700 dark:text-slate-300"}`}>{d.date}</span>
-               {isCriticalDelay && <span className="text-[8px] text-red-500 dark:text-red-400 font-bold px-1 border border-red-200 dark:border-red-800 rounded bg-red-50 dark:bg-red-900/30">LATE</span>}
-            </div>
-          );
-        }) : <span className="text-slate-300 dark:text-slate-600 italic text-[10px] pl-1">No actuals yet</span>}
-    </div>
-  );
-};
 
 const MobileNav = ({ activeTab, setActiveTab }) => {
   const tabs = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'tracker', label: 'Tracker', icon: FileText }, { id: 'calendar', label: 'Calendar', icon: CalendarIcon }];

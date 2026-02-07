@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
-import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
-import { validateZone, generateSlabId } from './utils/slabHelpers';
 import { 
   LayoutDashboard, 
   Truck, 
@@ -620,14 +618,10 @@ export default function App() {
   // CRUD Handlers
   const handleAddSlab = async (e) => {
     e.preventDefault(); if (!checkAdmin()) return;
-
-    if (!validateZone(slabForm.zone)) {
-      alert("Invalid Zone format. Use alphanumeric characters only.");
-      return;
-    }
-
+    const zoneCode = slabForm.zone.trim().split(/\s+/).map(w => w.charAt(0)).join('').toUpperCase();
+    const dateCode = slabForm.castingDate ? slabForm.castingDate.replace(/-/g, '').slice(2) : '000000'; 
+    const autoSlabId = `${zoneCode}-${dateCode}`;
     try {
-      const autoSlabId = generateSlabId(slabForm.zone, slabForm.castingDate);
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'slabs'), { 
         ...slabForm, slabId: autoSlabId, bbs: [], deliveries: [], notes: '', createdAt: new Date().toISOString(), createdBy: user.name 
       });

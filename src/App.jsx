@@ -359,31 +359,42 @@ const CalendarView = ({ data }) => {
   // Filter data for calendar
   const filteredData = useMemo(() => filterCalendarData(data, filterText), [data, filterText]);
 
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dateStr = `${year}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const dayId = `cal-day-${dateStr}`; const dayEvents = [];
+  const eventsByDate = useMemo(() => {
+    const map = {};
+    const addEvent = (date, event) => {
+      if (!map[date]) map[date] = [];
+      map[date].push(event);
+    };
+
     filteredData.forEach((item, itemIdx) => {
       const baseId = `${item.id}-${itemIdx}`;
-      if (item.castingDate === dateStr) { 
-        if (!item.actualCastingDate) dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.remarks || 'Target Casting', author: item.createdBy, ...item }); 
+      if (item.castingDate) {
+        if (!item.actualCastingDate) addEvent(item.castingDate, { type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.remarks || 'Target Casting', author: item.createdBy, ...item });
       }
-      if (item.actualCastingDate === dateStr) { 
+      if (item.actualCastingDate) {
         const isLate = item.castingDate && new Date(item.actualCastingDate) > new Date(item.castingDate); 
-        dayEvents.push({ type: 'castActual', isLate, domId: `evt-cast-actual-${baseId}`, tooltipContent: item.remarks || 'Actual Casting', author: item.createdBy, targetDate: item.castingDate, dateStr: item.actualCastingDate, ...item }); 
+        addEvent(item.actualCastingDate, { type: 'castActual', isLate, domId: `evt-cast-actual-${baseId}`, tooltipContent: item.remarks || 'Actual Casting', author: item.createdBy, targetDate: item.castingDate, dateStr: item.actualCastingDate, ...item });
       }
       if (Array.isArray(item.deliveries)) item.deliveries.forEach((d, dIdx) => { 
-        if (d.date === dateStr) { 
+        if (d.date) {
           const isLate = item.hcsTargetDate && new Date(d.date) > new Date(item.hcsTargetDate); 
-          dayEvents.push({ type: 'delivery', isLate, domId: `evt-del-${baseId}-${dIdx}`, ...item, tooltipContent: d.description || 'Batch Delivery', author: d.createdBy, dateStr: d.date, targetDate: item.hcsTargetDate }); 
+          addEvent(d.date, { type: 'delivery', isLate, domId: `evt-del-${baseId}-${dIdx}`, ...item, tooltipContent: d.description || 'Batch Delivery', author: d.createdBy, dateStr: d.date, targetDate: item.hcsTargetDate });
         } 
       });
       if (Array.isArray(item.bbs)) item.bbs.forEach((b, bIdx) => { 
-        if (typeof b === 'object' && b.actualDate === dateStr) { 
+        if (typeof b === 'object' && b.actualDate) {
           const isLate = b.targetDate && new Date(b.actualDate) > new Date(b.targetDate); 
-          dayEvents.push({ type: 'bbsActual', isLate, domId: `evt-bbs-${baseId}-${bIdx}`, ...item, bbsNum: b.number, tooltipContent: b.description || 'BBS Delivery', author: b.createdBy, dateStr: b.actualDate, targetDate: b.targetDate }); 
+          addEvent(b.actualDate, { type: 'bbsActual', isLate, domId: `evt-bbs-${baseId}-${bIdx}`, ...item, bbsNum: b.number, tooltipContent: b.description || 'BBS Delivery', author: b.createdBy, dateStr: b.actualDate, targetDate: b.targetDate });
         } 
       });
     });
+    return map;
+  }, [filteredData]);
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dayId = `cal-day-${dateStr}`;
+    const dayEvents = eventsByDate[dateStr] ? [...eventsByDate[dateStr]] : [];
     if (ghostConnection && ghostConnection.targetDate === dateStr && !dayEvents.some(e => e.type === 'ghost' && e.label === ghostConnection.label)) dayEvents.push({ type: 'ghost', domId: ghostConnection.startElementId, label: ghostConnection.label });
     
     days.push(

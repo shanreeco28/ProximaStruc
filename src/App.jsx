@@ -563,7 +563,11 @@ export default function App() {
         } else if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           try { await signInWithCustomToken(auth, __initial_auth_token); } catch (err) {}
         }
-      } catch (error) { console.error("Auth error:", error); } finally { setAuthLoading(false); }
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error("Auth error:", error);
+        }
+      } finally { setAuthLoading(false); }
     };
     initAuth();
     

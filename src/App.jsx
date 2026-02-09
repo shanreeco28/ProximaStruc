@@ -706,13 +706,11 @@ export default function App() {
         } else if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           try { await signInWithCustomToken(auth, __initial_auth_token); } catch (err) {}
         }
-      } catch (error) { console.error("Auth error:", error); } finally { setAuthLoading(false); }
+      } catch (error) { console.error("Auth error:", error); }
     };
     initAuth();
     
     // 2. Load LocalStorage items
-    const savedUser = localStorage.getItem('sb-user');
-    if (savedUser) setUser(JSON.parse(savedUser));
     const savedTab = localStorage.getItem('sb-tab');
     if (savedTab) setActiveTab(savedTab);
     const savedTheme = localStorage.getItem('sb-theme');
@@ -726,7 +724,6 @@ export default function App() {
           if (userDoc.exists()) {
              const userData = { ...currentUser, ...userDoc.data() };
              setUser(userData);
-             localStorage.setItem('sb-user', JSON.stringify(userData));
           } else {
              setUser({ ...currentUser, role: 'guest' }); 
           }
@@ -735,8 +732,8 @@ export default function App() {
         }
       } else {
         setUser(null);
-        localStorage.removeItem('sb-user');
       }
+      setAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -760,11 +757,7 @@ export default function App() {
   }, [user]);
 
   // --- Handlers ---
-  const handleLogin = (role) => {
-    const userData = { name: role === 'admin' ? 'Project Admin' : 'Guest Viewer', role: role };
-    setUser(userData); localStorage.setItem('sb-user', JSON.stringify(userData));
-  };
-  const handleLogout = async () => { await signOut(auth); setUser(null); localStorage.removeItem('sb-user'); setActiveTab('dashboard'); };
+  const handleLogout = async () => { await signOut(auth); setUser(null); setActiveTab('dashboard'); };
   const checkAdmin = useCallback(() => { if (user?.role !== 'admin') { alert("Permission Denied: Admin access required."); return false; } return true; }, [user]);
 
   // Profile Update

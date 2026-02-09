@@ -129,18 +129,49 @@ const MiniCalendar = ({ date, label, type }) => {
   );
 };
 
-const Card = ({ title, value, icon: Icon, subtext, color = "blue" }) => (
-  <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-start justify-between hover:shadow-md transition-shadow">
-    <div>
-      <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium mb-1">{title}</p>
-      <h3 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white">{value}</h3>
-      {subtext && <p className={`text-[10px] md:text-xs mt-2 font-medium ${subtext.includes('+') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>{subtext}</p>}
+const Card = ({ title, value, icon: IconComponent, subtext, color = "blue", trend = null, size = "default" }) => {
+  const sizeClasses = {
+    small: "p-3 md:p-4",
+    default: "p-4 md:p-6",
+    large: "p-5 md:p-7"
+  };
+  
+  const valueSizeClasses = {
+    small: "text-lg md:text-xl",
+    default: "text-xl md:text-2xl", 
+    large: "text-2xl md:text-3xl"
+  };
+
+  return (
+    <div className={`bg-white dark:bg-slate-800 ${sizeClasses[size]} rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all duration-300 group relative overflow-hidden`}>
+      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-50 to-transparent dark:from-blue-900/20 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
+      <div className="relative z-10">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-semibold uppercase tracking-wide mb-2 truncate">{title}</p>
+            <h3 className={`${valueSizeClasses[size]} font-bold text-slate-800 dark:text-white mb-2 truncate`}>{value}</h3>
+            {subtext && (
+              <p className={`text-[10px] md:text-xs font-medium ${subtext.includes('+') || subtext.includes('%') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'} truncate`}>
+                {subtext}
+              </p>
+            )}
+            {trend && (
+              <div className="flex items-center gap-1 mt-2">
+                {trend > 0 ? <ArrowUp size={12} className="text-emerald-500" /> : <ArrowDown size={12} className="text-red-500" />}
+                <span className={`text-xs font-medium ${trend > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {Math.abs(trend)}% vs last month
+                </span>
+              </div>
+            )}
+          </div>
+          <div className={`p-3 md:p-4 rounded-xl bg-gradient-to-br from-${color}-50 to-${color}-100 dark:from-${color}-900/30 dark:to-${color}-800/30 text-${color}-600 dark:text-${color}-400 shadow-sm group-hover:scale-110 transition-transform duration-300 flex-shrink-0 ml-3`}>
+            <IconComponent size={20} className="md:w-6 md:h-6" />
+          </div>
+        </div>
+      </div>
     </div>
-    <div className={`p-2 md:p-3 rounded-lg bg-${color}-50 dark:bg-slate-700 text-${color}-600 dark:text-${color}-400`}>
-      <Icon size={20} className="md:w-6 md:h-6" />
-    </div>
-  </div>
-);
+  );
+};
 
 const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disabled }) => {
   let statusStyle = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600";
@@ -201,12 +232,31 @@ const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, readOnly }) => {
 });
 
 const MobileNav = ({ activeTab, setActiveTab }) => {
-  const tabs = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'tracker', label: 'Tracker', icon: FileText }, { id: 'calendar', label: 'Calendar', icon: CalendarIcon }];
+  const tabs = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, 
+    { id: 'tracker', label: 'Tracker', icon: FileText }, 
+    { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
+    { id: 'reports', label: 'Reports', icon: BarChart3 }
+  ];
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-2 pb-safe z-50 shadow-lg flex justify-around items-center no-print">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-700 p-2 pb-safe z-50 shadow-2xl flex justify-around items-center no-print">
       {tabs.map(tab => (
-        <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors w-full ${activeTab === tab.id ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}>
-          <tab.icon size={20} className={activeTab === tab.id ? 'fill-current opacity-20' : ''} /><span className="text-[10px] font-medium">{tab.label}</span>
+        <button 
+          key={tab.id} 
+          onClick={() => setActiveTab(tab.id)} 
+          className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-200 w-full ${
+            activeTab === tab.id 
+              ? 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 shadow-md transform scale-105' 
+              : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+          }`}
+        >
+          <tab.icon 
+            size={18} 
+            className={`transition-all duration-200 ${
+              activeTab === tab.id ? 'fill-current text-blue-600 dark:text-blue-400' : ''
+            }`} 
+          />
+          <span className="text-[9px] font-medium leading-tight">{tab.label}</span>
         </button>
       ))}
     </div>
@@ -263,6 +313,307 @@ const BubbleTooltip = ({ title, content, author, children, onVisible, onHidden, 
   );
 };
 
+
+// --- Project Timeline View ---
+const ProjectTimeline = ({ filteredData }) => {
+  const [viewMode, setViewMode] = useState('month'); // month, quarter, project
+  
+  const getTimelineData = () => {
+    return filteredData
+      .filter(item => item.castingDate)
+      .sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))
+      .map(item => ({
+        ...item,
+        startDate: item.castingDate,
+        endDate: item.actualCastingDate || item.castingDate,
+        delay: item.actualCastingDate && new Date(item.actualCastingDate) > new Date(item.castingDate)
+      }));
+  };
+
+  const timelineData = getTimelineData();
+  
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+          <Activity className="text-blue-500" size={24} />
+          Project Timeline
+        </h2>
+        <div className="flex gap-2">
+          {['month', 'quarter', 'project'].map(mode => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                viewMode === mode
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+              }`}
+            >
+              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Timeline Visualization */}
+      <div className="space-y-3">
+        {timelineData.map((item) => (
+          <div key={item.id} className="relative flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+            {/* Status Indicator */}
+            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+              item.status === 'Cast' 
+                ? 'bg-emerald-500' 
+                : item.status === 'Delayed' 
+                ? 'bg-red-500' 
+                : 'bg-blue-500'
+            }`} />
+            
+            {/* Item Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="font-bold text-slate-800 dark:text-white text-sm">{item.slabId}</h4>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">{item.zone}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                    {item.status}
+                  </p>
+                  {item.delay && (
+                    <span className="text-xs text-red-600 dark:text-red-400 font-medium">
+                      Delayed
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              {/* Date Range */}
+              <div className="mt-2 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                <span className="flex items-center gap-1">
+                  <CalendarIcon size={10} />
+                  {item.startDate}
+                </span>
+                {item.actualCastingDate && (
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 size={10} />
+                    {item.actualCastingDate}
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="w-20 md:w-32">
+              <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    item.status === 'Cast' 
+                      ? 'bg-emerald-500' 
+                      : item.status === 'Delayed' 
+                      ? 'bg-red-500' 
+                      : 'bg-blue-500'
+                  }`}
+                  style={{ width: item.status === 'Cast' ? '100%' : '50%' }}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- Report View ---
+const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
+  const [reportType, setReportType] = useState('summary');
+  
+  const generateReport = () => {
+    const reportData = {
+      projectName: selectedProject?.name,
+      generatedBy: user?.name,
+      generatedAt: new Date().toISOString(),
+      reportType,
+      metrics,
+      data: filteredData
+    };
+    
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedProject?.name}-report-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const printReport = () => {
+    window.print();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+          <FileText className="text-blue-500" size={24} />
+          Project Reports
+        </h2>
+        <div className="flex gap-2">
+          <button
+            onClick={printReport}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
+          >
+            <Printer size={16} /> Print
+          </button>
+          <button
+            onClick={generateReport}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <FileText size={16} /> Export JSON
+          </button>
+        </div>
+      </div>
+
+      {/* Report Type Selection */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { id: 'summary', label: 'Summary', icon: BarChart3 },
+          { id: 'progress', label: 'Progress', icon: TrendingUp },
+          { id: 'deliveries', label: 'Deliveries', icon: Truck },
+          { id: 'schedule', label: 'Schedule', icon: CalendarIcon }
+        ].map(type => (
+          <button
+            key={type.id}
+            onClick={() => setReportType(type.id)}
+            className={`p-4 rounded-lg border-2 transition-all ${
+              reportType === type.id
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+            }`}
+          >
+            <type.icon size={24} className="mx-auto mb-2" />
+            <div className="text-sm font-medium">{type.label}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Report Content */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6 print:shadow-none">
+        {/* Header */}
+        <div className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">
+                {reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report
+              </h1>
+              <p className="text-slate-600 dark:text-slate-400">
+                Project: {selectedProject?.name} | Generated: {new Date().toLocaleDateString()}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-slate-500">Generated by</p>
+              <p className="font-medium text-slate-800 dark:text-white">{user?.name}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Report Content Based on Type */}
+        {reportType === 'summary' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Project Overview</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-slate-50 dark:bg-slate-700 p-4 rounded-lg">
+                <p className="text-sm text-slate-600 dark:text-slate-400">Total Zones</p>
+                <p className="text-2xl font-bold text-slate-800 dark:text-white">{metrics.total}</p>
+              </div>
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg">
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">Completed</p>
+                <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{metrics.cast}</p>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <p className="text-sm text-blue-600 dark:text-blue-400">In Progress</p>
+                <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{metrics.pending}</p>
+              </div>
+              <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg">
+                <p className="text-sm text-amber-600 dark:text-amber-400">Deliveries</p>
+                <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">{metrics.delivered}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {reportType === 'progress' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Progress Analysis</h3>
+            <div className="space-y-4">
+              {filteredData.map(item => (
+                <div key={item.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-bold text-slate-800 dark:text-white">{item.slabId}</h4>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">{item.zone}</p>
+                    </div>
+                    <StatusSelect disabled={true} currentStatus={item.status} targetDate={item.castingDate} actualDate={item.actualCastingDate} onChange={() => {}} />
+                  </div>
+                  <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                    {item.castingDate && (
+                      <p>Target: {item.castingDate} {item.actualCastingDate && `| Actual: ${item.actualCastingDate}`}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {reportType === 'deliveries' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Delivery Log</h3>
+            <div className="space-y-4">
+              {filteredData.filter(item => Array.isArray(item.deliveries) && item.deliveries.length > 0).map(item => (
+                <div key={item.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+                  <h4 className="font-bold text-slate-800 dark:text-white mb-2">{item.slabId} - {item.zone}</h4>
+                  <div className="space-y-2">
+                    {item.deliveries.map((delivery, idx) => (
+                      <div key={idx} className="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700 p-2 rounded">
+                        <p><strong>Date:</strong> {delivery.date}</p>
+                        <p><strong>Description:</strong> {delivery.description}</p>
+                        {delivery.createdBy && <p><strong>Logged by:</strong> {delivery.createdBy}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {reportType === 'schedule' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Schedule Overview</h3>
+            <div className="space-y-4">
+              {filteredData.filter(item => item.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate)).map(item => (
+                <div key={item.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-bold text-slate-800 dark:text-white">{item.slabId}</h4>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">{item.zone}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-slate-800 dark:text-white">{item.castingDate}</p>
+                      <p className="text-xs text-slate-500">{item.status}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // --- Calendar View ---
 const CalendarView = ({ data }) => {
@@ -568,8 +919,10 @@ export default function App() {
           }
           await signInWithEmailLink(auth, email, window.location.href);
           window.localStorage.removeItem('emailForSignIn');
-        } else if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          try { await signInWithCustomToken(auth, __initial_auth_token); } catch (err) {}
+        } else if (typeof window !== 'undefined' && (window).__initial_auth_token && (window).__initial_auth_token) {
+          try { await signInWithCustomToken(auth, (window).__initial_auth_token); } catch (err) {
+            console.log('Custom token sign in failed:', err);
+          }
         }
       } catch (error) { console.error("Auth error:", error); } finally { setAuthLoading(false); }
     };
@@ -631,7 +984,7 @@ export default function App() {
         }
     };
     syncProfile();
-  }, [user?.uid, selectedProject?.id]);
+  }, [user?.uid, selectedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   useEffect(() => { if (activeTab) localStorage.setItem('sb-tab', activeTab); }, [activeTab]);
@@ -650,7 +1003,7 @@ export default function App() {
       setData(items);
     });
     return () => unsubscribe();
-  }, [user, selectedProject]);
+  }, [user?.uid, selectedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Handlers ---
   const handleLogout = async () => {
@@ -689,7 +1042,7 @@ export default function App() {
       setActiveModal(null);
     } catch (err) { alert(err.message); }
   };
-  const openProfileModal = () => { setProfileForm({ name: user.name || '', designation: user.designation || '' }); setActiveModal('profile'); };
+
 
   // CRUD Handlers (Updated to use selectedProject.id)
   const handleAddSlab = async (e) => {
@@ -864,27 +1217,278 @@ export default function App() {
     </div>
   );
 
-  const DashboardView = () => (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-20 md:pb-0">
-      <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-slate-800 dark:text-white">Project Overview</h2><button onClick={() => setActiveModal('report')} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"><BarChart3 size={18} /> Generate Report</button></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card title="Total Casts" value={metrics.total} icon={Layers} subtext="Total scope" color="slate" />
-        <Card title="HCS Delivered" value={metrics.delivered} icon={Truck} subtext="Zones with deliveries" color="amber" />
-        <Card title="Completed" value={metrics.cast} icon={CheckCircle2} subtext={`${metrics.total > 0 ? Math.round((metrics.cast/metrics.total)*100) : 0}% progress`} color="emerald" />
-        <Card title="Pending Logistics" value={metrics.pending} icon={Clock} subtext="Scheduled to Cast" color="blue" />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6">
-          <div className="flex justify-between items-center mb-4 md:mb-6"><h2 className="text-base md:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><CalendarIcon className="text-blue-500" size={20} /> Upcoming Castings</h2><button onClick={() => setActiveTab('calendar')} className="text-xs md:text-sm text-blue-600 hover:text-blue-700 font-medium">View Full Schedule</button></div>
-          <div className="space-y-4">{data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate)).slice(0, 3).map((item) => (<div key={item.id} className="flex items-center justify-between p-3 md:p-4 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-100 dark:border-slate-600"><div className="flex items-center gap-3 md:gap-4"><div className="bg-white dark:bg-slate-600 p-2 rounded border border-slate-200 dark:border-slate-500 font-mono text-xs font-bold text-slate-600 dark:text-slate-300 text-center min-w-[40px] md:min-w-[50px]">{new Date(item.castingDate).getDate()}<br/>{new Date(item.castingDate).toLocaleString('default', { month: 'short' }).toUpperCase()}</div><div><h4 className="text-sm md:text-base font-bold text-slate-800 dark:text-white">{item.slabId}</h4><p className="text-xs text-slate-500">{item.zone}</p></div></div><div className="text-right"><div className="text-xs text-slate-400 mb-1 flex justify-end"><BbsTags bbs={item.bbs} castingDate={item.castingDate} /></div><StatusSelect disabled={true} currentStatus={item.status} targetDate={item.castingDate} actualDate={item.actualCastingDate} onChange={() => {}} /></div></div>))}</div>
+const DashboardView = () => {
+    const progressPercentage = metrics.total > 0 ? Math.round((metrics.cast/metrics.total)*100) : 0;
+    const today = new Date().toISOString().split('T')[0];
+    const overdueCount = data.filter(item => 
+      item.castingDate && 
+      item.castingDate < today && 
+      item.status !== 'Cast'
+    ).length;
+    
+    return (
+      <div className="space-y-8">
+        {/* Header Section */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 md:p-8 text-white shadow-2xl">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -mr-32 -mt-32"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/10 rounded-full -ml-24 -mb-24"></div>
+          <div className="relative z-10">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div>
+                <h1 className="text-3xl md:text-4xl font-bold mb-2 tracking-tight">Project Dashboard</h1>
+                <p className="text-slate-300 text-base">Real-time construction project management & reporting</p>
+                <div className="mt-4 flex items-center gap-4">
+                  <div className="bg-white/10 backdrop-blur px-4 py-2 rounded-lg">
+                    <p className="text-xs text-slate-300 uppercase tracking-wide">Active Project</p>
+                    <p className="text-lg font-bold">{selectedProject?.name}</p>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur px-4 py-2 rounded-lg">
+                    <p className="text-xs text-slate-300 uppercase tracking-wide">Today</p>
+                    <p className="text-lg font-bold">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setActiveModal('report')}
+                  className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-lg"
+                >
+                  <FileText size={18} /> Generate Report
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6">
-           <div className="flex justify-between items-center mb-4 md:mb-6"><h2 className="text-base md:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><AlertTriangle className="text-amber-500" size={20} /> Alerts</h2></div>
-           <div className="space-y-3"><div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded-lg flex items-start gap-3"><AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" /><div><h4 className="text-sm font-bold text-red-700 dark:text-red-400">Missing BBS</h4><p className="text-xs text-red-600 dark:text-red-300 mt-1">{data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length} zones pending BBS.</p></div></div></div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card 
+            title="Total Scope" 
+            value={metrics.total} 
+            icon={Layers} 
+            subtext="Active casting zones" 
+            color="slate"
+            size="default"
+          />
+          <Card 
+            title="Materials Delivered" 
+            value={metrics.delivered} 
+            icon={Truck} 
+            subtext={`${metrics.total > 0 ? Math.round((metrics.delivered/metrics.total)*100) : 0}% coverage`}
+            color="amber"
+            size="default"
+            trend={15}
+          />
+          <Card 
+            title="Completed Casts" 
+            value={metrics.cast} 
+            icon={CheckCircle2} 
+            subtext={`${progressPercentage}% overall progress`}
+            color="emerald"
+            size="default"
+            trend={8}
+          />
+          <Card 
+            title="Critical Issues" 
+            value={overdueCount} 
+            icon={AlertTriangle} 
+            subtext="Overdue schedules"
+            color="red"
+            size="default"
+          />
+        </div>
+
+        {/* Progress Overview */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <TrendingUp className="text-blue-500" size={24} />
+                Project Progress Overview
+              </h2>
+              <button 
+                onClick={() => setActiveTab('tracker')}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              >
+                View Details →
+              </button>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Overall Completion</span>
+                <span className="text-2xl font-bold text-slate-800 dark:text-white">{progressPercentage}%</span>
+              </div>
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-4 overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${progressPercentage}%` }}
+                >
+                  <div className="h-full bg-white/20 animate-pulse"></div>
+                </div>
+              </div>
+              <div className="flex justify-between mt-2 text-xs text-slate-500">
+                <span>{metrics.cast} completed</span>
+                <span>{metrics.total} total zones</span>
+              </div>
+            </div>
+
+            {/* Enhanced Status Breakdown with Visual Indicators */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-lg border border-emerald-200 dark:border-emerald-800 hover:shadow-md transition-all duration-300 group">
+                <div className="relative">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
+                </div>
+                <div className="text-3xl font-bold text-emerald-700 dark:text-emerald-400">{metrics.cast}</div>
+                <div className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">Completed</div>
+                {metrics.total > 0 && (
+                  <div className="mt-2 text-xs text-emerald-500 dark:text-emerald-500">
+                    {Math.round((metrics.cast/metrics.total)*100)}% of total
+                  </div>
+                )}
+              </div>
+              <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg border border-blue-200 dark:border-blue-800 hover:shadow-md transition-all duration-300 group">
+                <div className="relative">
+                  <Clock className="w-10 h-10 text-blue-600 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                </div>
+                <div className="text-3xl font-bold text-blue-700 dark:text-blue-400">{metrics.pending}</div>
+                <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">In Progress</div>
+                {metrics.total > 0 && (
+                  <div className="mt-2 text-xs text-blue-500 dark:text-blue-500">
+                    {Math.round((metrics.pending/metrics.total)*100)}% of total
+                  </div>
+                )}
+              </div>
+              <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 rounded-lg border border-amber-200 dark:border-amber-800 hover:shadow-md transition-all duration-300 group">
+                <div className="relative">
+                  <Truck className="w-10 h-10 text-amber-600 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full animate-pulse"></div>
+                </div>
+                <div className="text-3xl font-bold text-amber-700 dark:text-amber-400">{metrics.delivered}</div>
+                <div className="text-sm text-amber-600 dark:text-amber-400 font-medium">Materials Ready</div>
+                {metrics.total > 0 && (
+                  <div className="mt-2 text-xs text-amber-500 dark:text-amber-500">
+                    {Math.round((metrics.delivered/metrics.total)*100)}% coverage
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Mini Analytics Chart */}
+            <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+              <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Weekly Progress Trend</h4>
+              <div className="flex items-end justify-between h-16 gap-2">
+                {[65, 78, 82, 75, 90, 85, progressPercentage].map((value, index) => (
+                  <div key={index} className="flex-1 flex flex-col items-center gap-1">
+                    <div 
+                      className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all duration-500 hover:from-blue-600 hover:to-blue-500"
+                      style={{ height: `${value}%` }}
+                    />
+                    <span className="text-[8px] text-slate-500 dark:text-slate-400">
+                      {['M', 'T', 'W', 'T', 'F', 'S', 'S'][index]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Project Timeline */}
+        <ProjectTimeline filteredData={filteredData} />
+
+        {/* Critical Tasks Summary */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <AlertTriangle className="text-amber-500" size={24} />
+              Critical Tasks
+            </h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Overdue Items */}
+            <div className={`p-4 rounded-lg border ${
+              overdueCount > 0 
+                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' 
+                : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+            }`}>
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className={`${overdueCount > 0 ? 'text-red-500' : 'text-emerald-500'} mt-0.5 shrink-0`} />
+                <div className="flex-1">
+                  <h4 className={`text-sm font-bold ${overdueCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                    Overdue Schedules
+                  </h4>
+                  <p className={`text-xs mt-1 ${overdueCount > 0 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                    {overdueCount} casting zones {overdueCount > 0 ? 'behind schedule' : 'on schedule'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Missing BBS */}
+            <div className={`p-4 rounded-lg border ${
+              data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
+                ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' 
+                : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+            }`}>
+              <div className="flex items-start gap-3">
+                <Target size={20} className={`${
+                  data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
+                    ? 'text-amber-500' 
+                    : 'text-emerald-500'
+                } mt-0.5 shrink-0`} />
+                <div className="flex-1">
+                  <h4 className={`text-sm font-bold ${
+                    data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
+                      ? 'text-amber-700 dark:text-amber-400' 
+                      : 'text-emerald-700 dark:text-emerald-400'
+                  }`}>
+                    Missing BBS
+                  </h4>
+                  <p className={`text-xs mt-1 ${
+                    data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
+                      ? 'text-amber-600 dark:text-amber-300' 
+                      : 'text-emerald-600 dark:text-emerald-300'
+                  }`}>
+                    {data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length} zones pending BBS
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Next Casting */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Hammer size={20} className="text-blue-500 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-blue-700 dark:text-blue-400">Next Casting</h4>
+                  {data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0] ? (
+                    (() => {
+                      const nextCasting = data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0];
+                      return (
+                        <>
+                          <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">{nextCasting.slabId}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            {new Date(nextCasting.castingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </p>
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">No upcoming castings</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const TrackerView = () => (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in duration-500 pb-20 md:pb-0">
@@ -949,28 +1553,81 @@ export default function App() {
 
   return (
     <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300">
-      <nav className="bg-slate-900 text-white sticky top-0 z-50 shadow-lg print:hidden">
+      <nav className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white sticky top-0 z-50 shadow-2xl border-b border-slate-700 print:hidden backdrop-blur-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-          <div className="flex items-center gap-3"><div className="bg-blue-500 p-1.5 rounded-lg"><AppLogo className="h-8 w-8 text-white" /></div><span className="font-bold text-lg md:text-xl tracking-tight hidden md:block">SB-CasTrack</span><span className="md:hidden font-bold">SB-CT</span></div>
-          <div className="hidden md:flex items-center space-x-2">
-            {[{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'tracker', label: 'Tracker', icon: FileText }, { id: 'calendar', label: 'Calendar', icon: CalendarIcon }].map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.id ? 'bg-slate-800 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`}><tab.icon size={16} />{tab.label}</button>
+          <div className="flex items-center gap-4">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-xl shadow-lg">
+              <AppLogo className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <span className="font-bold text-lg md:text-xl tracking-tight hidden md:block">SB-CasTrack</span>
+              <span className="md:hidden font-bold">SB-CT</span>
+              <p className="text-xs text-slate-400 hidden md:block">{selectedProject?.name}</p>
+            </div>
+          </div>
+          
+          <div className="hidden md:flex items-center space-x-1">
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'tracker', label: 'Tracker', icon: FileText },
+              { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
+              { id: 'reports', label: 'Reports', icon: BarChart3 }
+            ].map(tab => (
+              <button 
+                key={tab.id} 
+                onClick={() => setActiveTab(tab.id)} 
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeTab === tab.id 
+                    ? 'bg-blue-600 text-white shadow-lg transform scale-105' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                }`}
+              >
+                <tab.icon size={16} />
+                {tab.label}
+              </button>
             ))}
           </div>
-          <div className="flex items-center gap-4">
-             <button onClick={() => setSelectedProject(null)} className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 hover:text-white rounded-lg transition-colors border border-slate-700">
-                 <RefreshCw size={14} /> Switch Project
-             </button>
-             <div className="text-right hidden sm:block cursor-pointer" onClick={() => setActiveModal('profile')}>
-               <p className="text-sm font-medium text-white">{user.name || user.email}</p>
+          
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setActiveModal('report')} 
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-md"
+            >
+              <FileText size={14} /> Quick Report
+            </button>
+            <button 
+              onClick={() => setSelectedProject(null)} 
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 hover:text-white rounded-lg transition-colors border border-slate-600"
+            >
+              <RefreshCw size={14} /> Switch Project
+            </button>
+             <div className="text-right hidden sm:block cursor-pointer group" onClick={() => { setProfileForm({ name: user.name || '', designation: user.designation || '' }); setActiveModal('profile'); }}>
+               <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">{user.name || user.email}</p>
                <p className="text-[10px] text-slate-400 text-right">{user.designation || 'No Designation'}</p>
              </div>
-             <button aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"} onClick={toggleTheme} className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white">{isDark ? <Sun size={20} /> : <Moon size={20} />}</button>
-             <button aria-label="Logout" onClick={handleLogout} className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white"><LogOut size={20} /></button>
+            <button 
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"} 
+              onClick={toggleTheme} 
+              className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors text-slate-400 hover:text-white"
+            >
+              {isDark ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            <button 
+              aria-label="Logout" 
+              onClick={handleLogout} 
+              className="p-2 hover:bg-red-600/20 rounded-lg transition-colors text-slate-400 hover:text-red-400"
+            >
+              <LogOut size={20} />
+            </button>
           </div>
         </div>
       </nav>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">{activeTab === 'dashboard' ? DashboardView() : activeTab === 'tracker' ? TrackerView() : <CalendarView data={data} />}</main>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
+        {activeTab === 'dashboard' ? DashboardView() : 
+         activeTab === 'tracker' ? TrackerView() : 
+         activeTab === 'reports' ? <ReportView selectedProject={selectedProject} user={user} metrics={metrics} filteredData={filteredData} /> : 
+         <CalendarView data={data} />}
+      </main>
       <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
       {activeModal && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm print:hidden">

@@ -2,8 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global Style Resets (Formerly GlobalStyles component) */
-/* ...existing code... */
+/* Global Style Resets */
 body, html {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -35,6 +34,7 @@ body {
   background-attachment: fixed;
   background-repeat: no-repeat;
   color: #0f172a; /* Matches text-slate-900 */
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .dark body {
@@ -56,4 +56,56 @@ body {
 /* Ensure border-box sizing everywhere */
 *, *::before, *::after {
   box-sizing: border-box;
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+  }
+  .no-print {
+    display: none !important;
+  }
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+  .print-break-inside-avoid {
+    break-inside: avoid;
+  }
+  .print-page-break {
+    break-before: page;
+  }
+
+  /* Hide scrollbars in print */
+  ::-webkit-scrollbar {
+    display: none;
+  }
 }

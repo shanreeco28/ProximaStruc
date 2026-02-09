@@ -177,9 +177,11 @@ const GlobalStyles = ({ isDark }) => (
 // --- Helper Components ---
 
 const MiniCalendar = ({ date, label, type }) => {
-  const d = new Date(date);
+  // Parse YYYY-MM-DD manually to avoid timezone issues
+  const [y, m, dNum] = date.split('-').map(Number);
+  const d = new Date(y, m - 1, dNum);
   const month = d.toLocaleString('default', { month: 'short' }).toUpperCase();
-  const day = d.getDate();
+  const day = dNum;
   const color = type === 'actual' ? 'emerald' : 'blue';
 
   return (
@@ -392,7 +394,9 @@ const CalendarView = ({ data }) => {
         // --- Off-Screen Tooltip Logic ---
         const offScreen = [];
         const isOffScreen = (d) => {
-             const date = new Date(d);
+             if (!d) return false;
+             const [y, m, day] = d.split('-').map(Number);
+             const date = new Date(y, m - 1, day);
              return date < new Date(year, currentDate.getMonth(), 1) || date > new Date(year, currentDate.getMonth() + 1, 0);
         };
 
@@ -542,15 +546,23 @@ const CalendarView = ({ data }) => {
 
   return (
     <>
+      {offScreenGhosts.items.length > 0 && offScreenGhosts.rect && (
+          <div
+            style={{
+              top: offScreenGhosts.rect.top,
+              left: offScreenGhosts.rect.right + 200 > window.innerWidth
+                   ? offScreenGhosts.rect.left - 80 // Position left if near edge
+                   : offScreenGhosts.rect.right + 10
+            }}
+            className="fixed z-[100] flex flex-col gap-2"
+          >
+              {offScreenGhosts.items.map((item, i) => (
+                  <MiniCalendar key={i} date={item.date} label={item.label} type={item.type} />
+              ))}
+          </div>
+      )}
+      {ghostConnection && ghostConnection.endElementId && <GhostLine startId={ghostConnection.startElementId} endId={ghostConnection.endElementId} />}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in duration-500 mb-20 md:mb-0 relative">
-        {offScreenGhosts.items.length > 0 && offScreenGhosts.rect && (
-            <div style={{ top: offScreenGhosts.rect.top, left: offScreenGhosts.rect.right + 10 }} className="fixed z-[100] flex flex-col gap-2">
-                {offScreenGhosts.items.map((item, i) => (
-                    <MiniCalendar key={i} date={item.date} label={item.label} type={item.type} />
-                ))}
-            </div>
-        )}
-        {ghostConnection && ghostConnection.endElementId && <GhostLine startId={ghostConnection.startElementId} endId={ghostConnection.endElementId} />}
         <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row items-center justify-between gap-4">
           <h2 className="text-base md:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><CalendarIcon className="text-blue-500" size={20} /> {monthName} {year}</h2>
           

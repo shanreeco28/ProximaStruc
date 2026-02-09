@@ -1040,7 +1040,7 @@ export default function App() {
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-500">Connecting to Cloud...</div>;
   if (!user) return <LoginView initialMode={emailConfirmationNeeded ? 'confirm-email' : 'login'} />;
-  if (!selectedProject) return <ProjectSelection projects={projects} onSelect={handleProjectSelect} onAddProject={handleAddProject} />;
+  if (!selectedProject) return <ProjectSelection projects={projects} onSelect={handleProjectSelect} onAddProject={handleAddProject} onLogout={handleLogout} />;
 
   return (
     <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300">

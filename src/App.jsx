@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
 import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
 import DeliveryTags from './components/DeliveryTags';
-import BubbleTooltip from './components/BubbleTooltip';
+import GhostLine from './components/GhostLine';
 import {
   LayoutDashboard,
   Truck,
@@ -287,32 +287,61 @@ const MobileNav = ({ activeTab, setActiveTab }) => {
 };
 
 // --- Tooltips & Ghost Lines ---
-const GhostLine = ({ startId, endId }) => {
-  const [coords, setCoords] = useState(null);
-  useEffect(() => {
-    if (!startId || !endId) return;
-    const update = () => {
-      const s = document.getElementById(startId); const e = document.getElementById(endId);
-      if (s && e) {
-        const sr = s.getBoundingClientRect(); const er = e.getBoundingClientRect();
-        const x1 = sr.left + sr.width/2; const y1 = sr.top + sr.height/2;
-        let x2 = er.left + er.width/2; let y2 = er.top + er.height/2;
-        if (er.top > sr.bottom + 5) y2 = er.top; else if (er.bottom < sr.top - 5) y2 = er.bottom; else { y2 = y1; x2 = x1 < x2 ? er.left : er.right; }
-        setCoords({ x1, y1, x2, y2 });
-      }
-    };
-    update(); window.addEventListener('scroll', update, true); window.addEventListener('resize', update);
-    return () => { window.removeEventListener('scroll', update, true); window.removeEventListener('resize', update); };
-  }, [startId, endId]);
-  if (!coords) return null;
-  const d = `M ${coords.x1} ${coords.y1} L ${coords.x2} ${coords.y1} L ${coords.x2} ${coords.y2}`;
+const BubbleTooltip = ({ title, content, author, children, onVisible, onHidden, meta }) => {
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [show, setShow] = useState(false);
+  const timerRef = useRef(null);
+
+  const handleMouseEnter = (e) => {
+    if (onVisible) onVisible(meta, false); // Pass false for delayed ghost lines
+    if (!content && !author && !title) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPosition({ top: rect.top - 8, left: rect.left + rect.width / 2 });
+    timerRef.current = setTimeout(() => setShow(true), 2000);
+  };
+
+  const handleClick = (e) => {
+    e.stopPropagation();
+    if (!content && !author && !title) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPosition({ top: rect.top - 8, left: rect.left + rect.width / 2 });
+
+    // Toggle
+    if (show) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setShow(false);
+      if (onHidden) onHidden();
+    } else {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setShow(true);
+      if (onVisible) onVisible(meta, true); // Pass true for immediate ghost lines
+    }
+  };
+
+  const handleMouseLeave = () => { if (timerRef.current) clearTimeout(timerRef.current); setShow(false); if (onHidden) onHidden(); };
+  
   return (
-    <svg className="fixed inset-0 pointer-events-none z-[10]" style={{ width: '100%', height: '100%' }}>
-      <defs><marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#dc2626" /></marker></defs>
-      <path d={d} fill="none" stroke="#dc2626" strokeWidth="2" markerEnd="url(#arrowhead)" className="drop-shadow-sm opacity-80" /><circle cx={coords.x1} cy={coords.y1} r="3" fill="#dc2626" className="drop-shadow-sm" />
-    </svg>
+    <>
+      <div 
+        onMouseEnter={handleMouseEnter} 
+        onMouseLeave={handleMouseLeave} 
+        onClick={handleClick}
+        className="relative w-full cursor-pointer"
+      >
+        {children}
+      </div>
+      {show && (
+        <div className="fixed z-[9999] bg-slate-800 dark:bg-slate-900 text-white text-[10px] p-2 rounded shadow-2xl pointer-events-none animate-in fade-in zoom-in-95 duration-200 max-w-[200px]" style={{ top: position.top, left: position.left, transform: 'translate(-50%, -100%)' }}>
+          <div className="font-bold border-b border-slate-600 pb-1 mb-1 text-white uppercase text-[10px] tracking-wider">{title || "Details"}</div>
+          <div className="leading-relaxed text-slate-300">{content}</div>
+          {author && <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400 italic text-[8px]">Added by: {author}</div>}
+          <div className="absolute top-full left-1/2 -ml-1 border-4 border-transparent border-t-slate-800 dark:border-t-slate-900"></div>
+        </div>
+      )}
+    </>
   );
 };
+
 
 // --- Calendar View ---
 const CalendarView = ({ data }) => {

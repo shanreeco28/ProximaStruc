@@ -137,43 +137,6 @@ const AppLogo = ({ className = "h-10 w-10" }) => (
   </svg>
 );
 
-// --- Global Style Reset Component ---
-const GlobalStyles = ({ isDark }) => (
-  <style>{`
-    *, *::before, *::after { box-sizing: border-box; }
-    :root {
-      font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-      line-height: 1.5;
-      font-weight: 400;
-      color-scheme: ${isDark ? 'dark' : 'light'};
-    }
-    html { height: 100%; width: 100%; }
-    body {
-      margin: 0; display: block !important; place-items: unset !important;
-      min-width: 320px; min-height: 100vh; width: 100%;
-      /* Base background and text colors handled here */
-      background-color: ${isDark ? '#0f172a' : '#f8fafc'};
-      color: ${isDark ? '#f1f5f9' : '#0f172a'};
-      transition: background-color 0.3s ease, color 0.3s ease;
-    }
-    #root {
-      max-width: none !important; margin: 0 !important; padding: 0 !important;
-      text-align: left !important; width: 100% !important; height: 100%; display: block !important;
-    }
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: ${isDark ? '#1e293b' : '#f1f5f9'}; }
-    ::-webkit-scrollbar-thumb { background: ${isDark ? '#475569' : '#cbd5e1'}; borderRadius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: ${isDark ? '#64748b' : '#94a3b8'}; }
-    @media print {
-      body { background-color: white !important; color: black !important; }
-      .no-print { display: none !important; }
-      @page { size: A4; margin: 20mm; }
-      table { break-inside: auto; }
-      tr { break-inside: avoid; page-break-inside: avoid; }
-      thead { display: table-header-group; }
-    }
-  `}</style>
-);
 
 // --- Helper Components ---
 
@@ -948,7 +911,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300">
-      <GlobalStyles isDark={isDark} />
       <nav className="bg-slate-900 text-white sticky top-0 z-50 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center gap-3"><div className="bg-blue-500 p-1.5 rounded-lg"><AppLogo className="h-8 w-8 text-white" /></div><span className="font-bold text-lg md:text-xl tracking-tight">SB-CasTrack</span></div>

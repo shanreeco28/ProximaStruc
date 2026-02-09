@@ -1051,9 +1051,10 @@ export default function App() {
             {[{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'tracker', label: 'Tracker', icon: FileText }, { id: 'calendar', label: 'Calendar', icon: CalendarIcon }].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.id ? 'bg-slate-800 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`}><tab.icon size={16} />{tab.label}</button>
             ))}
-            <button onClick={() => setSelectedProject(null)} className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors text-slate-300 hover:text-white hover:bg-slate-800"><Briefcase size={16} /> Switch Project</button>
           </div>
           <div className="flex items-center gap-4">
+             <button onClick={() => setSelectedProject(null)} className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors text-slate-300 hover:text-white hover:bg-slate-800" title="Switch Project"><Briefcase size={18} /> <span className="hidden lg:inline">Switch Project</span></button>
+             <div className="h-6 w-px bg-slate-700 mx-2 hidden sm:block"></div>
              <div className="text-right hidden sm:block cursor-pointer" onClick={() => setActiveModal('profile')}>
                <p className="text-sm font-medium text-white">{user.name || user.email}</p>
                <p className="text-[10px] text-slate-400 text-right">{user.designation || 'No Designation'}</p>

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, use
 import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
 import DeliveryTags from './components/DeliveryTags';
 import GhostLine from './components/GhostLine';
-import BubbleTooltip from './components/BubbleTooltip';
 import {
   LayoutDashboard,
   Truck,

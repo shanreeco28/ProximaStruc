@@ -69,6 +69,8 @@ import {
   doc,
   onSnapshot,
   query,
+  orderBy,
+  limit,
   arrayUnion,
   setDoc,
   getDoc
@@ -726,7 +728,11 @@ export default function App() {
   
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'slabs'));
+    const q = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'slabs'),
+      orderBy('castingDate', 'desc'),
+      limit(500)
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setData(items);

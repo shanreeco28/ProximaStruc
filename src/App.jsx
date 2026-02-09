@@ -508,7 +508,7 @@ const LoginView = ({ onLogin, initialMode = 'login' }) => {
   const handleMagicLink = async (e) => { e.preventDefault(); setLoading(true); setError(''); const actionCodeSettings = { url: window.location.href, handleCodeInApp: true }; try { await sendSignInLinkToEmail(auth, formData.email, actionCodeSettings); window.localStorage.setItem('emailForSignIn', formData.email); setMagicSent(true); } catch (err) { setError(err.message); } finally { setLoading(false); } };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95">
         <div className="bg-slate-900 p-8 text-center"><div className="mx-auto bg-blue-500 w-16 h-16 rounded-xl flex items-center justify-center mb-4 shadow-lg"><AppLogo className="w-10 h-10 text-white" /></div><h1 className="text-2xl font-bold text-white mt-4">SB-CasTrack</h1><p className="text-slate-400 mt-2">Construction Logistics Management</p></div>
         <div className="p-8 space-y-6">
@@ -831,7 +831,7 @@ export default function App() {
   if (!user) return <LoginView initialMode={emailConfirmationNeeded ? 'confirm-email' : 'login'} />;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300">
+    <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300">
       <GlobalStyles isDark={isDark} />
       <nav className="bg-slate-900 text-white sticky top-0 z-50 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">

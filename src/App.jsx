@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
+/* global __initial_auth_token */
+import React, { useState, useEffect, useMemo, useRef, memo, useCallback } from 'react';
 import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
 import DeliveryTags from './components/DeliveryTags';
 import GhostLine from './components/GhostLine';
+import ProjectSelection from './components/ProjectSelection';
 import {
   LayoutDashboard,
   Truck,
@@ -41,7 +43,10 @@ import {
   Link as LinkIcon,
   UserCog,
   Moon,
-  Sun
+  Sun,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -85,6 +90,9 @@ import {
  */
 
 const QUERY_LIMIT = 500;
+const PROJECTS = [
+  { id: 'tnd4-castrack', name: 'TND4 Project' }
+];
 
 // --- Firebase Configuration ---
 const firebaseConfig = {
@@ -100,7 +108,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = 'tnd4-castrack';
 
 // --- Custom Construction Logo ---
 const AppLogo = ({ className = "h-10 w-10" }) => (
@@ -141,43 +148,6 @@ const AppLogo = ({ className = "h-10 w-10" }) => (
   </svg>
 );
 
-// --- Global Style Reset Component ---
-const GlobalStyles = ({ isDark }) => (
-  <style>{`
-    *, *::before, *::after { box-sizing: border-box; }
-    :root {
-      font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-      line-height: 1.5;
-      font-weight: 400;
-      color-scheme: ${isDark ? 'dark' : 'light'};
-    }
-    html { height: 100%; width: 100%; }
-    body {
-      margin: 0; display: block !important; place-items: unset !important;
-      min-width: 320px; min-height: 100vh; width: 100%;
-      /* Base background and text colors handled here */
-      background-color: ${isDark ? '#0f172a' : '#f8fafc'};
-      color: ${isDark ? '#f1f5f9' : '#0f172a'};
-      transition: background-color 0.3s ease, color 0.3s ease;
-    }
-    #root {
-      max-width: none !important; margin: 0 !important; padding: 0 !important;
-      text-align: left !important; width: 100% !important; height: 100%; display: block !important;
-    }
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: ${isDark ? '#1e293b' : '#f1f5f9'}; }
-    ::-webkit-scrollbar-thumb { background: ${isDark ? '#475569' : '#cbd5e1'}; borderRadius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: ${isDark ? '#64748b' : '#94a3b8'}; }
-    @media print {
-      body { background-color: white !important; color: black !important; }
-      .no-print { display: none !important; }
-      @page { size: A4; margin: 20mm; }
-      table { break-inside: auto; }
-      tr { break-inside: avoid; page-break-inside: avoid; }
-      thead { display: table-header-group; }
-    }
-  `}</style>
-);
 
 // --- Helper Components ---
 
@@ -205,7 +175,8 @@ const MiniCalendar = ({ date, label, type }) => {
   );
 };
 
-const Card = ({ title, value, icon: Icon, subtext, color = "blue" }) => (
+// eslint-disable-next-line no-unused-vars
+const Card = ({ title, value, icon: IconComp, subtext, color = "blue" }) => (
   <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-start justify-between hover:shadow-md transition-shadow">
     <div>
       <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium mb-1">{title}</p>
@@ -213,7 +184,7 @@ const Card = ({ title, value, icon: Icon, subtext, color = "blue" }) => (
       {subtext && <p className={`text-[10px] md:text-xs mt-2 font-medium ${subtext.includes('+') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>{subtext}</p>}
     </div>
     <div className={`p-2 md:p-3 rounded-lg bg-${color}-50 dark:bg-slate-700 text-${color}-600 dark:text-${color}-400`}>
-      <Icon size={20} className="md:w-6 md:h-6" />
+      <IconComp size={20} className="md:w-6 md:h-6" />
     </div>
   </div>
 );
@@ -514,7 +485,7 @@ const CalendarView = ({ data }) => {
             const isFaded = focusedSlabId && event.slabId !== focusedSlabId;
 
             return (
-              <BubbleTooltip key={`${event.domId || idx}`} title={event.slabId || event.label} content={event.tooltipContent} author={event.author} onVisible={handleEventHover} onHidden={clearGhost} meta={event}>
+              <BubbleTooltip key={`${event.domId || idx}`} title={event.zone || event.label} content={event.tooltipContent} author={event.author} onVisible={handleEventHover} onHidden={clearGhost} meta={event}>
                 <div id={event.domId} className={`relative z-20 text-[9px] md:text-[10px] px-1 py-0.5 rounded border truncate flex items-center gap-1 cursor-default transition-opacity duration-300 ${colorClass} ${isFaded ? 'opacity-20' : ''}`}><span className="shrink-0">{icon}</span><span className="truncate">{label}</span>{event.tooltipContent && <Info size={6} className="ml-auto shrink-0 opacity-50" />}</div>
               </BubbleTooltip>
             );
@@ -572,7 +543,7 @@ const CalendarView = ({ data }) => {
 };
 
 // --- Login View ---
-const LoginView = ({ onLogin, initialMode = 'login' }) => {
+const LoginView = ({ initialMode = 'login', projectId = 'tnd4-castrack' }) => {
   const [mode, setMode] = useState(initialMode);
   const [formData, setFormData] = useState({ email: '', password: '', name: '', birthday: '', designation: '' });
   const [error, setError] = useState('');
@@ -595,9 +566,9 @@ const LoginView = ({ onLogin, initialMode = 'login' }) => {
     setLoading(true); setError('');
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
-      const userDoc = await getDoc(doc(db, 'artifacts', appId, 'users', result.user.uid));
+      const userDoc = await getDoc(doc(db, 'artifacts', projectId, 'users', result.user.uid));
       if (!userDoc.exists()) {
-        await setDoc(doc(db, 'artifacts', appId, 'users', result.user.uid), {
+        await setDoc(doc(db, 'artifacts', projectId, 'users', result.user.uid), {
           name: result.user.displayName, email: result.user.email, role: 'guest', designation: 'N/A', createdAt: new Date().toISOString()
         });
       }
@@ -609,7 +580,7 @@ const LoginView = ({ onLogin, initialMode = 'login' }) => {
     try {
       const result = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       await updateProfile(result.user, { displayName: formData.name });
-      await setDoc(doc(db, 'artifacts', appId, 'users', result.user.uid), { name: formData.name, email: formData.email, birthday: formData.birthday, designation: formData.designation, role: 'guest', createdAt: new Date().toISOString() });
+      await setDoc(doc(db, 'artifacts', projectId, 'users', result.user.uid), { name: formData.name, email: formData.email, birthday: formData.birthday, designation: formData.designation, role: 'guest', createdAt: new Date().toISOString() });
     } catch (err) { setError(err.message); } finally { setLoading(false); }
   };
   const handleMagicLink = async (e) => { e.preventDefault(); setLoading(true); setError(''); const actionCodeSettings = { url: window.location.href, handleCodeInApp: true }; try { await sendSignInLinkToEmail(auth, formData.email, actionCodeSettings); window.localStorage.setItem('emailForSignIn', formData.email); setMagicSent(true); } catch (err) { setError(err.message); } finally { setLoading(false); } };
@@ -657,6 +628,8 @@ export default function App() {
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
   const [activeModal, setActiveModal] = useState(null); 
   const [isDark, setIsDark] = useState(false); // Dark Mode State
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ key: 'castingDate', direction: 'desc' });
 
   const [editingRemark, setEditingRemark] = useState({ id: null, text: '' });
   const [editingSlabId, setEditingSlabId] = useState({ id: null, text: '' });
@@ -683,7 +656,7 @@ export default function App() {
           await signInWithEmailLink(auth, email, window.location.href);
           window.localStorage.removeItem('emailForSignIn');
         } else if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          try { await signInWithCustomToken(auth, __initial_auth_token); } catch (err) {}
+          try { await signInWithCustomToken(auth, __initial_auth_token); } catch { /* ignore */ }
         }
       } catch (error) { console.error("Auth error:", error); } finally { setAuthLoading(false); }
     };
@@ -700,21 +673,11 @@ export default function App() {
     // 3. Auth Listener
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        try {
-          const userDoc = await getDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid));
-          if (userDoc.exists()) {
-             const userData = { ...currentUser, ...userDoc.data() };
-             setUser(userData);
-             localStorage.setItem('sb-user', JSON.stringify(userData));
-          } else {
-             setUser({ ...currentUser, role: 'guest' }); 
-          }
-        } catch (e) {
-          setUser({ ...currentUser, role: 'guest' });
-        }
+        setUser(prev => prev ? { ...prev, uid: currentUser.uid, email: currentUser.email } : currentUser);
       } else {
         setUser(null);
         localStorage.removeItem('sb-user');
+        setSelectedProject(null);
       }
     });
     return () => unsubscribe();
@@ -727,45 +690,77 @@ export default function App() {
     if (isDark) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [isDark]);
-  
+
+  // Fetch User Profile when Project is Selected
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'slabs'), orderBy('castingDate', 'desc'), limit(QUERY_LIMIT));
+    if (!user || !selectedProject) return;
+    const fetchProfile = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, 'artifacts', selectedProject.id, 'users', user.uid));
+        if (userDoc.exists()) {
+           setUser(prev => {
+             const userData = { ...prev, ...userDoc.data() };
+             localStorage.setItem('sb-user', JSON.stringify(userData));
+             return userData;
+           });
+        } else {
+           setUser(prev => ({ ...prev, role: 'guest' }));
+        }
+      } catch {
+        setUser(prev => ({ ...prev, role: 'guest' }));
+      }
+    };
+    fetchProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject, user?.uid]);
+  
+  // Fetch Data when Project is Selected
+  useEffect(() => {
+    if (!user || !selectedProject) return;
+    const q = query(collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs'), orderBy('castingDate', 'desc'), limit(QUERY_LIMIT));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setData(items);
     });
     return () => unsubscribe();
-  }, [user]);
+  }, [user, selectedProject]);
 
   // --- Handlers ---
-  const handleLogin = (role) => {
-    const userData = { name: role === 'admin' ? 'Project Admin' : 'Guest Viewer', role: role };
-    setUser(userData); localStorage.setItem('sb-user', JSON.stringify(userData));
-  };
-  const handleLogout = async () => { await signOut(auth); setUser(null); localStorage.removeItem('sb-user'); setActiveTab('dashboard'); };
+  const handleLogout = async () => { await signOut(auth); setUser(null); localStorage.removeItem('sb-user'); setActiveTab('dashboard'); setSelectedProject(null); };
   const checkAdmin = useCallback(() => { if (user?.role !== 'admin') { alert("Permission Denied: Admin access required."); return false; } return true; }, [user]);
+
+  const handleProjectSelect = (project) => {
+    setSelectedProject(project);
+    setActiveTab('dashboard');
+  };
+
+  const handleSort = (key) => {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
 
   // Profile Update
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
+    if (!selectedProject) return;
     try {
-      await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid), { name: profileForm.name, designation: profileForm.designation });
+      await updateDoc(doc(db, 'artifacts', selectedProject.id, 'users', user.uid), { name: profileForm.name, designation: profileForm.designation });
       setUser(prev => ({ ...prev, name: profileForm.name, designation: profileForm.designation }));
       setActiveModal(null);
     } catch (err) { alert(err.message); }
   };
-  const openProfileModal = () => { setProfileForm({ name: user.name || '', designation: user.designation || '' }); setActiveModal('profile'); };
   const toggleTheme = () => setIsDark(!isDark);
 
   // CRUD Handlers
   const handleAddSlab = async (e) => {
-    e.preventDefault(); if (!checkAdmin()) return;
+    e.preventDefault(); if (!checkAdmin() || !selectedProject) return;
     const zoneCode = slabForm.zone.trim().split(/\s+/).map(w => w.charAt(0)).join('').toUpperCase();
     const dateCode = slabForm.castingDate ? slabForm.castingDate.replace(/-/g, '').slice(2) : '000000'; 
     const autoSlabId = `${zoneCode}-${dateCode}`;
     try {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'slabs'), { 
+      await addDoc(collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs'), {
         ...slabForm, slabId: autoSlabId, bbs: [], deliveries: [], notes: '', createdAt: new Date().toISOString(), createdBy: user.name 
       });
       setActiveModal(null); setSlabForm({ zone: '', castingDate: '', remarks: '', status: 'Scheduled', actualCastingDate: '' });
@@ -773,9 +768,9 @@ export default function App() {
   };
 
   const handleAssignBBS = async (e) => {
-    e.preventDefault(); if (!checkAdmin()) return;
+    e.preventDefault(); if (!checkAdmin() || !selectedProject) return;
     try { 
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', bbsForm.selectedSlabId), { 
+      await updateDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs', bbsForm.selectedSlabId), {
         bbs: arrayUnion({ number: bbsForm.bbsNumber, description: bbsForm.description || '', targetDate: bbsForm.targetDate || '', actualDate: bbsForm.actualDate || '', createdBy: user.name }) 
       }); 
       setActiveModal(null); setBbsForm({ selectedSlabId: '', bbsNumber: '', description: '', targetDate: '', actualDate: '' }); 
@@ -783,33 +778,33 @@ export default function App() {
   };
 
   const handleAddDelivery = async (e) => {
-    e.preventDefault(); if (!checkAdmin()) return;
+    e.preventDefault(); if (!checkAdmin() || !selectedProject) return;
     try { 
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', deliveryForm.selectedSlabId), { 
+      await updateDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs', deliveryForm.selectedSlabId), {
         deliveries: arrayUnion({ date: deliveryForm.date, description: deliveryForm.description || 'Batch Delivery', createdBy: user.name }) 
       }); 
       setActiveModal(null); setDeliveryForm({ selectedSlabId: '', date: '', description: '' }); 
     } catch (err) { alert(err.message); }
   };
 
-  const deleteEntry = async (id) => { if (!checkAdmin() || !confirm("Delete record?")) return; try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', id)); } catch (err) { alert(err.message); } };
-  const updateStatus = async (item, newStatus) => { if (!checkAdmin()) return; try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', item.id), { status: newStatus }); } catch (err) { alert(err.message); } };
+  const deleteEntry = async (id) => { if (!checkAdmin() || !confirm("Delete record?") || !selectedProject) return; try { await deleteDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs', id)); } catch (err) { alert(err.message); } };
+  const updateStatus = async (item, newStatus) => { if (!checkAdmin() || !selectedProject) return; try { await updateDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs', item.id), { status: newStatus }); } catch (err) { alert(err.message); } };
   const startEditingRemark = (item) => { if(!checkAdmin()) return; setEditingRemark({ id: item.id, text: item.remarks || '' }); };
-  const saveRemark = async () => { if (!editingRemark.id) return; try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', editingRemark.id), { remarks: editingRemark.text }); setEditingRemark({ id: null, text: '' }); } catch (err) { alert(err.message); } };
+  const saveRemark = async () => { if (!editingRemark.id || !selectedProject) return; try { await updateDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs', editingRemark.id), { remarks: editingRemark.text }); setEditingRemark({ id: null, text: '' }); } catch (err) { alert(err.message); } };
   const startEditingSlabId = (item) => { if(!checkAdmin()) return; setEditingSlabId({ id: item.id, text: item.slabId || '' }); };
-  const saveSlabId = async () => { if (!editingSlabId.id) return; try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', editingSlabId.id), { slabId: editingSlabId.text }); setEditingSlabId({ id: null, text: '' }); } catch (err) { alert(err.message); } };
+  const saveSlabId = async () => { if (!editingSlabId.id || !selectedProject) return; try { await updateDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs', editingSlabId.id), { slabId: editingSlabId.text }); setEditingSlabId({ id: null, text: '' }); } catch (err) { alert(err.message); } };
   const handleDeleteBBS = async (slab, bbsIndex) => {
-    if (!checkAdmin() || !confirm("Delete this BBS?")) return;
+    if (!checkAdmin() || !confirm("Delete this BBS?") || !selectedProject) return;
     const updated = [...slab.bbs];
     updated.splice(bbsIndex, 1);
     try {
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', slab.id), { bbs: updated });
+      await updateDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs', slab.id), { bbs: updated });
     } catch (err) { alert(err.message); }
   };
   const initiateEditBBS = useCallback((slab, bbsIndex) => { if (!checkAdmin()) return; const item = slab.bbs[bbsIndex]; setEditBbsState({ slabId: slab.id, bbsIndex, data: typeof item === 'object' ? item : { number: item, description: '' } }); setActiveModal('edit-bbs'); }, [checkAdmin, setEditBbsState, setActiveModal]);
-  const handleSaveBbsEdit = async (e) => { e.preventDefault(); if (!checkAdmin()) return; const slab = data.find(d => d.id === editBbsState.slabId); if (!slab) return; const updated = [...slab.bbs]; updated[editBbsState.bbsIndex] = editBbsState.data; try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', editBbsState.slabId), { bbs: updated }); setActiveModal(null); } catch (err) { alert(err.message); } };
+  const handleSaveBbsEdit = async (e) => { e.preventDefault(); if (!checkAdmin() || !selectedProject) return; const slab = data.find(d => d.id === editBbsState.slabId); if (!slab) return; const updated = [...slab.bbs]; updated[editBbsState.bbsIndex] = editBbsState.data; try { await updateDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs', editBbsState.slabId), { bbs: updated }); setActiveModal(null); } catch (err) { alert(err.message); } };
   const initiateEditCasting = (item) => { if (!checkAdmin()) return; setEditCastingState({ id: item.id, target: item.castingDate || '', actual: item.actualCastingDate || '' }); setActiveModal('edit-casting'); };
-  const handleSaveCastingEdit = async (e) => { e.preventDefault(); if (!checkAdmin()) return; const updates = { castingDate: editCastingState.target, actualCastingDate: editCastingState.actual }; if (editCastingState.actual) updates.status = 'Cast'; try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'slabs', editCastingState.id), updates); setActiveModal(null); } catch (err) { alert(err.message); } };
+  const handleSaveCastingEdit = async (e) => { e.preventDefault(); if (!checkAdmin() || !selectedProject) return; const updates = { castingDate: editCastingState.target, actualCastingDate: editCastingState.actual }; if (editCastingState.actual) updates.status = 'Cast'; try { await updateDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs', editCastingState.id), updates); setActiveModal(null); } catch (err) { alert(err.message); } };
 
   // --- Metrics ---
   const metrics = useMemo(() => {
@@ -824,29 +819,84 @@ export default function App() {
     });
     const totalBBS = data.reduce((acc, curr) => acc + (Array.isArray(curr.bbs) ? curr.bbs.length : 0), 0);
     const deliveredBBS = data.reduce((acc, curr) => acc + (Array.isArray(curr.bbs) ? curr.bbs.filter(b => b.actualDate).length : 0), 0);
-    return { total, cast, delivered, pending, early, onTime, late, totalBBS, deliveredBBS };
+
+    // Zone-wise Summary
+    const zoneSummary = {};
+    data.forEach(item => {
+        const z = item.zone || 'Unknown';
+        if (!zoneSummary[z]) zoneSummary[z] = { total: 0, cast: 0, pending: 0 };
+        zoneSummary[z].total++;
+        if (item.status === 'Cast') zoneSummary[z].cast++;
+        else zoneSummary[z].pending++;
+    });
+
+    return { total, cast, delivered, pending, early, onTime, late, totalBBS, deliveredBBS, zoneSummary };
   }, [data]);
 
-  const filteredData = data.filter(item => {
-    const textMatch = (item.slabId || '').toLowerCase().includes(searchQuery.toLowerCase()) || (Array.isArray(item.bbs) ? item.bbs.map(b => (typeof b === 'object' ? b.number : b)).join(' ') : '').toLowerCase().includes(searchQuery.toLowerCase()) || (item.zone || '').toLowerCase().includes(searchQuery.toLowerCase());
-    let dateMatch = true;
-    if (dateFilter.start && dateFilter.end && item.castingDate) {
-      const cDate = new Date(item.castingDate);
-      const sDate = new Date(dateFilter.start);
-      const eDate = new Date(dateFilter.end);
-      dateMatch = cDate >= sDate && cDate <= eDate;
+  const filteredData = useMemo(() => {
+    let result = data.filter(item => {
+      const textMatch = (item.slabId || '').toLowerCase().includes(searchQuery.toLowerCase()) || (Array.isArray(item.bbs) ? item.bbs.map(b => (typeof b === 'object' ? b.number : b)).join(' ') : '').toLowerCase().includes(searchQuery.toLowerCase()) || (item.zone || '').toLowerCase().includes(searchQuery.toLowerCase());
+      let dateMatch = true;
+      if (dateFilter.start && dateFilter.end && item.castingDate) {
+        const cDate = new Date(item.castingDate);
+        const sDate = new Date(dateFilter.start);
+        const eDate = new Date(dateFilter.end);
+        dateMatch = cDate >= sDate && cDate <= eDate;
+      }
+      return textMatch && dateMatch;
+    });
+
+    if (sortConfig.key) {
+        result.sort((a, b) => {
+            if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
     }
-    return textMatch && dateMatch;
-  });
+
+    return result;
+  }, [data, searchQuery, dateFilter, sortConfig]);
 
   const ReportView = () => (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
         <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
-          <div><h3 className="font-bold text-xl text-slate-800 dark:text-white flex items-center gap-2"><BarChart3 className="text-blue-600" /> Executive Project Report</h3><p className="text-xs text-slate-500 mt-1">Generated: {new Date().toLocaleDateString()}</p></div>
+          <div>
+              <h3 className="font-bold text-xl text-slate-800 dark:text-white flex items-center gap-2"><BarChart3 className="text-blue-600" /> Executive Project Report</h3>
+              <p className="text-xs text-slate-500 mt-1">{selectedProject?.name} | Generated: {new Date().toLocaleDateString()}</p>
+          </div>
           <div className="flex gap-2 no-print"><button aria-label="Print report" onClick={() => window.print()} className="p-2 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors hidden md:block"><Printer size={20} /></button><button aria-label="Close report" onClick={() => setActiveModal(null)} className="p-2 text-slate-400 hover:text-slate-600 rounded-full transition-colors"><X size={24} /></button></div>
         </div>
         <div className="overflow-y-auto p-8 space-y-8 print:p-0">
+          {/* Project Summary */}
+          <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
+             <h4 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><Briefcase size={18} /> Project Summary</h4>
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="p-3 bg-white dark:bg-slate-700 rounded shadow-sm border border-slate-200 dark:border-slate-600"><p className="text-xs text-slate-500">Total Slabs</p><p className="text-xl font-bold text-slate-800 dark:text-white">{metrics.total}</p></div>
+                <div className="p-3 bg-white dark:bg-slate-700 rounded shadow-sm border border-slate-200 dark:border-slate-600"><p className="text-xs text-slate-500">Completed</p><p className="text-xl font-bold text-emerald-600">{metrics.cast}</p></div>
+                <div className="p-3 bg-white dark:bg-slate-700 rounded shadow-sm border border-slate-200 dark:border-slate-600"><p className="text-xs text-slate-500">Pending</p><p className="text-xl font-bold text-blue-600">{metrics.pending}</p></div>
+                <div className="p-3 bg-white dark:bg-slate-700 rounded shadow-sm border border-slate-200 dark:border-slate-600"><p className="text-xs text-slate-500">Delayed</p><p className="text-xl font-bold text-red-600">{metrics.late}</p></div>
+             </div>
+
+             <div className="break-inside-avoid">
+                 <h5 className="font-bold text-sm text-slate-700 dark:text-slate-300 mb-2">Zone-wise Progress</h5>
+                 <table className="w-full text-xs border border-slate-200 dark:border-slate-700 rounded overflow-hidden">
+                     <thead className="bg-slate-100 dark:bg-slate-900 font-semibold text-slate-600 dark:text-slate-400"><tr><th className="p-2 text-left">Zone / Level</th><th className="p-2 text-center">Total</th><th className="p-2 text-center">Cast</th><th className="p-2 text-center">Pending</th><th className="p-2 text-right">Progress</th></tr></thead>
+                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                         {Object.entries(metrics.zoneSummary).map(([zone, stats]) => (
+                             <tr key={zone} className="bg-white dark:bg-slate-800">
+                                 <td className="p-2 font-medium">{zone}</td>
+                                 <td className="p-2 text-center">{stats.total}</td>
+                                 <td className="p-2 text-center text-emerald-600 font-bold">{stats.cast}</td>
+                                 <td className="p-2 text-center text-slate-500">{stats.pending}</td>
+                                 <td className="p-2 text-right">{Math.round((stats.cast / stats.total) * 100)}%</td>
+                             </tr>
+                         ))}
+                     </tbody>
+                 </table>
+             </div>
+          </div>
+
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700"><p className="text-xs font-bold text-slate-500 uppercase">Total Scope</p><p className="text-3xl font-bold text-slate-800 dark:text-white mt-1">{metrics.total}</p></div>
             <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg border border-emerald-100 dark:border-emerald-800"><p className="text-xs font-bold text-emerald-600 uppercase">Completed</p><p className="text-3xl font-bold text-emerald-900 dark:text-emerald-400 mt-1">{metrics.cast} <span className="text-sm font-normal">({Math.round((metrics.cast/metrics.total)*100 || 0)}%)</span></p></div>
@@ -877,7 +927,7 @@ export default function App() {
           </div>
           <div><h4 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><AlertTriangle size={18} /> Risk Register (Critical Delays)</h4><table className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden"><thead className="bg-slate-50 dark:bg-slate-900 text-xs uppercase text-slate-500 font-bold"><tr><th className="p-3 text-left">Zone / ID</th><th className="p-3 text-left">Planned Date</th><th className="p-3 text-left">Actual Date</th><th className="p-3 text-left">Remarks / Impact</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-700">{data.filter(i => i.status === 'Delayed' || (i.castingDate && i.actualCastingDate && new Date(i.actualCastingDate) > new Date(i.castingDate))).map(item => (<tr key={item.id} className="text-slate-600 dark:text-slate-300"><td className="p-3 font-medium text-slate-800 dark:text-white">{item.slabId} <br/><span className="text-xs text-slate-400 font-normal">{item.zone}</span></td><td className="p-3">{item.castingDate}</td><td className="p-3 text-red-600 font-bold">{item.actualCastingDate || 'Pending'}</td><td className="p-3 italic">{item.remarks || 'No specific remarks'}</td></tr>))}</tbody></table></div>
 
-          <div className="break-before-page"><h4 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><Hammer size={18} /> Casting Schedule</h4><table className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden"><thead className="bg-slate-50 dark:bg-slate-900 text-xs uppercase text-slate-500 font-bold"><tr><th className="p-3 text-left">Date</th><th className="p-3 text-left">Zone / Level</th><th className="p-3 text-left">Casting ID</th><th className="p-3 text-left">Status</th><th className="p-3 text-left">Remarks</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-700">{data.slice().sort((a,b) => new Date(a.castingDate || '9999-12-31') - new Date(b.castingDate || '9999-12-31')).map(item => (<tr key={item.id} className="text-slate-600 dark:text-slate-300"><td className="p-3 whitespace-nowrap">{item.castingDate || '-'}</td><td className="p-3 font-medium text-slate-800 dark:text-white">{item.zone}</td><td className="p-3 font-mono text-xs">{item.slabId}</td><td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${item.status === 'Cast' ? 'bg-emerald-100 text-emerald-800' : item.status === 'Delayed' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>{item.status}</span></td><td className="p-3 italic text-xs max-w-[200px] truncate">{item.remarks}</td></tr>))}</tbody></table></div>
+          <div className="break-before-page"><h4 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><Hammer size={18} /> Casting Schedule</h4><table className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden"><thead className="bg-slate-50 dark:bg-slate-900 text-xs uppercase text-slate-500 font-bold"><tr><th className="p-3 text-left">Date</th><th className="p-3 text-left">Zone / Level</th><th className="p-3 text-left">Casting ID</th><th className="p-3 text-left">Status</th><th className="p-3 text-left">Remarks</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-700">{filteredData.map(item => (<tr key={item.id} className="text-slate-600 dark:text-slate-300"><td className="p-3 whitespace-nowrap">{item.castingDate || '-'}</td><td className="p-3 font-medium text-slate-800 dark:text-white">{item.zone}</td><td className="p-3 font-mono text-xs">{item.slabId}</td><td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${item.status === 'Cast' ? 'bg-emerald-100 text-emerald-800' : item.status === 'Delayed' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>{item.status}</span></td><td className="p-3 italic text-xs max-w-[200px] truncate">{item.remarks}</td></tr>))}</tbody></table></div>
         </div>
       </div>
     </div>
@@ -913,7 +963,24 @@ export default function App() {
       </div>
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left border-collapse">
-          <thead><tr className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-xs uppercase font-semibold border-b border-slate-200 dark:border-slate-700"><th className="p-4">Casting ID</th><th className="p-4">Zone / Level</th><th className="p-4">Remarks</th><th className="p-4">BBS Number</th><th className="p-4">HCS Delivery</th><th className="p-4">Casting Dates</th><th className="p-4">Status</th>{user?.role === 'admin' && <th className="p-4 text-right">Actions</th>}</tr></thead>
+          <thead>
+              <tr className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-xs uppercase font-semibold border-b border-slate-200 dark:border-slate-700">
+                  <th className="p-4 cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 transition-colors" onClick={() => handleSort('slabId')}>
+                      <div className="flex items-center gap-1">Casting ID {sortConfig.key === 'slabId' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</div>
+                  </th>
+                  <th className="p-4 cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 transition-colors" onClick={() => handleSort('zone')}>
+                      <div className="flex items-center gap-1">Zone / Level {sortConfig.key === 'zone' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</div>
+                  </th>
+                  <th className="p-4">Remarks</th>
+                  <th className="p-4">BBS Number</th>
+                  <th className="p-4">HCS Delivery</th>
+                  <th className="p-4 cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 transition-colors" onClick={() => handleSort('castingDate')}>
+                      <div className="flex items-center gap-1">Casting Dates {sortConfig.key === 'castingDate' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</div>
+                  </th>
+                  <th className="p-4">Status</th>
+                  {user?.role === 'admin' && <th className="p-4 text-right">Actions</th>}
+              </tr>
+          </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
             {filteredData.map((item) => (
               <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-slate-700 dark:text-slate-300">
@@ -949,10 +1016,10 @@ export default function App() {
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-500">Connecting to Cloud...</div>;
   if (!user) return <LoginView initialMode={emailConfirmationNeeded ? 'confirm-email' : 'login'} />;
+  if (!selectedProject) return <ProjectSelection projects={PROJECTS} onSelect={handleProjectSelect} />;
 
   return (
     <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300">
-      <GlobalStyles isDark={isDark} />
       <nav className="bg-slate-900 text-white sticky top-0 z-50 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center gap-3"><div className="bg-blue-500 p-1.5 rounded-lg"><AppLogo className="h-8 w-8 text-white" /></div><span className="font-bold text-lg md:text-xl tracking-tight">SB-CasTrack</span></div>
@@ -960,6 +1027,7 @@ export default function App() {
             {[{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'tracker', label: 'Tracker', icon: FileText }, { id: 'calendar', label: 'Calendar', icon: CalendarIcon }].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.id ? 'bg-slate-800 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`}><tab.icon size={16} />{tab.label}</button>
             ))}
+            <button onClick={() => setSelectedProject(null)} className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors text-slate-300 hover:text-white hover:bg-slate-800"><Briefcase size={16} /> Switch Project</button>
           </div>
           <div className="flex items-center gap-4">
              <div className="text-right hidden sm:block cursor-pointer" onClick={() => setActiveModal('profile')}>

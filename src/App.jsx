@@ -176,6 +176,27 @@ const GlobalStyles = ({ isDark }) => (
 
 // --- Helper Components ---
 
+const MiniCalendar = ({ date, label, type }) => {
+  const d = new Date(date);
+  const month = d.toLocaleString('default', { month: 'short' }).toUpperCase();
+  const day = d.getDate();
+  const color = type === 'actual' ? 'emerald' : 'blue';
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden w-16 text-center animate-in zoom-in-95 duration-200">
+      <div className={`bg-${color}-500 text-white text-[10px] font-bold py-0.5 uppercase tracking-wide`}>
+        {month}
+      </div>
+      <div className="text-xl font-bold text-slate-800 dark:text-white py-1">
+        {day}
+      </div>
+      <div className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-[8px] py-0.5 border-t border-slate-100 dark:border-slate-700 truncate px-1">
+        {label}
+      </div>
+    </div>
+  );
+};
+
 const Card = ({ title, value, icon: Icon, subtext, color = "blue" }) => (
   <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-start justify-between hover:shadow-md transition-shadow">
     <div>
@@ -351,6 +372,7 @@ const CalendarView = ({ data }) => {
   const [filterText, setFilterText] = useState(''); // Calendar specific filter
   const [focusedSlabId, setFocusedSlabId] = useState(null);
   const [activeGhosts, setActiveGhosts] = useState([]);
+  const [offScreenGhosts, setOffScreenGhosts] = useState({ items: [], rect: null });
   const hoverTimerRef = useRef(null); 
   const daysInMonth = getDaysInMonth(currentDate); const firstDay = getFirstDayOfMonth(currentDate);
   const monthName = currentDate.toLocaleString('default', { month: 'long' }); const year = currentDate.getFullYear();
@@ -367,9 +389,28 @@ const CalendarView = ({ data }) => {
         else if (meta.type === 'bbsActual') label = `BBS Target: ${meta.bbsNum}`;
         else if (meta.type === 'castActual') label = `Plan: ${meta.slabId}`;
         
+        // --- Off-Screen Tooltip Logic ---
+        const offScreen = [];
+        const isOffScreen = (d) => {
+             const date = new Date(d);
+             return date < new Date(year, currentDate.getMonth(), 1) || date > new Date(year, currentDate.getMonth() + 1, 0);
+        };
+
+        if (meta.targetDate && isOffScreen(meta.targetDate)) {
+             offScreen.push({ date: meta.targetDate, label: 'Target', type: 'target' });
+        }
+
         if (meta.type === 'castActual' && Array.isArray(meta.bbs)) {
             const ghosts = meta.bbs.map((b, i) => {
               const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
+
+              // Check for off-screen BBS
+              if (bObj.actualDate && isOffScreen(bObj.actualDate)) {
+                  offScreen.push({ date: bObj.actualDate, label: `BBS ${bObj.number}`, type: 'actual' });
+              } else if (bObj.targetDate && !bObj.actualDate && isOffScreen(bObj.targetDate)) {
+                  offScreen.push({ date: bObj.targetDate, label: `Plan ${bObj.number}`, type: 'target' });
+              }
+
               return {
                 type: 'bbsGhost',
                 dateStr: bObj.actualDate,
@@ -382,13 +423,12 @@ const CalendarView = ({ data }) => {
             setActiveGhosts(ghosts);
         }
 
-        let startElId = `ghost-${meta.id}-${meta.targetDate}`;
-        if (meta.targetDate) {
-           const tDate = new Date(meta.targetDate);
-           const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-           const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-           if (tDate < monthStart) startElId = 'cal-prev-btn';
-           else if (tDate > monthEnd) startElId = 'cal-next-btn';
+        // Get rect for off-screen tooltip positioning
+        const domEl = document.getElementById(meta.domId);
+        if (offScreen.length > 0 && domEl) {
+            setOffScreenGhosts({ items: offScreen, rect: domEl.getBoundingClientRect() });
+        } else {
+            setOffScreenGhosts({ items: [], rect: null });
         }
 
         setGhostConnection({
@@ -396,7 +436,7 @@ const CalendarView = ({ data }) => {
           actualDate: meta.dateStr,
           label: label,
           endElementId: meta.domId,
-          startElementId: startElId
+          startElementId: `ghost-${meta.id}-${meta.targetDate}`
         });
     };
 
@@ -413,6 +453,7 @@ const CalendarView = ({ data }) => {
     setGhostConnection(null);
     setFocusedSlabId(null);
     setActiveGhosts([]);
+    setOffScreenGhosts({ items: [], rect: null });
   };
 
   const days = []; for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="h-24 md:h-32 bg-slate-50/50 dark:bg-slate-900/50 border-b border-r border-slate-100 dark:border-slate-800"></div>);
@@ -502,6 +543,13 @@ const CalendarView = ({ data }) => {
   return (
     <>
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in duration-500 mb-20 md:mb-0 relative">
+        {offScreenGhosts.items.length > 0 && offScreenGhosts.rect && (
+            <div style={{ top: offScreenGhosts.rect.top, left: offScreenGhosts.rect.right + 10 }} className="fixed z-[100] flex flex-col gap-2">
+                {offScreenGhosts.items.map((item, i) => (
+                    <MiniCalendar key={i} date={item.date} label={item.label} type={item.type} />
+                ))}
+            </div>
+        )}
         {ghostConnection && ghostConnection.endElementId && <GhostLine startId={ghostConnection.startElementId} endId={ghostConnection.endElementId} />}
         <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row items-center justify-between gap-4">
           <h2 className="text-base md:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><CalendarIcon className="text-blue-500" size={20} /> {monthName} {year}</h2>
@@ -519,7 +567,7 @@ const CalendarView = ({ data }) => {
                {filterText && <button aria-label="Clear filter" onClick={() => setFilterText('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500"><X size={14} /></button>}
              </div>
              <div className="flex gap-1">
-                <button id="cal-prev-btn" aria-label="Previous month" onClick={prevMonth} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400"><ChevronLeft size={18} /></button><button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300">Today</button><button id="cal-next-btn" aria-label="Next month" onClick={nextMonth} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400"><ChevronRight size={18} /></button>
+                <button aria-label="Previous month" onClick={prevMonth} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400"><ChevronLeft size={18} /></button><button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300">Today</button><button aria-label="Next month" onClick={nextMonth} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400"><ChevronRight size={18} /></button>
              </div>
           </div>
         </div>

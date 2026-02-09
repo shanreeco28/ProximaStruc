@@ -3,8 +3,7 @@
 @tailwind utilities;
 
 /* Global Style Resets (Formerly GlobalStyles component) */
-/* ...existing code... */
-body, html {
+:root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -15,6 +14,61 @@ body, html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root.dark {
+  color-scheme: dark;
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background-color: white !important;
+    background-image: none !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
+  table {
+    break-inside: auto;
+  }
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  thead {
+    display: table-header-group;
+  }
+}
+
 /* Force full height and width to override default Vite styles */
 html {
   height: 100%;
@@ -23,6 +77,8 @@ html {
 
 body {
   margin: 0;
+  padding: 0;
+  overflow-x: hidden;
   display: block;
   place-items: unset; /* Overrides Vite's centering */
   min-width: 320px;
@@ -35,6 +91,7 @@ body {
   background-attachment: fixed;
   background-repeat: no-repeat;
   color: #0f172a; /* Matches text-slate-900 */
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .dark body {

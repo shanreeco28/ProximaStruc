@@ -71,7 +71,9 @@ import {
   query,
   arrayUnion,
   setDoc,
-  getDoc
+  getDoc,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 
 /**
@@ -726,7 +728,7 @@ export default function App() {
   
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'slabs'));
+    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'slabs'), orderBy('castingDate', 'desc'), limit(500));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setData(items);

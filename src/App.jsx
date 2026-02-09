@@ -1,18 +1,175 @@
-import React, { useState, useEffect } from 'react';
-import ProjectSelection from './components/ProjectSelection.jsx';
-import ProjectApp from './ProjectApp.jsx';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
+import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
+import DeliveryTags from './components/DeliveryTags';
+import {
+  LayoutDashboard,
+  Truck,
+  Layers,
+  Calendar as CalendarIcon,
+  Search,
+  Plus,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  LogOut,
+  FileText,
+  Hammer,
+  ChevronDown,
+  Filter,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Database,
+  FileSignature,
+  PackagePlus,
+  Target,
+  Edit2,
+  Info,
+  BarChart3,
+  PieChart,
+  Printer,
+  TrendingUp,
+  Activity,
+  User,
+  Shield,
+  Eye,
+  Mail,
+  Lock,
+  CalendarDays,
+  Briefcase,
+  Link as LinkIcon,
+  UserCog,
+  Moon,
+  Sun
+} from 'lucide-react';
 
-const DEFAULT_PROJECTS = [
-  { id: 'tnd4-castrack', name: 'TND4 Project', description: 'TND4 Construction Logistics' },
-];
+// --- Firebase Imports ---
+import { initializeApp } from 'firebase/app';
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithCustomToken,
+  GoogleAuthProvider,
+  signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  updateProfile,
+  signOut
+} from 'firebase/auth';
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+  arrayUnion,
+  setDoc,
+  getDoc
+} from 'firebase/firestore';
 
-export default function App() {
-  const [projects, setProjects] = useState(() => {
-    const stored = localStorage.getItem('sb-projects');
-    try {
-      return stored ? JSON.parse(stored) : DEFAULT_PROJECTS;
-    } catch (e) {
-      return DEFAULT_PROJECTS;
+/**
+ * SB-CasTrack v9.0 (Dark Mode Fix)
+ * Features:
+ * - Removed wrapper classes that conflicted with Dark Mode
+ * - Relies on GlobalStyles for base theme colors
+ * - Requires darkMode: 'class' in tailwind.config.js
+ */
+
+// --- Firebase Configuration ---
+const firebaseConfig = {
+  apiKey: "AIzaSyDn6tKFPwszxiXOcayglRjl4yTCr7Y2BJo",
+  authDomain: "tnd4-castrack.firebaseapp.com",
+  projectId: "tnd4-castrack",
+  storageBucket: "tnd4-castrack.firebasestorage.app",
+  messagingSenderId: "579746948632",
+  appId: "1:579746948632:web:8f806ca4c50543a2dbc56d"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = 'tnd4-castrack';
+
+// --- Custom Construction Logo ---
+const AppLogo = ({ className = "h-10 w-10" }) => (
+  <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    {/* Building Structure - Tower 1 */}
+    <path d="M16 60V24H32V60" fill="#334155" />
+
+    {/* Building Structure - Tower 2 (Higher) */}
+    <path d="M32 60V12H48V60" fill="#475569" />
+
+    {/* Windows on Tower 1 */}
+    <rect x="20" y="28" width="8" height="4" fill="#94a3b8" />
+    <rect x="20" y="36" width="8" height="4" fill="#94a3b8" />
+    <rect x="20" y="44" width="8" height="4" fill="#94a3b8" />
+    <rect x="20" y="52" width="8" height="4" fill="#94a3b8" />
+
+    {/* Windows on Tower 2 */}
+    <rect x="36" y="16" width="8" height="4" fill="#cbd5e1" />
+    <rect x="36" y="24" width="8" height="4" fill="#cbd5e1" />
+    <rect x="36" y="32" width="8" height="4" fill="#cbd5e1" />
+    <rect x="36" y="40" width="8" height="4" fill="#cbd5e1" />
+    <rect x="36" y="48" width="8" height="4" fill="#cbd5e1" />
+
+    {/* The Slab being lifted (Blue) */}
+    <rect x="8" y="14" width="20" height="5" rx="1" fill="#3b82f6" stroke="#1d4ed8" strokeWidth="1"/>
+
+    {/* Crane Cables (Yellow/Orange) */}
+    <path d="M18 14L18 4" stroke="#f59e0b" strokeWidth="2" />
+
+    {/* Crane Arm & Tower (Yellow/Orange) */}
+    <path d="M48 12L48 4L14 4" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" />
+
+    {/* Crane Counterweight */}
+    <rect x="48" y="2" width="8" height="6" fill="#b45309" />
+
+    {/* Ground Line */}
+    <path d="M2 60H62" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+// --- Global Style Reset Component ---
+const GlobalStyles = ({ isDark }) => (
+  <style>{`
+    *, *::before, *::after { box-sizing: border-box; }
+    :root {
+      font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      font-weight: 400;
+      color-scheme: ${isDark ? 'dark' : 'light'};
+    }
+    html { height: 100%; width: 100%; }
+    body {
+      margin: 0; display: block !important; place-items: unset !important;
+      min-width: 320px; min-height: 100vh; width: 100%;
+      /* Base background and text colors handled here */
+      background-color: ${isDark ? '#0f172a' : '#f8fafc'};
+      color: ${isDark ? '#f1f5f9' : '#0f172a'};
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    #root {
+      max-width: none !important; margin: 0 !important; padding: 0 !important;
+      text-align: left !important; width: 100% !important; height: 100%; display: block !important;
+    }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: ${isDark ? '#1e293b' : '#f1f5f9'}; }
+    ::-webkit-scrollbar-thumb { background: ${isDark ? '#475569' : '#cbd5e1'}; borderRadius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: ${isDark ? '#64748b' : '#94a3b8'}; }
+    @media print {
+      body { background-color: white !important; color: black !important; }
+      .no-print { display: none !important; }
+      @page { size: A4; margin: 20mm; }
+      table { break-inside: auto; }
+      tr { break-inside: avoid; page-break-inside: avoid; }
+      thead { display: table-header-group; }
     }
   `}</style>
 );
@@ -26,10 +183,11 @@ const MiniCalendar = ({ date, label, type }) => {
   const month = d.toLocaleString('default', { month: 'short' }).toUpperCase();
   const day = dNum;
   const color = type === 'actual' ? 'emerald' : 'blue';
+  const headerClass = `bg-${color}-500 text-white text-[10px] font-bold py-0.5 uppercase tracking-wide`;
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden w-16 text-center animate-in zoom-in-95 duration-200">
-      <div className={`bg-${color}-500 text-white text-[10px] font-bold py-0.5 uppercase tracking-wide`}>
+      <div className={headerClass}>
         {month}
       </div>
       <div className="text-xl font-bold text-slate-800 dark:text-white py-1">
@@ -55,28 +213,108 @@ const Card = ({ title, value, icon: Icon, subtext, color = "blue" }) => (
   </div>
 );
 
-  const [selectedProject, setSelectedProject] = useState(() => {
-    const lastId = localStorage.getItem('sb-last-project');
-    if (lastId) {
-        const storedProjects = localStorage.getItem('sb-projects');
-        const list = storedProjects ? JSON.parse(storedProjects) : DEFAULT_PROJECTS;
-        return list.find(p => p.id === lastId) || null;
+const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disabled }) => {
+  let statusStyle = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600";
+  if (currentStatus === 'Delayed') {
+    statusStyle = "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800";
+  } else if (currentStatus === 'Cast') {
+    if (targetDate && actualDate) {
+      const target = new Date(targetDate).setHours(0,0,0,0);
+      const actual = new Date(actualDate).setHours(0,0,0,0);
+      if (actual > target) statusStyle = "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 font-bold";
+      else if (actual < target) statusStyle = "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 font-bold";
+      else statusStyle = "bg-white dark:bg-slate-700 text-slate-700 dark:text-white border-slate-300 dark:border-slate-600";
+    } else {
+      statusStyle = "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800";
     }
-    return null;
-  });
+  }
+  return (
+    <div className="relative inline-block">
+      <select value={currentStatus} disabled={disabled} onChange={(e) => onChange(e.target.value)} className={`appearance-none pl-3 pr-8 py-1 rounded-full text-[10px] md:text-xs font-medium border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-colors ${statusStyle} ${disabled ? 'cursor-default opacity-80' : 'cursor-pointer'}`}>
+        <option value="Scheduled">Scheduled</option><option value="Cast">Cast</option><option value="Delayed">Delayed</option>
+      </select>
+      {!disabled && <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />}
+    </div>
+  );
+};
 
-  useEffect(() => {
-    localStorage.setItem('sb-projects', JSON.stringify(projects));
-  }, [projects]);
+const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, readOnly }) => {
+  let list = Array.isArray(bbs) ? bbs : (bbs ? [bbs] : []);
+  if (list.length === 0) return <span className="text-slate-400 dark:text-slate-600 italic text-xs">Pending</span>;
+  return (
+    <div className="flex flex-wrap gap-1 justify-end">
+      {list.map((b, idx) => {
+        const isObj = typeof b === 'object' && b !== null;
+        const text = isObj ? b.number : b;
+        const desc = isObj ? b.description : '';
+        const actual = isObj ? b.actualDate : '';
+        const isCriticalDelay = castingDate && actual && new Date(actual) > new Date(castingDate);
+        let tooltip = `${desc || text}`; if (isObj && b.createdBy) tooltip += `\n(Added by: ${b.createdBy})`;
+        return (
+          <button key={idx} disabled={readOnly} onClick={(e) => { e.stopPropagation(); onEdit && onEdit(idx); }} title={tooltip} className={`font-mono text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap flex items-center gap-1 transition-colors ${isCriticalDelay ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400'} ${readOnly ? 'cursor-default' : ''}`}>
+            {text} {isCriticalDelay && <AlertTriangle size={8} className="text-red-500" />}
+            {!readOnly && onDelete && (
+                <span onClick={(e) => { e.stopPropagation(); onDelete(idx); }} className="ml-1 hover:text-red-500 rounded-full p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center">
+                    <X size={10} />
+                </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.bbs === nextProps.bbs &&
+    prevProps.castingDate === nextProps.castingDate &&
+    prevProps.readOnly === nextProps.readOnly
+  );
+});
 
-  const handleSelectProject = (project) => {
-    setSelectedProject(project);
-    localStorage.setItem('sb-last-project', project.id);
+
+const MobileNav = ({ activeTab, setActiveTab }) => {
+  const tabs = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'tracker', label: 'Tracker', icon: FileText }, { id: 'calendar', label: 'Calendar', icon: CalendarIcon }];
+  return (
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-2 pb-safe z-50 shadow-lg flex justify-around items-center no-print">
+      {tabs.map(tab => (
+        <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors w-full ${activeTab === tab.id ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}>
+          <tab.icon size={20} className={activeTab === tab.id ? 'fill-current opacity-20' : ''} /><span className="text-[10px] font-medium">{tab.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+};
+
+// --- Tooltips & Ghost Lines ---
+const BubbleTooltip = ({ title, content, author, children, onVisible, onHidden, meta }) => {
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [show, setShow] = useState(false);
+  const timerRef = useRef(null);
+
+  const handleMouseEnter = (e) => {
+    if (onVisible) onVisible(meta, false); // Pass false for delayed ghost lines
+    if (!content && !author && !title) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPosition({ top: rect.top - 8, left: rect.left + rect.width / 2 });
+    timerRef.current = setTimeout(() => setShow(true), 2000);
   };
 
-  const handleExitProject = () => {
-    setSelectedProject(null);
-    localStorage.removeItem('sb-last-project');
+  const handleClick = (e) => {
+    e.stopPropagation();
+    if (!content && !author && !title) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPosition({ top: rect.top - 8, left: rect.left + rect.width / 2 });
+
+    // Toggle
+    if (show) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setShow(false);
+      if (onHidden) onHidden();
+    } else {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setShow(true);
+      if (onVisible) onVisible(meta, true); // Pass true for immediate ghost lines
+    }
   };
 
   const handleMouseLeave = () => { if (timerRef.current) clearTimeout(timerRef.current); setShow(false); if (onHidden) onHidden(); };

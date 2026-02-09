@@ -1,5 +1,6 @@
 import React from 'react';
 
+// --- Custom Construction Logo ---
 const AppLogo = ({ className = "h-10 w-10" }) => (
   <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     {/* Building Structure - Tower 1 */}

@@ -21,6 +21,10 @@ html {
   width: 100%;
 }
 
+.dark {
+    color-scheme: dark;
+}
+
 body {
   margin: 0;
   display: block;
@@ -56,4 +60,48 @@ body {
 /* Ensure border-box sizing everywhere */
 *, *::before, *::after {
   box-sizing: border-box;
+}
+
+/* Scrollbar Customization */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.dark ::-webkit-scrollbar-track { background: #1e293b; }
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* Print Styles for A4 Layout */
+@media print {
+  body {
+    background-color: white !important;
+    background-image: none !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
+  table {
+    break-inside: auto;
+  }
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  thead {
+    display: table-header-group;
+  }
+  .break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .break-before-page {
+    break-before: page;
+    page-break-before: always;
+  }
 }

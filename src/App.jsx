@@ -357,7 +357,7 @@ const CalendarView = ({ data }) => {
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
-  const handleEventHover = (meta, immediate) => {
+  const handleEventHover = useCallback((meta, immediate) => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     if (meta && meta.slabId) setFocusedSlabId(meta.slabId);
 
@@ -427,98 +427,104 @@ const CalendarView = ({ data }) => {
         hoverTimerRef.current = setTimeout(triggerGhost, 500);
       }
     }
-  };
-  const clearGhost = () => {
+  }, [currentDate, year]); // year is derived from currentDate but kept for clarity
+
+  const clearGhost = useCallback(() => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     setGhostConnection(null);
     setFocusedSlabId(null);
     setActiveGhosts([]);
     setOffScreenGhosts({ items: [], rect: null });
-  };
-
-  const days = []; for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="h-24 md:h-32 bg-slate-50/50 dark:bg-slate-900/50 border-b border-r border-slate-100 dark:border-slate-800"></div>);
+  }, []);
 
   // Filter data for calendar
-  const filteredData = data.filter(item =>
+  const filteredData = useMemo(() => data.filter(item =>
     !filterText ||
     item.slabId.toLowerCase().includes(filterText.toLowerCase()) ||
     item.zone.toLowerCase().includes(filterText.toLowerCase())
-  );
+  ), [data, filterText]);
 
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dateStr = `${year}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const dayId = `cal-day-${dateStr}`; const dayEvents = [];
-    filteredData.forEach((item, itemIdx) => {
-      const baseId = `${item.id}-${itemIdx}`;
-      if (item.castingDate === dateStr) {
-        if (!item.actualCastingDate) dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.remarks || 'Target Casting', author: item.createdBy, ...item });
-      }
-      if (item.actualCastingDate === dateStr) {
-        const isLate = item.castingDate && new Date(item.actualCastingDate) > new Date(item.castingDate);
-        dayEvents.push({ type: 'castActual', isLate, domId: `evt-cast-actual-${baseId}`, tooltipContent: item.remarks || 'Actual Casting', author: item.createdBy, targetDate: item.castingDate, dateStr: item.actualCastingDate, ...item });
-      }
-      if (Array.isArray(item.deliveries)) item.deliveries.forEach((d, dIdx) => {
-        if (d.date === dateStr) {
-          const isLate = item.hcsTargetDate && new Date(d.date) > new Date(item.hcsTargetDate);
-          dayEvents.push({ type: 'delivery', isLate, domId: `evt-del-${baseId}-${dIdx}`, ...item, tooltipContent: d.description || 'Batch Delivery', author: d.createdBy, dateStr: d.date, targetDate: item.hcsTargetDate });
+  const days = useMemo(() => {
+    const cells = Array.from({ length: firstDay }, (_, i) => (
+      <div key={`empty-${i}`} className="h-24 md:h-32 bg-slate-50/50 dark:bg-slate-900/50 border-b border-r border-slate-100 dark:border-slate-800"></div>
+    ));
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dayId = `cal-day-${dateStr}`; const dayEvents = [];
+      filteredData.forEach((item, itemIdx) => {
+        const baseId = `${item.id}-${itemIdx}`;
+        if (item.castingDate === dateStr) {
+          if (!item.actualCastingDate) dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.remarks || 'Target Casting', author: item.createdBy, ...item });
+        }
+        if (item.actualCastingDate === dateStr) {
+          const isLate = item.castingDate && new Date(item.actualCastingDate) > new Date(item.castingDate);
+          dayEvents.push({ type: 'castActual', isLate, domId: `evt-cast-actual-${baseId}`, tooltipContent: item.remarks || 'Actual Casting', author: item.createdBy, targetDate: item.castingDate, dateStr: item.actualCastingDate, ...item });
+        }
+        if (Array.isArray(item.deliveries)) item.deliveries.forEach((d, dIdx) => {
+          if (d.date === dateStr) {
+            const isLate = item.hcsTargetDate && new Date(d.date) > new Date(item.hcsTargetDate);
+            dayEvents.push({ type: 'delivery', isLate, domId: `evt-del-${baseId}-${dIdx}`, ...item, tooltipContent: d.description || 'Batch Delivery', author: d.createdBy, dateStr: d.date, targetDate: item.hcsTargetDate });
+          }
+        });
+        // Skip adding BBS Actual if cast, unless it's not cast yet.
+        if (!item.actualCastingDate) {
+          if (Array.isArray(item.bbs)) item.bbs.forEach((b, bIdx) => {
+              const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
+              if (bObj.actualDate === dateStr) {
+                const isLate = bObj.targetDate && new Date(bObj.actualDate) > new Date(bObj.targetDate);
+                dayEvents.push({ type: 'bbsActual', isLate, domId: `evt-bbs-${baseId}-${bIdx}`, ...item, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Delivery', author: bObj.createdBy, dateStr: bObj.actualDate, targetDate: bObj.targetDate });
+              } else if (bObj.targetDate === dateStr && !bObj.actualDate) {
+                dayEvents.push({
+                  type: 'bbsTarget',
+                  domId: `evt-bbs-target-${baseId}-${bIdx}`,
+                  ...item,
+                  bbsNum: bObj.number,
+                  tooltipContent: bObj.description || 'BBS Target',
+                  author: bObj.createdBy,
+                });
+              }
+          });
         }
       });
-      // Skip adding BBS Actual if cast, unless it's not cast yet.
-      if (!item.actualCastingDate) {
-        if (Array.isArray(item.bbs)) item.bbs.forEach((b, bIdx) => {
-            const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
-            if (bObj.actualDate === dateStr) {
-              const isLate = bObj.targetDate && new Date(bObj.actualDate) > new Date(bObj.targetDate);
-              dayEvents.push({ type: 'bbsActual', isLate, domId: `evt-bbs-${baseId}-${bIdx}`, ...item, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Delivery', author: bObj.createdBy, dateStr: bObj.actualDate, targetDate: bObj.targetDate });
-            } else if (bObj.targetDate === dateStr && !bObj.actualDate) {
-              dayEvents.push({
-                type: 'bbsTarget',
-                domId: `evt-bbs-target-${baseId}-${bIdx}`,
-                ...item,
-                bbsNum: bObj.number,
-                tooltipContent: bObj.description || 'BBS Target',
-                author: bObj.createdBy,
-              });
-            }
-        });
-      }
-    });
 
-    // Inject Active Ghosts
-    activeGhosts.forEach(g => {
-        if (g.dateStr === dateStr) {
-            dayEvents.push({ ...g, isGhostItem: true });
-        }
-    });
+      // Inject Active Ghosts
+      activeGhosts.forEach(g => {
+          if (g.dateStr === dateStr) {
+              dayEvents.push({ ...g, isGhostItem: true });
+          }
+      });
 
-    if (ghostConnection && ghostConnection.targetDate === dateStr && !dayEvents.some(e => e.type === 'ghost' && e.label === ghostConnection.label)) dayEvents.push({ type: 'ghost', domId: ghostConnection.startElementId, label: ghostConnection.label, slabId: focusedSlabId });
+      if (ghostConnection && ghostConnection.targetDate === dateStr && !dayEvents.some(e => e.type === 'ghost' && e.label === ghostConnection.label)) dayEvents.push({ type: 'ghost', domId: ghostConnection.startElementId, label: ghostConnection.label, slabId: focusedSlabId });
 
-    days.push(
-      <div id={dayId} key={`day-${day}`} className="h-24 md:h-32 bg-white dark:bg-slate-800 border-b border-r border-slate-100 dark:border-slate-700 p-1 md:p-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors group relative overflow-hidden">
-        <div className="flex justify-between items-start"><span className={`text-xs md:text-sm font-semibold ${dayEvents.length > 0 ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}`}>{day}</span>{dayEvents.length > 0 && <span className="text-[9px] md:text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-1.5 rounded-full">{dayEvents.length}</span>}</div>
-        <div className="mt-1 md:mt-2 space-y-0.5 md:space-y-1 overflow-y-auto max-h-[60px] md:max-h-[85px] scrollbar-hide">
-          {dayEvents.map((event, idx) => {
-            let colorClass = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"; let icon = <CheckCircle2 size={8} />; let label = event.slabId;
-            if (event.type === 'castTarget') { colorClass = "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-500 dark:border-emerald-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Plan: ${event.slabId}`; }
-            else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-emerald-500 text-white border-emerald-600"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
-            else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800"; icon = <Truck size={8} />; }
-            else if (event.type === 'bbsActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800"; icon = <Target size={8} />; label = `BBS: ${event.bbsNum}`; }
-            else if (event.type === 'bbsTarget') { colorClass = "bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-600 border-dashed text-purple-400 dark:text-purple-500"; icon = <Target size={8} />; label = `Plan BBS: ${event.bbsNum}`; }
-            else if (event.type === 'ghost') { colorClass = "bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 border-dashed text-slate-400 dark:text-slate-500 z-[15]"; icon = <Target size={8} />; label = event.label; }
-            else if (event.type === 'bbsGhost') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800 opacity-80 border-dashed"; icon = <Target size={8} />; label = `BBS: ${event.label}`; }
+      cells.push(
+        <div id={dayId} key={`day-${day}`} className="h-24 md:h-32 bg-white dark:bg-slate-800 border-b border-r border-slate-100 dark:border-slate-700 p-1 md:p-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors group relative overflow-hidden">
+          <div className="flex justify-between items-start"><span className={`text-xs md:text-sm font-semibold ${dayEvents.length > 0 ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}`}>{day}</span>{dayEvents.length > 0 && <span className="text-[9px] md:text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-1.5 rounded-full">{dayEvents.length}</span>}</div>
+          <div className="mt-1 md:mt-2 space-y-0.5 md:space-y-1 overflow-y-auto max-h-[60px] md:max-h-[85px] scrollbar-hide">
+            {dayEvents.map((event, idx) => {
+              let colorClass = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"; let icon = <CheckCircle2 size={8} />; let label = event.slabId;
+              if (event.type === 'castTarget') { colorClass = "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-500 dark:border-emerald-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Plan: ${event.slabId}`; }
+              else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-emerald-500 text-white border-emerald-600"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
+              else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800"; icon = <Truck size={8} />; }
+              else if (event.type === 'bbsActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800"; icon = <Target size={8} />; label = `BBS: ${event.bbsNum}`; }
+              else if (event.type === 'bbsTarget') { colorClass = "bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-600 border-dashed text-purple-400 dark:text-purple-500"; icon = <Target size={8} />; label = `Plan BBS: ${event.bbsNum}`; }
+              else if (event.type === 'ghost') { colorClass = "bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 border-dashed text-slate-400 dark:text-slate-500 z-[15]"; icon = <Target size={8} />; label = event.label; }
+              else if (event.type === 'bbsGhost') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800 opacity-80 border-dashed"; icon = <Target size={8} />; label = `BBS: ${event.label}`; }
 
-            const isFaded = focusedSlabId && event.slabId !== focusedSlabId;
+              const isFaded = focusedSlabId && event.slabId !== focusedSlabId;
 
-            return (
-              <BubbleTooltip key={`${event.domId || idx}`} title={event.slabId || event.label} content={event.tooltipContent} author={event.author} onVisible={handleEventHover} onHidden={clearGhost} meta={event}>
-                <div id={event.domId} className={`relative z-20 text-[9px] md:text-[10px] px-1 py-0.5 rounded border truncate flex items-center gap-1 cursor-default transition-opacity duration-300 ${colorClass} ${isFaded ? 'opacity-20' : ''}`}><span className="shrink-0">{icon}</span><span className="truncate">{label}</span>{event.tooltipContent && <Info size={6} className="ml-auto shrink-0 opacity-50" />}</div>
-              </BubbleTooltip>
-            );
-          })}
+              return (
+                <BubbleTooltip key={`${event.domId || idx}`} title={event.slabId || event.label} content={event.tooltipContent} author={event.author} onVisible={handleEventHover} onHidden={clearGhost} meta={event}>
+                  <div id={event.domId} className={`relative z-20 text-[9px] md:text-[10px] px-1 py-0.5 rounded border truncate flex items-center gap-1 cursor-default transition-opacity duration-300 ${colorClass} ${isFaded ? 'opacity-20' : ''}`}><span className="shrink-0">{icon}</span><span className="truncate">{label}</span>{event.tooltipContent && <Info size={6} className="ml-auto shrink-0 opacity-50" />}</div>
+                </BubbleTooltip>
+              );
+            })}
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
+    return cells;
+  }, [firstDay, daysInMonth, currentDate, year, filteredData, activeGhosts, ghostConnection, focusedSlabId, handleEventHover, clearGhost]);
 
   return (
     <>

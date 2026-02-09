@@ -382,12 +382,21 @@ const CalendarView = ({ data }) => {
             setActiveGhosts(ghosts);
         }
 
+        let startElId = `ghost-${meta.id}-${meta.targetDate}`;
+        if (meta.targetDate) {
+           const tDate = new Date(meta.targetDate);
+           const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+           const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+           if (tDate < monthStart) startElId = 'cal-prev-btn';
+           else if (tDate > monthEnd) startElId = 'cal-next-btn';
+        }
+
         setGhostConnection({
           targetDate: meta.targetDate,
           actualDate: meta.dateStr,
           label: label,
           endElementId: meta.domId,
-          startElementId: `ghost-${meta.id}-${meta.targetDate}` 
+          startElementId: startElId
         });
     };
 
@@ -436,9 +445,19 @@ const CalendarView = ({ data }) => {
       // Skip adding BBS Actual if cast, unless it's not cast yet.
       if (!item.actualCastingDate) {
         if (Array.isArray(item.bbs)) item.bbs.forEach((b, bIdx) => {
-            if (typeof b === 'object' && b.actualDate === dateStr) {
-            const isLate = b.targetDate && new Date(b.actualDate) > new Date(b.targetDate);
-            dayEvents.push({ type: 'bbsActual', isLate, domId: `evt-bbs-${baseId}-${bIdx}`, ...item, bbsNum: b.number, tooltipContent: b.description || 'BBS Delivery', author: b.createdBy, dateStr: b.actualDate, targetDate: b.targetDate });
+            const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
+            if (bObj.actualDate === dateStr) {
+              const isLate = bObj.targetDate && new Date(bObj.actualDate) > new Date(bObj.targetDate);
+              dayEvents.push({ type: 'bbsActual', isLate, domId: `evt-bbs-${baseId}-${bIdx}`, ...item, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Delivery', author: bObj.createdBy, dateStr: bObj.actualDate, targetDate: bObj.targetDate });
+            } else if (bObj.targetDate === dateStr && !bObj.actualDate) {
+              dayEvents.push({
+                type: 'bbsTarget',
+                domId: `evt-bbs-target-${baseId}-${bIdx}`,
+                ...item,
+                bbsNum: bObj.number,
+                tooltipContent: bObj.description || 'BBS Target',
+                author: bObj.createdBy,
+              });
             }
         });
       }
@@ -463,6 +482,7 @@ const CalendarView = ({ data }) => {
             else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-emerald-500 text-white border-emerald-600"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; } 
             else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800"; icon = <Truck size={8} />; } 
             else if (event.type === 'bbsActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800"; icon = <Target size={8} />; label = `BBS: ${event.bbsNum}`; } 
+            else if (event.type === 'bbsTarget') { colorClass = "bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-600 border-dashed text-purple-400 dark:text-purple-500"; icon = <Target size={8} />; label = `Plan BBS: ${event.bbsNum}`; }
             else if (event.type === 'ghost') { colorClass = "bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 border-dashed text-slate-400 dark:text-slate-500 z-[15]"; icon = <Target size={8} />; label = event.label; }
             else if (event.type === 'bbsGhost') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800 opacity-80 border-dashed"; icon = <Target size={8} />; label = `BBS: ${event.label}`; }
 
@@ -499,7 +519,7 @@ const CalendarView = ({ data }) => {
                {filterText && <button aria-label="Clear filter" onClick={() => setFilterText('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500"><X size={14} /></button>}
              </div>
              <div className="flex gap-1">
-                <button aria-label="Previous month" onClick={prevMonth} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400"><ChevronLeft size={18} /></button><button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300">Today</button><button aria-label="Next month" onClick={nextMonth} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400"><ChevronRight size={18} /></button>
+                <button id="cal-prev-btn" aria-label="Previous month" onClick={prevMonth} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400"><ChevronLeft size={18} /></button><button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300">Today</button><button id="cal-next-btn" aria-label="Next month" onClick={nextMonth} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400"><ChevronRight size={18} /></button>
              </div>
           </div>
         </div>

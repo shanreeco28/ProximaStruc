@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
 import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
-import { filterSlabData } from './utils/filterHelpers';
 import DeliveryTags from './components/DeliveryTags';
 import BubbleTooltip from './components/BubbleTooltip';
-import BbsTags from './components/BbsTags';
 import {
   LayoutDashboard,
   Truck,
@@ -241,6 +239,38 @@ const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disable
   );
 };
 
+const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, readOnly }) => {
+  let list = Array.isArray(bbs) ? bbs : (bbs ? [bbs] : []);
+  if (list.length === 0) return <span className="text-slate-400 dark:text-slate-600 italic text-xs">Pending</span>;
+  return (
+    <div className="flex flex-wrap gap-1 justify-end">
+      {list.map((b, idx) => {
+        const isObj = typeof b === 'object' && b !== null;
+        const text = isObj ? b.number : b;
+        const desc = isObj ? b.description : '';
+        const actual = isObj ? b.actualDate : '';
+        const isCriticalDelay = castingDate && actual && new Date(actual) > new Date(castingDate);
+        let tooltip = `${desc || text}`; if (isObj && b.createdBy) tooltip += `\n(Added by: ${b.createdBy})`;
+        return (
+          <button key={idx} disabled={readOnly} onClick={(e) => { e.stopPropagation(); onEdit && onEdit(idx); }} title={tooltip} className={`font-mono text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap flex items-center gap-1 transition-colors ${isCriticalDelay ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400'} ${readOnly ? 'cursor-default' : ''}`}>
+            {text} {isCriticalDelay && <AlertTriangle size={8} className="text-red-500" />}
+            {!readOnly && onDelete && (
+                <span onClick={(e) => { e.stopPropagation(); onDelete(idx); }} className="ml-1 hover:text-red-500 rounded-full p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center">
+                    <X size={10} />
+                </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.bbs === nextProps.bbs &&
+    prevProps.castingDate === nextProps.castingDate &&
+    prevProps.readOnly === nextProps.readOnly
+  );
+});
 
 
 const MobileNav = ({ activeTab, setActiveTab }) => {
@@ -257,61 +287,6 @@ const MobileNav = ({ activeTab, setActiveTab }) => {
 };
 
 // --- Tooltips & Ghost Lines ---
-const BubbleTooltip = ({ title, content, author, children, onVisible, onHidden, meta }) => {
-  const [position, setPosition] = useState({ top: 0, left: 0 });
-  const [show, setShow] = useState(false);
-  const timerRef = useRef(null);
-
-  const handleMouseEnter = (e) => {
-    if (onVisible) onVisible(meta, false); // Pass false for delayed ghost lines
-    if (!content && !author && !title) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    setPosition({ top: rect.top - 8, left: rect.left + rect.width / 2 });
-    timerRef.current = setTimeout(() => setShow(true), 2000);
-  };
-
-  const handleClick = (e) => {
-    e.stopPropagation();
-    if (!content && !author && !title) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    setPosition({ top: rect.top - 8, left: rect.left + rect.width / 2 });
-
-    // Toggle
-    if (show) {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      setShow(false);
-      if (onHidden) onHidden();
-    } else {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      setShow(true);
-      if (onVisible) onVisible(meta, true); // Pass true for immediate ghost lines
-    }
-  };
-
-  const handleMouseLeave = () => { if (timerRef.current) clearTimeout(timerRef.current); setShow(false); if (onHidden) onHidden(); };
-
-  return (
-    <>
-      <div
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onClick={handleClick}
-        className="relative w-full cursor-pointer"
-      >
-        {children}
-      </div>
-      {show && (
-        <div className="fixed z-[9999] bg-slate-800 dark:bg-slate-900 text-white text-[10px] p-2 rounded shadow-2xl pointer-events-none animate-in fade-in zoom-in-95 duration-200 max-w-[200px]" style={{ top: position.top, left: position.left, transform: 'translate(-50%, -100%)' }}>
-          <div className="font-bold border-b border-slate-600 pb-1 mb-1 text-white uppercase text-[10px] tracking-wider">{title || "Details"}</div>
-          <div className="leading-relaxed text-slate-300">{content}</div>
-          {author && <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400 italic text-[8px]">Added by: {author}</div>}
-          <div className="absolute top-full left-1/2 -ml-1 border-4 border-transparent border-t-slate-800 dark:border-t-slate-900"></div>
-        </div>
-      )}
-    </>
-  );
-};
-
 const GhostLine = ({ startId, endId }) => {
   const [coords, setCoords] = useState(null);
   useEffect(() => {
@@ -805,46 +780,31 @@ export default function App() {
 
   // --- Metrics ---
   const metrics = useMemo(() => {
-    return data.reduce((acc, curr) => {
-      if (curr.status === 'Cast') {
-        acc.cast++;
-        if (curr.castingDate && curr.actualCastingDate) {
-          const t = new Date(curr.castingDate).getTime();
-          const a = new Date(curr.actualCastingDate).getTime();
-          if (a < t) acc.early++;
-          else if (a > t) acc.late++;
-          else acc.onTime++;
-        }
-      } else if (curr.status === 'Scheduled') {
-        acc.pending++;
-      }
-
-      if (Array.isArray(curr.deliveries) && curr.deliveries.length > 0) {
-        acc.delivered++;
-      }
-
-      if (Array.isArray(curr.bbs)) {
-        acc.totalBBS += curr.bbs.length;
-        for (const b of curr.bbs) {
-          if (b && b.actualDate) acc.deliveredBBS++;
-        }
-      }
-
-      return acc;
-    }, {
-      total: data.length,
-      cast: 0,
-      delivered: 0,
-      pending: 0,
-      early: 0,
-      onTime: 0,
-      late: 0,
-      totalBBS: 0,
-      deliveredBBS: 0
+    const total = data.length;
+    const cast = data.filter(d => d.status === 'Cast').length;
+    const delivered = data.filter(d => Array.isArray(d.deliveries) && d.deliveries.length > 0).length;
+    const pending = data.filter(d => d.status === 'Scheduled').length;
+    let early = 0, onTime = 0, late = 0;
+    data.filter(d => d.status === 'Cast' && d.castingDate && d.actualCastingDate).forEach(d => {
+      const t = new Date(d.castingDate).getTime(); const a = new Date(d.actualCastingDate).getTime();
+      if (a < t) early++; else if (a > t) late++; else onTime++;
     });
+    const totalBBS = data.reduce((acc, curr) => acc + (Array.isArray(curr.bbs) ? curr.bbs.length : 0), 0);
+    const deliveredBBS = data.reduce((acc, curr) => acc + (Array.isArray(curr.bbs) ? curr.bbs.filter(b => b.actualDate).length : 0), 0);
+    return { total, cast, delivered, pending, early, onTime, late, totalBBS, deliveredBBS };
   }, [data]);
 
-  const filteredData = useMemo(() => filterSlabData(data, searchQuery, dateFilter), [data, searchQuery, dateFilter]);
+  const filteredData = data.filter(item => {
+    const textMatch = (item.slabId || '').toLowerCase().includes(searchQuery.toLowerCase()) || (Array.isArray(item.bbs) ? item.bbs.map(b => (typeof b === 'object' ? b.number : b)).join(' ') : '').toLowerCase().includes(searchQuery.toLowerCase()) || (item.zone || '').toLowerCase().includes(searchQuery.toLowerCase());
+    let dateMatch = true;
+    if (dateFilter.start && dateFilter.end && item.castingDate) {
+      const cDate = new Date(item.castingDate);
+      const sDate = new Date(dateFilter.start);
+      const eDate = new Date(dateFilter.end);
+      dateMatch = cDate >= sDate && cDate <= eDate;
+    }
+    return textMatch && dateMatch;
+  });
 
   const ReportView = () => (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">

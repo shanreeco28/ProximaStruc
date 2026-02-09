@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, useCallback } from 'react';
-import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
+import { getDaysInMonth, getFirstDayOfMonth, isCriticalDelay } from './utils/dateHelpers';
 import DeliveryTags from './components/DeliveryTags';
 import GhostLine from './components/GhostLine';
 import {
@@ -69,6 +69,8 @@ import {
   doc,
   onSnapshot,
   query,
+  orderBy,
+  limit,
   arrayUnion,
   setDoc,
   getDoc
@@ -137,43 +139,6 @@ const AppLogo = ({ className = "h-10 w-10" }) => (
   </svg>
 );
 
-// --- Global Style Reset Component ---
-const GlobalStyles = ({ isDark }) => (
-  <style>{`
-    *, *::before, *::after { box-sizing: border-box; }
-    :root {
-      font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-      line-height: 1.5;
-      font-weight: 400;
-      color-scheme: ${isDark ? 'dark' : 'light'};
-    }
-    html { height: 100%; width: 100%; }
-    body {
-      margin: 0; display: block !important; place-items: unset !important;
-      min-width: 320px; min-height: 100vh; width: 100%;
-      /* Base background and text colors handled here */
-      background-color: ${isDark ? '#0f172a' : '#f8fafc'};
-      color: ${isDark ? '#f1f5f9' : '#0f172a'};
-      transition: background-color 0.3s ease, color 0.3s ease;
-    }
-    #root {
-      max-width: none !important; margin: 0 !important; padding: 0 !important;
-      text-align: left !important; width: 100% !important; height: 100%; display: block !important;
-    }
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: ${isDark ? '#1e293b' : '#f1f5f9'}; }
-    ::-webkit-scrollbar-thumb { background: ${isDark ? '#475569' : '#cbd5e1'}; borderRadius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: ${isDark ? '#64748b' : '#94a3b8'}; }
-    @media print {
-      body { background-color: white !important; color: black !important; }
-      .no-print { display: none !important; }
-      @page { size: A4; margin: 20mm; }
-      table { break-inside: auto; }
-      tr { break-inside: avoid; page-break-inside: avoid; }
-      thead { display: table-header-group; }
-    }
-  `}</style>
-);
 
 // --- Helper Components ---
 
@@ -249,11 +214,11 @@ const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, readOnly }) => {
         const text = isObj ? b.number : b;
         const desc = isObj ? b.description : '';
         const actual = isObj ? b.actualDate : '';
-        const isCriticalDelay = castingDate && actual && new Date(actual) > new Date(castingDate);
+        const isDelayed = isCriticalDelay(castingDate, actual);
         let tooltip = `${desc || text}`; if (isObj && b.createdBy) tooltip += `\n(Added by: ${b.createdBy})`;
         return (
-          <button key={idx} disabled={readOnly} onClick={(e) => { e.stopPropagation(); onEdit && onEdit(idx); }} title={tooltip} className={`font-mono text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap flex items-center gap-1 transition-colors ${isCriticalDelay ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400'} ${readOnly ? 'cursor-default' : ''}`}>
-            {text} {isCriticalDelay && <AlertTriangle size={8} className="text-red-500" />}
+          <button key={idx} disabled={readOnly} onClick={(e) => { e.stopPropagation(); onEdit && onEdit(idx); }} title={tooltip} className={`font-mono text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap flex items-center gap-1 transition-colors ${isDelayed ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400'} ${readOnly ? 'cursor-default' : ''}`}>
+            {text} {isDelayed && <AlertTriangle size={8} className="text-red-500" />}
             {!readOnly && onDelete && (
                 <span onClick={(e) => { e.stopPropagation(); onDelete(idx); }} className="ml-1 hover:text-red-500 rounded-full p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center">
                     <X size={10} />
@@ -454,12 +419,12 @@ const CalendarView = ({ data }) => {
         if (!item.actualCastingDate) dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.remarks || 'Target Casting', author: item.createdBy, ...item });
       }
       if (item.actualCastingDate === dateStr) {
-        const isLate = item.castingDate && new Date(item.actualCastingDate) > new Date(item.castingDate);
+        const isLate = isCriticalDelay(item.castingDate, item.actualCastingDate);
         dayEvents.push({ type: 'castActual', isLate, domId: `evt-cast-actual-${baseId}`, tooltipContent: item.remarks || 'Actual Casting', author: item.createdBy, targetDate: item.castingDate, dateStr: item.actualCastingDate, ...item });
       }
       if (Array.isArray(item.deliveries)) item.deliveries.forEach((d, dIdx) => {
         if (d.date === dateStr) {
-          const isLate = item.hcsTargetDate && new Date(d.date) > new Date(item.hcsTargetDate);
+          const isLate = isCriticalDelay(item.hcsTargetDate, d.date);
           dayEvents.push({ type: 'delivery', isLate, domId: `evt-del-${baseId}-${dIdx}`, ...item, tooltipContent: d.description || 'Batch Delivery', author: d.createdBy, dateStr: d.date, targetDate: item.hcsTargetDate });
         }
       });
@@ -468,7 +433,7 @@ const CalendarView = ({ data }) => {
         if (Array.isArray(item.bbs)) item.bbs.forEach((b, bIdx) => {
             const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
             if (bObj.actualDate === dateStr) {
-              const isLate = bObj.targetDate && new Date(bObj.actualDate) > new Date(bObj.targetDate);
+              const isLate = isCriticalDelay(bObj.targetDate, bObj.actualDate);
               dayEvents.push({ type: 'bbsActual', isLate, domId: `evt-bbs-${baseId}-${bIdx}`, ...item, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Delivery', author: bObj.createdBy, dateStr: bObj.actualDate, targetDate: bObj.targetDate });
             } else if (bObj.targetDate === dateStr && !bObj.actualDate) {
               dayEvents.push({
@@ -735,7 +700,11 @@ export default function App() {
   
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'slabs'));
+    const q = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'slabs'),
+      orderBy('castingDate', 'desc'),
+      limit(500)
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setData(items);
@@ -880,7 +849,7 @@ export default function App() {
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-6"><h4 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><TrendingUp size={18} /> Schedule Adherence</h4><div className="space-y-4"><div><div className="flex justify-between text-sm mb-1 text-slate-600 dark:text-slate-300"><span>Early Completion</span> <span className="font-bold text-emerald-600">{metrics.early}</span></div><div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div style={{width: `${(metrics.early/metrics.cast)*100 || 0}%`}} className="h-full bg-emerald-500"></div></div></div><div><div className="flex justify-between text-sm mb-1 text-slate-600 dark:text-slate-300"><span>On-Time</span> <span className="font-bold text-slate-600 dark:text-slate-400">{metrics.onTime}</span></div><div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div style={{width: `${(metrics.onTime/metrics.cast)*100 || 0}%`}} className="h-full bg-slate-400"></div></div></div><div><div className="flex justify-between text-sm mb-1 text-slate-600 dark:text-slate-300"><span>Late / Delayed</span> <span className="font-bold text-red-600">{metrics.late}</span></div><div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div style={{width: `${(metrics.late/metrics.cast)*100 || 0}%`}} className="h-full bg-red-500"></div></div></div></div></div>
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-6"><h4 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><Activity size={18} /> Site Efficiency</h4><div className="space-y-4 text-sm"><div className="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-700 rounded"><span className="text-slate-600 dark:text-slate-300">Pending HCS</span><span className="font-bold text-slate-800 dark:text-white">{metrics.total - metrics.delivered} Zones</span></div><div className="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-700 rounded"><span className="text-slate-600 dark:text-slate-300">Active Issues (Remarks)</span><span className="font-bold text-slate-800 dark:text-white">{data.filter(i => i.remarks).length}</span></div><div className="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-700 rounded"><span className="text-slate-600 dark:text-slate-300">Critical Path Delays</span><span className="font-bold text-red-600">{data.filter(i => i.status === 'Delayed').length}</span></div></div></div>
           </div>
-          <div><h4 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><AlertTriangle size={18} /> Risk Register (Critical Delays)</h4><table className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden"><thead className="bg-slate-50 dark:bg-slate-900 text-xs uppercase text-slate-500 font-bold"><tr><th className="p-3 text-left">Zone / ID</th><th className="p-3 text-left">Planned Date</th><th className="p-3 text-left">Actual Date</th><th className="p-3 text-left">Remarks / Impact</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-700">{data.filter(i => i.status === 'Delayed' || (i.castingDate && i.actualCastingDate && new Date(i.actualCastingDate) > new Date(i.castingDate))).map(item => (<tr key={item.id} className="text-slate-600 dark:text-slate-300"><td className="p-3 font-medium text-slate-800 dark:text-white">{item.slabId} <br/><span className="text-xs text-slate-400 font-normal">{item.zone}</span></td><td className="p-3">{item.castingDate}</td><td className="p-3 text-red-600 font-bold">{item.actualCastingDate || 'Pending'}</td><td className="p-3 italic">{item.remarks || 'No specific remarks'}</td></tr>))}</tbody></table></div>
+          <div><h4 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><AlertTriangle size={18} /> Risk Register (Critical Delays)</h4><table className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden"><thead className="bg-slate-50 dark:bg-slate-900 text-xs uppercase text-slate-500 font-bold"><tr><th className="p-3 text-left">Zone / ID</th><th className="p-3 text-left">Planned Date</th><th className="p-3 text-left">Actual Date</th><th className="p-3 text-left">Remarks / Impact</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-700">{data.filter(i => i.status === 'Delayed' || isCriticalDelay(i.castingDate, i.actualCastingDate)).map(item => (<tr key={item.id} className="text-slate-600 dark:text-slate-300"><td className="p-3 font-medium text-slate-800 dark:text-white">{item.slabId} <br/><span className="text-xs text-slate-400 font-normal">{item.zone}</span></td><td className="p-3">{item.castingDate}</td><td className="p-3 text-red-600 font-bold">{item.actualCastingDate || 'Pending'}</td><td className="p-3 italic">{item.remarks || 'No specific remarks'}</td></tr>))}</tbody></table></div>
 
           <div className="break-before-page"><h4 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><Hammer size={18} /> Casting Schedule</h4><table className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden"><thead className="bg-slate-50 dark:bg-slate-900 text-xs uppercase text-slate-500 font-bold"><tr><th className="p-3 text-left">Date</th><th className="p-3 text-left">Zone / Level</th><th className="p-3 text-left">Casting ID</th><th className="p-3 text-left">Status</th><th className="p-3 text-left">Remarks</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-700">{data.slice().sort((a,b) => new Date(a.castingDate || '9999-12-31') - new Date(b.castingDate || '9999-12-31')).map(item => (<tr key={item.id} className="text-slate-600 dark:text-slate-300"><td className="p-3 whitespace-nowrap">{item.castingDate || '-'}</td><td className="p-3 font-medium text-slate-800 dark:text-white">{item.zone}</td><td className="p-3 font-mono text-xs">{item.slabId}</td><td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${item.status === 'Cast' ? 'bg-emerald-100 text-emerald-800' : item.status === 'Delayed' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>{item.status}</span></td><td className="p-3 italic text-xs max-w-[200px] truncate">{item.remarks}</td></tr>))}</tbody></table></div>
         </div>

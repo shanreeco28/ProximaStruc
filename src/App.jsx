@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, memo, use
 import { getDaysInMonth, getFirstDayOfMonth } from './utils/dateHelpers';
 import DeliveryTags from './components/DeliveryTags';
 import GhostLine from './components/GhostLine';
+import BubbleTooltip from './components/BubbleTooltip';
 import {
   LayoutDashboard,
   Truck,
@@ -346,17 +347,17 @@ const BubbleTooltip = ({ title, content, author, children, onVisible, onHidden, 
 // --- Calendar View ---
 const CalendarView = ({ data }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [ghostConnection, setGhostConnection] = useState(null); 
+  const [ghostConnection, setGhostConnection] = useState(null);
   const [filterText, setFilterText] = useState(''); // Calendar specific filter
   const [focusedSlabId, setFocusedSlabId] = useState(null);
   const [activeGhosts, setActiveGhosts] = useState([]);
   const [offScreenGhosts, setOffScreenGhosts] = useState({ items: [], rect: null });
-  const hoverTimerRef = useRef(null); 
+  const hoverTimerRef = useRef(null);
   const daysInMonth = getDaysInMonth(currentDate); const firstDay = getFirstDayOfMonth(currentDate);
   const monthName = currentDate.toLocaleString('default', { month: 'long' }); const year = currentDate.getFullYear();
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  
+
   const handleEventHover = (meta, immediate) => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     if (meta && meta.slabId) setFocusedSlabId(meta.slabId);
@@ -366,7 +367,7 @@ const CalendarView = ({ data }) => {
         if (meta.type === 'delivery') label = `HCS Target: ${meta.slabId}`;
         else if (meta.type === 'bbsActual') label = `BBS Target: ${meta.bbsNum}`;
         else if (meta.type === 'castActual') label = `Plan: ${meta.slabId}`;
-        
+
         // --- Off-Screen Tooltip Logic ---
         const offScreen = [];
         const isOffScreen = (d) => {
@@ -437,7 +438,7 @@ const CalendarView = ({ data }) => {
   };
 
   const days = []; for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="h-24 md:h-32 bg-slate-50/50 dark:bg-slate-900/50 border-b border-r border-slate-100 dark:border-slate-800"></div>);
-  
+
   // Filter data for calendar
   const filteredData = data.filter(item =>
     !filterText ||
@@ -454,14 +455,14 @@ const CalendarView = ({ data }) => {
         if (!item.actualCastingDate) dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.remarks || 'Target Casting', author: item.createdBy, ...item });
       }
       if (item.actualCastingDate === dateStr) {
-        const isLate = item.castingDate && new Date(item.actualCastingDate) > new Date(item.castingDate); 
+        const isLate = item.castingDate && new Date(item.actualCastingDate) > new Date(item.castingDate);
         dayEvents.push({ type: 'castActual', isLate, domId: `evt-cast-actual-${baseId}`, tooltipContent: item.remarks || 'Actual Casting', author: item.createdBy, targetDate: item.castingDate, dateStr: item.actualCastingDate, ...item });
       }
-      if (Array.isArray(item.deliveries)) item.deliveries.forEach((d, dIdx) => { 
+      if (Array.isArray(item.deliveries)) item.deliveries.forEach((d, dIdx) => {
         if (d.date === dateStr) {
-          const isLate = item.hcsTargetDate && new Date(d.date) > new Date(item.hcsTargetDate); 
+          const isLate = item.hcsTargetDate && new Date(d.date) > new Date(item.hcsTargetDate);
           dayEvents.push({ type: 'delivery', isLate, domId: `evt-del-${baseId}-${dIdx}`, ...item, tooltipContent: d.description || 'Batch Delivery', author: d.createdBy, dateStr: d.date, targetDate: item.hcsTargetDate });
-        } 
+        }
       });
       // Skip adding BBS Actual if cast, unless it's not cast yet.
       if (!item.actualCastingDate) {
@@ -492,17 +493,17 @@ const CalendarView = ({ data }) => {
     });
 
     if (ghostConnection && ghostConnection.targetDate === dateStr && !dayEvents.some(e => e.type === 'ghost' && e.label === ghostConnection.label)) dayEvents.push({ type: 'ghost', domId: ghostConnection.startElementId, label: ghostConnection.label, slabId: focusedSlabId });
-    
+
     days.push(
       <div id={dayId} key={`day-${day}`} className="h-24 md:h-32 bg-white dark:bg-slate-800 border-b border-r border-slate-100 dark:border-slate-700 p-1 md:p-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors group relative overflow-hidden">
         <div className="flex justify-between items-start"><span className={`text-xs md:text-sm font-semibold ${dayEvents.length > 0 ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}`}>{day}</span>{dayEvents.length > 0 && <span className="text-[9px] md:text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-1.5 rounded-full">{dayEvents.length}</span>}</div>
         <div className="mt-1 md:mt-2 space-y-0.5 md:space-y-1 overflow-y-auto max-h-[60px] md:max-h-[85px] scrollbar-hide">
           {dayEvents.map((event, idx) => {
             let colorClass = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"; let icon = <CheckCircle2 size={8} />; let label = event.slabId;
-            if (event.type === 'castTarget') { colorClass = "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-500 dark:border-emerald-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Plan: ${event.slabId}`; } 
-            else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-emerald-500 text-white border-emerald-600"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; } 
-            else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800"; icon = <Truck size={8} />; } 
-            else if (event.type === 'bbsActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800"; icon = <Target size={8} />; label = `BBS: ${event.bbsNum}`; } 
+            if (event.type === 'castTarget') { colorClass = "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-500 dark:border-emerald-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Plan: ${event.slabId}`; }
+            else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-emerald-500 text-white border-emerald-600"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
+            else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800"; icon = <Truck size={8} />; }
+            else if (event.type === 'bbsActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800"; icon = <Target size={8} />; label = `BBS: ${event.bbsNum}`; }
             else if (event.type === 'bbsTarget') { colorClass = "bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-600 border-dashed text-purple-400 dark:text-purple-500"; icon = <Target size={8} />; label = `Plan BBS: ${event.bbsNum}`; }
             else if (event.type === 'ghost') { colorClass = "bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 border-dashed text-slate-400 dark:text-slate-500 z-[15]"; icon = <Target size={8} />; label = event.label; }
             else if (event.type === 'bbsGhost') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800 opacity-80 border-dashed"; icon = <Target size={8} />; label = `BBS: ${event.label}`; }
@@ -541,13 +542,13 @@ const CalendarView = ({ data }) => {
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in duration-500 mb-20 md:mb-0 relative">
         <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row items-center justify-between gap-4">
           <h2 className="text-base md:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><CalendarIcon className="text-blue-500" size={20} /> {monthName} {year}</h2>
-          
+
           <div className="flex items-center gap-2 w-full md:w-auto">
              <div className="relative flex-1 md:w-48">
                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-               <input 
-                 type="text" 
-                 placeholder="Filter Zone/ID..." 
+               <input
+                 type="text"
+                 placeholder="Filter Zone/ID..."
                  value={filterText}
                  onChange={(e) => setFilterText(e.target.value)}
                  className="w-full pl-8 pr-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm outline-none"

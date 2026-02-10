@@ -176,16 +176,16 @@ const Card = ({ title, value, icon: IconComponent, subtext, color = "blue", tren
 const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disabled }) => {
   let statusStyle = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600";
   if (currentStatus === 'Delayed') {
-    statusStyle = "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800";
+    statusStyle = "bg-red-600 text-white border-red-700 shadow-sm";
   } else if (currentStatus === 'Cast') {
     if (targetDate && actualDate) {
       const target = new Date(targetDate).setHours(0,0,0,0);
       const actual = new Date(actualDate).setHours(0,0,0,0);
-      if (actual > target) statusStyle = "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 font-bold";
-      else if (actual < target) statusStyle = "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 font-bold";
+      if (actual > target) statusStyle = "bg-red-600 text-white border-red-700 font-bold shadow-sm";
+      else if (actual <= target) statusStyle = "bg-soilGreen-600 text-white border-soilGreen-700 font-bold shadow-sm";
       else statusStyle = "bg-white dark:bg-slate-700 text-slate-700 dark:text-white border-slate-300 dark:border-slate-600";
     } else {
-      statusStyle = "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800";
+      statusStyle = "bg-soilGreen-600 text-white border-soilGreen-700 shadow-sm";
     }
   }
   return (
@@ -634,6 +634,11 @@ const CalendarView = ({ data }) => {
     if (meta && meta.slabId) setFocusedSlabId(meta.slabId);
 
     const triggerGhost = () => {
+        if (meta.type === 'castTarget' || meta.type === 'bbsTarget') {
+            setGhostConnection(null);
+            return;
+        }
+
         let label = '';
         if (meta.type === 'delivery') label = `HCS Target: ${meta.slabId}`;
         else if (meta.type === 'bbsActual') label = `BBS Target: ${meta.bbsNum}`;
@@ -651,7 +656,7 @@ const CalendarView = ({ data }) => {
              offScreen.push({ date: meta.targetDate, label: 'Target', type: 'target' });
         }
 
-        if (meta.type === 'castActual' && Array.isArray(meta.bbs)) {
+        if ((meta.type === 'castActual' || meta.type === 'castTarget' || meta.type === 'castTargetCompleted') && Array.isArray(meta.bbs)) {
             const ghosts = meta.bbs.map((b, i) => {
               const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
               if (bObj.actualDate && isOffScreen(bObj.actualDate)) {
@@ -678,13 +683,17 @@ const CalendarView = ({ data }) => {
             setOffScreenGhosts({ items: [], rect: null });
         }
 
-        setGhostConnection({
-          targetDate: meta.targetDate,
-          actualDate: meta.dateStr,
-          label: label,
-          endElementId: meta.domId,
-          startElementId: `ghost-${meta.id}-${meta.targetDate}`
-        });
+        if ((meta.type === 'castActual' || meta.type === 'castTargetCompleted') && meta.targetDate === meta.dateStr) {
+            setGhostConnection(null);
+        } else {
+            setGhostConnection({
+              targetDate: meta.targetDate,
+              actualDate: meta.dateStr,
+              label: label,
+              endElementId: meta.domId,
+              startElementId: `ghost-${meta.id}-${meta.targetDate}`
+            });
+        }
     };
 
     if (meta && (meta.targetDate || meta.type === 'castActual')) {
@@ -715,9 +724,9 @@ const CalendarView = ({ data }) => {
       const baseId = `${item.id}-${itemIdx}`;
       if (item.castingDate === dateStr) {
         if (item.actualCastingDate === dateStr) {
-           dayEvents.push({ type: 'castTargetCompleted', domId: `evt-cast-target-completed-${baseId}`, tooltipContent: item.slabId || 'Completed on Target', author: item.createdBy, ...item });
+           dayEvents.push({ type: 'castTargetCompleted', domId: `evt-cast-target-completed-${baseId}`, tooltipContent: item.slabId || 'Completed on Target', author: item.createdBy, targetDate: item.castingDate, dateStr: item.actualCastingDate, ...item });
         } else if (!item.actualCastingDate) {
-           dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.slabId || 'Target Casting', author: item.createdBy, ...item });
+           dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.slabId || 'Target Casting', author: item.createdBy, targetDate: item.castingDate, ...item });
         }
       }
       if (item.actualCastingDate === dateStr && item.castingDate !== dateStr) {
@@ -758,8 +767,8 @@ const CalendarView = ({ data }) => {
           {dayEvents.map((event, idx) => {
             let colorClass = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"; let icon = <CheckCircle2 size={8} />; let label = event.slabId;
             if (event.type === 'castTarget') { colorClass = "bg-soilGreen-50 dark:bg-soilGreen-900/30 text-soilGreen-700 dark:text-soilGreen-400 border-soilGreen-500 dark:border-soilGreen-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Plan: ${event.slabId}`; }
-            else if (event.type === 'castTargetCompleted') { colorClass = "bg-soilGreen-50 dark:bg-soilGreen-900/30 text-soilGreen-700 dark:text-soilGreen-400 border-soilGreen-600 dark:border-soilGreen-500 border-2 border-dashed"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
-            else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-soilGreen-600 text-white border-soilGreen-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
+            else if (event.type === 'castTargetCompleted') { colorClass = "bg-soilGreen-600 text-white border-soilGreen-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
+            else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-600 text-white border-red-700" : "bg-soilGreen-600 text-white border-soilGreen-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
             else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-soilOrange-50 dark:bg-soilOrange-900/30 text-soilOrange-700 dark:text-soilOrange-400 border-soilOrange-100 dark:border-soilOrange-800"; icon = <Truck size={8} />; }
             else if (event.type === 'bbsActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800"; icon = <Target size={8} />; label = `BBS: ${event.bbsNum}`; }
             else if (event.type === 'bbsTarget') { colorClass = "bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-600 border-dashed text-purple-400 dark:text-purple-500"; icon = <Target size={8} />; label = `Plan BBS: ${event.bbsNum}`; }
@@ -889,7 +898,7 @@ const LoginView = ({ initialMode = 'login', isDark, toggleTheme }) => {
 // --- Main Application Component ---
 
 export default function App() {
-  const [user, setUser] = useState(null); 
+  const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [emailConfirmationNeeded, setEmailConfirmationNeeded] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -954,6 +963,7 @@ export default function App() {
         setUser(null);
         setSelectedProject(null);
       }
+      setAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -1008,13 +1018,20 @@ export default function App() {
   // Data Fetching depends on Project
   useEffect(() => {
     if (!user || !selectedProject) return;
-    const q = query(collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs'), orderBy('castingDate', 'desc'), limit(QUERY_LIMIT));
+    const q = query(
+      collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs'),
+      orderBy('castingDate', 'desc'),
+      limit(QUERY_LIMIT)
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setData(items);
+    }, (error) => {
+       console.error("Error fetching data:", error);
+       if (import.meta.env.DEV) console.log("Snapshot error", error);
     });
     return () => unsubscribe();
-  }, [user?.uid, selectedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.uid, selectedProject?.id]);
 
   // --- Handlers ---
   const handleLogout = async () => {
@@ -1419,21 +1436,26 @@ const DashboardView = () => {
             </h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-4">
             {/* Overdue Items */}
             <div className={`p-4 rounded-lg border ${
               overdueCount > 0 
                 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' 
                 : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
             }`}>
-              <div className="flex items-start gap-3">
-                <AlertTriangle size={20} className={`${overdueCount > 0 ? 'text-red-500' : 'text-emerald-500'} mt-0.5 shrink-0`} />
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-full ${overdueCount > 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'}`}>
+                  <AlertTriangle size={24} />
+                </div>
                 <div className="flex-1">
-                  <h4 className={`text-sm font-bold ${overdueCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
-                    Overdue Schedules
-                  </h4>
-                  <p className={`text-xs mt-1 ${overdueCount > 0 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
-                    {overdueCount} casting zones {overdueCount > 0 ? 'behind schedule' : 'on schedule'}
+                  <div className="flex justify-between items-center mb-1">
+                    <h4 className={`text-base font-bold ${overdueCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                      Overdue Schedules
+                    </h4>
+                    <span className={`text-2xl font-bold ${overdueCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>{overdueCount}</span>
+                  </div>
+                  <p className={`text-sm ${overdueCount > 0 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                    casting zones {overdueCount > 0 ? 'behind schedule' : 'on schedule'}
                   </p>
                 </div>
               </div>
@@ -1445,26 +1467,31 @@ const DashboardView = () => {
                 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' 
                 : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
             }`}>
-              <div className="flex items-start gap-3">
-                <Target size={20} className={`${
-                  data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
-                    ? 'text-amber-500' 
-                    : 'text-emerald-500'
-                } mt-0.5 shrink-0`} />
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-full ${data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'}`}>
+                  <Target size={24} />
+                </div>
                 <div className="flex-1">
-                  <h4 className={`text-sm font-bold ${
-                    data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
-                      ? 'text-amber-700 dark:text-amber-400' 
-                      : 'text-emerald-700 dark:text-emerald-400'
-                  }`}>
-                    Missing BBS
-                  </h4>
-                  <p className={`text-xs mt-1 ${
+                  <div className="flex justify-between items-center mb-1">
+                    <h4 className={`text-base font-bold ${
+                      data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0
+                        ? 'text-amber-700 dark:text-amber-400'
+                        : 'text-emerald-700 dark:text-emerald-400'
+                    }`}>
+                      Missing BBS
+                    </h4>
+                    <span className={`text-2xl font-bold ${
+                      data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0
+                        ? 'text-amber-700 dark:text-amber-400'
+                        : 'text-emerald-700 dark:text-emerald-400'
+                    }`}>{data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length}</span>
+                  </div>
+                  <p className={`text-sm ${
                     data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
                       ? 'text-amber-600 dark:text-amber-300' 
                       : 'text-emerald-600 dark:text-emerald-300'
                   }`}>
-                    {data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length} zones pending BBS
+                    zones pending BBS assignment
                   </p>
                 </div>
               </div>
@@ -1472,24 +1499,25 @@ const DashboardView = () => {
 
             {/* Next Casting */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Hammer size={20} className="text-blue-500 mt-0.5 shrink-0" />
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600">
+                  <Hammer size={24} />
+                </div>
                 <div className="flex-1">
-                  <h4 className="text-sm font-bold text-blue-700 dark:text-blue-400">Next Casting</h4>
+                  <div className="flex justify-between items-start mb-1">
+                    <h4 className="text-base font-bold text-blue-700 dark:text-blue-400">Next Casting</h4>
+                    {data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0] && (
+                      <span className="text-sm font-bold text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">
+                        {new Date(data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0].castingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
                   {data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0] ? (
-                    (() => {
-                      const nextCasting = data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0];
-                      return (
-                        <>
-                          <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">{nextCasting.slabId}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            {new Date(nextCasting.castingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </p>
-                        </>
-                      );
-                    })()
+                    <p className="text-sm text-blue-600 dark:text-blue-300 font-medium">
+                      {data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0].slabId}
+                    </p>
                   ) : (
-                    <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">No upcoming castings</p>
+                    <p className="text-sm text-blue-600 dark:text-blue-300">No upcoming castings</p>
                   )}
                 </div>
               </div>

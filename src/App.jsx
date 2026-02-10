@@ -651,7 +651,7 @@ const CalendarView = ({ data }) => {
              offScreen.push({ date: meta.targetDate, label: 'Target', type: 'target' });
         }
 
-        if (meta.type === 'castActual' && Array.isArray(meta.bbs)) {
+        if ((meta.type === 'castActual' || meta.type === 'castTarget' || meta.type === 'castTargetCompleted') && Array.isArray(meta.bbs)) {
             const ghosts = meta.bbs.map((b, i) => {
               const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
               if (bObj.actualDate && isOffScreen(bObj.actualDate)) {
@@ -678,13 +678,17 @@ const CalendarView = ({ data }) => {
             setOffScreenGhosts({ items: [], rect: null });
         }
 
-        setGhostConnection({
-          targetDate: meta.targetDate,
-          actualDate: meta.dateStr,
-          label: label,
-          endElementId: meta.domId,
-          startElementId: `ghost-${meta.id}-${meta.targetDate}`
-        });
+        if ((meta.type === 'castActual' || meta.type === 'castTargetCompleted') && meta.targetDate === meta.dateStr) {
+            setGhostConnection(null);
+        } else {
+            setGhostConnection({
+              targetDate: meta.targetDate,
+              actualDate: meta.dateStr,
+              label: label,
+              endElementId: meta.domId,
+              startElementId: `ghost-${meta.id}-${meta.targetDate}`
+            });
+        }
     };
 
     if (meta && (meta.targetDate || meta.type === 'castActual')) {
@@ -715,9 +719,9 @@ const CalendarView = ({ data }) => {
       const baseId = `${item.id}-${itemIdx}`;
       if (item.castingDate === dateStr) {
         if (item.actualCastingDate === dateStr) {
-           dayEvents.push({ type: 'castTargetCompleted', domId: `evt-cast-target-completed-${baseId}`, tooltipContent: item.slabId || 'Completed on Target', author: item.createdBy, ...item });
+           dayEvents.push({ type: 'castTargetCompleted', domId: `evt-cast-target-completed-${baseId}`, tooltipContent: item.slabId || 'Completed on Target', author: item.createdBy, targetDate: item.castingDate, dateStr: item.actualCastingDate, ...item });
         } else if (!item.actualCastingDate) {
-           dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.slabId || 'Target Casting', author: item.createdBy, ...item });
+           dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.slabId || 'Target Casting', author: item.createdBy, targetDate: item.castingDate, ...item });
         }
       }
       if (item.actualCastingDate === dateStr && item.castingDate !== dateStr) {
@@ -889,7 +893,7 @@ const LoginView = ({ initialMode = 'login', isDark, toggleTheme }) => {
 // --- Main Application Component ---
 
 export default function App() {
-  const [user, setUser] = useState(null); 
+  const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [emailConfirmationNeeded, setEmailConfirmationNeeded] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -1008,13 +1012,23 @@ export default function App() {
   // Data Fetching depends on Project
   useEffect(() => {
     if (!user || !selectedProject) return;
-    const q = query(collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs'), orderBy('castingDate', 'desc'), limit(QUERY_LIMIT));
+
+    const q = query(
+      collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs'),
+      orderBy('castingDate', 'desc'),
+      limit(QUERY_LIMIT)
+    );
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setData(items);
+    }, (error) => {
+      console.error("Error fetching slabs:", error);
+      if (import.meta.env.DEV) console.error(error);
     });
+
     return () => unsubscribe();
-  }, [user?.uid, selectedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.uid, selectedProject?.id]);
 
   // --- Handlers ---
   const handleLogout = async () => {
@@ -1428,11 +1442,11 @@ const DashboardView = () => {
             }`}>
               <div className="flex items-start gap-3">
                 <AlertTriangle size={20} className={`${overdueCount > 0 ? 'text-red-500' : 'text-emerald-500'} mt-0.5 shrink-0`} />
-                <div className="flex-1">
-                  <h4 className={`text-sm font-bold ${overdueCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                <div className="flex-1 min-w-0">
+                  <h4 title="Overdue Schedules" className={`text-sm font-bold truncate ${overdueCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
                     Overdue Schedules
                   </h4>
-                  <p className={`text-xs mt-1 ${overdueCount > 0 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                  <p className={`text-xs mt-1 truncate ${overdueCount > 0 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
                     {overdueCount} casting zones {overdueCount > 0 ? 'behind schedule' : 'on schedule'}
                   </p>
                 </div>
@@ -1451,15 +1465,15 @@ const DashboardView = () => {
                     ? 'text-amber-500' 
                     : 'text-emerald-500'
                 } mt-0.5 shrink-0`} />
-                <div className="flex-1">
-                  <h4 className={`text-sm font-bold ${
+                <div className="flex-1 min-w-0">
+                  <h4 title="Missing BBS" className={`text-sm font-bold truncate ${
                     data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
                       ? 'text-amber-700 dark:text-amber-400' 
                       : 'text-emerald-700 dark:text-emerald-400'
                   }`}>
                     Missing BBS
                   </h4>
-                  <p className={`text-xs mt-1 ${
+                  <p className={`text-xs mt-1 truncate ${
                     data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
                       ? 'text-amber-600 dark:text-amber-300' 
                       : 'text-emerald-600 dark:text-emerald-300'
@@ -1474,14 +1488,14 @@ const DashboardView = () => {
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <Hammer size={20} className="text-blue-500 mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <h4 className="text-sm font-bold text-blue-700 dark:text-blue-400">Next Casting</h4>
+                <div className="flex-1 min-w-0">
+                  <h4 title="Next Casting" className="text-sm font-bold truncate text-blue-700 dark:text-blue-400">Next Casting</h4>
                   {data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0] ? (
                     (() => {
                       const nextCasting = data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0];
                       return (
                         <>
-                          <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">{nextCasting.slabId}</p>
+                          <p title={nextCasting.slabId} className="text-xs truncate text-blue-600 dark:text-blue-300 mt-1">{nextCasting.slabId}</p>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                             {new Date(nextCasting.castingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </p>

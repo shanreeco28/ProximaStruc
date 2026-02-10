@@ -1436,21 +1436,26 @@ const DashboardView = () => {
             </h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-4">
             {/* Overdue Items */}
             <div className={`p-4 rounded-lg border ${
               overdueCount > 0 
                 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' 
                 : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
             }`}>
-              <div className="flex items-start gap-3">
-                <AlertTriangle size={20} className={`${overdueCount > 0 ? 'text-red-500' : 'text-emerald-500'} mt-0.5 shrink-0`} />
-                <div className="flex-1 min-w-0">
-                  <h4 title="Overdue Schedules" className={`text-sm font-bold break-words ${overdueCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
-                    Overdue Schedules
-                  </h4>
-                  <p className={`text-xs mt-1 break-words ${overdueCount > 0 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
-                    {overdueCount} casting zones {overdueCount > 0 ? 'behind schedule' : 'on schedule'}
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-full ${overdueCount > 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'}`}>
+                  <AlertTriangle size={24} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-center mb-1">
+                    <h4 className={`text-base font-bold ${overdueCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                      Overdue Schedules
+                    </h4>
+                    <span className={`text-2xl font-bold ${overdueCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>{overdueCount}</span>
+                  </div>
+                  <p className={`text-sm ${overdueCount > 0 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                    casting zones {overdueCount > 0 ? 'behind schedule' : 'on schedule'}
                   </p>
                 </div>
               </div>
@@ -1462,26 +1467,31 @@ const DashboardView = () => {
                 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' 
                 : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
             }`}>
-              <div className="flex items-start gap-3">
-                <Target size={20} className={`${
-                  data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
-                    ? 'text-amber-500' 
-                    : 'text-emerald-500'
-                } mt-0.5 shrink-0`} />
-                <div className="flex-1 min-w-0">
-                  <h4 title="Missing BBS" className={`text-sm font-bold break-words ${
-                    data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
-                      ? 'text-amber-700 dark:text-amber-400' 
-                      : 'text-emerald-700 dark:text-emerald-400'
-                  }`}>
-                    Missing BBS
-                  </h4>
-                  <p className={`text-xs mt-1 break-words ${
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-full ${data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'}`}>
+                  <Target size={24} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-center mb-1">
+                    <h4 className={`text-base font-bold ${
+                      data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0
+                        ? 'text-amber-700 dark:text-amber-400'
+                        : 'text-emerald-700 dark:text-emerald-400'
+                    }`}>
+                      Missing BBS
+                    </h4>
+                    <span className={`text-2xl font-bold ${
+                      data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0
+                        ? 'text-amber-700 dark:text-amber-400'
+                        : 'text-emerald-700 dark:text-emerald-400'
+                    }`}>{data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length}</span>
+                  </div>
+                  <p className={`text-sm ${
                     data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
                       ? 'text-amber-600 dark:text-amber-300' 
                       : 'text-emerald-600 dark:text-emerald-300'
                   }`}>
-                    {data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length} zones pending BBS
+                    zones pending BBS assignment
                   </p>
                 </div>
               </div>
@@ -1489,24 +1499,25 @@ const DashboardView = () => {
 
             {/* Next Casting */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Hammer size={20} className="text-blue-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <h4 title="Next Casting" className="text-sm font-bold break-words text-blue-700 dark:text-blue-400">Next Casting</h4>
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600">
+                  <Hammer size={24} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-start mb-1">
+                    <h4 className="text-base font-bold text-blue-700 dark:text-blue-400">Next Casting</h4>
+                    {data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0] && (
+                      <span className="text-sm font-bold text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">
+                        {new Date(data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0].castingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
                   {data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0] ? (
-                    (() => {
-                      const nextCasting = data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0];
-                      return (
-                        <>
-                          <p title={nextCasting.slabId} className="text-xs break-words text-blue-600 dark:text-blue-300 mt-1">{nextCasting.slabId}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            {new Date(nextCasting.castingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </p>
-                        </>
-                      );
-                    })()
+                    <p className="text-sm text-blue-600 dark:text-blue-300 font-medium">
+                      {data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0].slabId}
+                    </p>
                   ) : (
-                    <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">No upcoming castings</p>
+                    <p className="text-sm text-blue-600 dark:text-blue-300">No upcoming castings</p>
                   )}
                 </div>
               </div>

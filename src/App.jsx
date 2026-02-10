@@ -1544,11 +1544,11 @@ const DashboardView = () => {
       {/* Mobile Card View */}
       <div className="md:hidden bg-slate-50 dark:bg-slate-900 p-4 space-y-4">
         {filteredData.map(item => (
-          <div key={item.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4 relative">
-             <div className="flex justify-between items-start mb-3"><div><h3 className="font-bold text-slate-800 dark:text-white">{item.slabId}</h3><p className="text-xs text-slate-500">{item.zone}</p></div><StatusSelect disabled={user?.role !== 'admin'} currentStatus={item.status} targetDate={item.castingDate} actualDate={item.actualCastingDate} onChange={(val) => updateStatus(item, val)} /></div>
+          <div key={item.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4 relative overflow-hidden">
+             <div className="flex justify-between items-start mb-3"><div><h3 className="font-bold text-slate-800 dark:text-white truncate">{item.slabId}</h3><p className="text-xs text-slate-500 truncate">{item.zone}</p></div><StatusSelect disabled={user?.role !== 'admin'} currentStatus={item.status} targetDate={item.castingDate} actualDate={item.actualCastingDate} onChange={(val) => updateStatus(item, val)} /></div>
              <div className="space-y-3">
                  <div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600"><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Target Casting</p><div className="flex items-center justify-between text-sm text-slate-700 dark:text-slate-300"><span className="flex items-center gap-2"><Hammer size={14} className="text-emerald-500" /> {item.castingDate}</span>{user?.role === 'admin' && <button aria-label="Edit casting dates" onClick={() => initiateEditCasting(item)} className="text-slate-400 hover:text-blue-600"><Edit2 size={14} /></button>}</div>{item.actualCastingDate && (<div className="flex items-center gap-2 text-sm text-slate-700 mt-1 pl-6"><span className="text-[10px] text-slate-400 uppercase">Actual:</span><span className="font-bold text-emerald-700 dark:text-emerald-400">{item.actualCastingDate}</span></div>)}</div>
-                 <div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600" onClick={() => startEditingRemark(item)}><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Remarks (Tap to edit)</p>{editingRemark.id === item.id ? (<input autoFocus type="text" className="w-full bg-white dark:bg-slate-800 border border-blue-300 rounded px-2 py-1 text-xs outline-none" value={editingRemark.text} onChange={(e) => setEditingRemark({...editingRemark, text: e.target.value})} onBlur={saveRemark} onKeyDown={(e) => e.key === 'Enter' && saveRemark()} />) : (<div className="text-xs text-slate-600 dark:text-slate-300 min-h-[1.25rem]">{item.remarks || <span className="text-slate-400 italic">No remarks</span>}</div>)}</div>
+                 <div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600" onClick={() => startEditingRemark(item)}><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Remarks (Tap to edit)</p>{editingRemark.id === item.id ? (<input autoFocus type="text" className="w-full bg-white dark:bg-slate-800 border border-blue-300 rounded px-2 py-1 text-xs outline-none" value={editingRemark.text} onChange={(e) => setEditingRemark({...editingRemark, text: e.target.value})} onBlur={saveRemark} onKeyDown={(e) => e.key === 'Enter' && saveRemark()} />) : (<div className="text-xs text-slate-600 dark:text-slate-300 min-h-[1.25rem] break-words">{item.remarks || <span className="text-slate-400 italic">No remarks</span>}</div>)}</div>
                  <div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600"><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">HCS Deliveries</p><DeliveryTags deliveries={item.deliveries} castingDate={item.castingDate} /></div><div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600"><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">BBS List</p><BbsTags bbs={item.bbs} castingDate={item.castingDate} onEdit={(idx) => initiateEditBBS(item, idx)} onDelete={(idx) => handleDeleteBBS(item, idx)} readOnly={user?.role !== 'admin'} /></div></div>
              </div>
              {user?.role === 'admin' && (<button aria-label="Delete entry" onClick={() => deleteEntry(item.id)} className="absolute top-4 right-2 text-slate-300 hover:text-red-500 p-2"><X size={16} /></button>)}
@@ -1563,17 +1563,19 @@ const DashboardView = () => {
   if (!selectedProject) return <ProjectSelection projects={projects} onSelect={setSelectedProject} onAdd={handleAddProject} onLogout={handleLogout} user={user} />;
 
   return (
-    <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300">
-      <nav className="bg-gradient-to-r from-soilGreen-900 via-soilGreen-800 to-soilGreen-900 text-white sticky top-0 z-50 shadow-2xl border-b border-soilGreen-800 print:hidden backdrop-blur-lg">
+    <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300 bg-fixed bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=2070&auto=format&fit=crop')" }}>
+      <div className="fixed inset-0 bg-slate-100/90 dark:bg-slate-900/90 backdrop-blur-[2px] z-0 pointer-events-none"></div>
+      <div className="relative z-10">
+      <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md text-slate-800 dark:text-white sticky top-0 z-50 shadow-sm border-b border-slate-200/50 dark:border-slate-700/50 print:hidden transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center gap-4">
             <div className="bg-white p-2 rounded-xl shadow-lg">
               <AppLogo className="h-8 w-8" />
             </div>
             <div>
-              <span className="font-bold text-lg md:text-xl tracking-tight hidden md:block">SB-CasTrack</span>
-              <span className="md:hidden font-bold">SB-CT</span>
-              <p className="text-xs text-slate-400 hidden md:block">{selectedProject?.name}</p>
+              <span className="font-bold text-lg md:text-xl tracking-tight hidden md:block text-slate-800 dark:text-white">SB-CasTrack</span>
+              <span className="md:hidden font-bold text-slate-800 dark:text-white">SB-CT</span>
+              <p className="text-xs text-slate-500 dark:text-slate-400 hidden md:block">{selectedProject?.name}</p>
             </div>
           </div>
           
@@ -1590,7 +1592,7 @@ const DashboardView = () => {
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeTab === tab.id 
                     ? 'bg-soilOrange-500 text-white shadow-lg transform scale-105'
-                    : 'text-soilGreen-100 hover:text-white hover:bg-soilGreen-800/50'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <tab.icon size={16} />
@@ -1608,25 +1610,25 @@ const DashboardView = () => {
             </button>
             <button 
               onClick={() => setSelectedProject(null)} 
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 hover:text-white rounded-lg transition-colors border border-slate-600"
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
             >
               <RefreshCw size={14} /> Switch Project
             </button>
              <div className="text-right hidden sm:block cursor-pointer group" onClick={() => { setProfileForm({ name: user.name || '', designation: user.designation || '' }); setActiveModal('profile'); }}>
-               <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">{user.name || user.email}</p>
-               <p className="text-[10px] text-slate-400 text-right">{user.designation || 'No Designation'}</p>
+               <p className="text-sm font-medium text-slate-800 dark:text-white group-hover:text-soilOrange-500 transition-colors">{user.name || user.email}</p>
+               <p className="text-[10px] text-slate-500 dark:text-slate-400 text-right">{user.designation || 'No Designation'}</p>
              </div>
             <button 
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"} 
               onClick={toggleTheme} 
-              className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors text-slate-400 hover:text-white"
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-600 dark:text-slate-300"
             >
               {isDark ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             <button 
               aria-label="Logout" 
               onClick={handleLogout} 
-              className="p-2 hover:bg-red-600/20 rounded-lg transition-colors text-slate-400 hover:text-red-400"
+              className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-slate-600 dark:text-slate-300 hover:text-red-500 dark:hover:text-red-400"
             >
               <LogOut size={20} />
             </button>
@@ -1639,6 +1641,7 @@ const DashboardView = () => {
          activeTab === 'reports' ? <ReportView selectedProject={selectedProject} user={user} metrics={metrics} filteredData={filteredData} /> : 
          <CalendarView data={data} />}
       </main>
+      </div>
       <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
       {activeModal && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm print:hidden">

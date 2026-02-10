@@ -634,6 +634,11 @@ const CalendarView = ({ data }) => {
     if (meta && meta.slabId) setFocusedSlabId(meta.slabId);
 
     const triggerGhost = () => {
+        if (meta.type === 'castTarget' || meta.type === 'bbsTarget') {
+            setGhostConnection(null);
+            return;
+        }
+
         let label = '';
         if (meta.type === 'delivery') label = `HCS Target: ${meta.slabId}`;
         else if (meta.type === 'bbsActual') label = `BBS Target: ${meta.bbsNum}`;
@@ -1441,10 +1446,10 @@ const DashboardView = () => {
               <div className="flex items-start gap-3">
                 <AlertTriangle size={20} className={`${overdueCount > 0 ? 'text-red-500' : 'text-emerald-500'} mt-0.5 shrink-0`} />
                 <div className="flex-1 min-w-0">
-                  <h4 title="Overdue Schedules" className={`text-sm font-bold truncate ${overdueCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                  <h4 title="Overdue Schedules" className={`text-sm font-bold break-words ${overdueCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
                     Overdue Schedules
                   </h4>
-                  <p className={`text-xs mt-1 truncate ${overdueCount > 0 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                  <p className={`text-xs mt-1 break-words ${overdueCount > 0 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
                     {overdueCount} casting zones {overdueCount > 0 ? 'behind schedule' : 'on schedule'}
                   </p>
                 </div>
@@ -1464,14 +1469,14 @@ const DashboardView = () => {
                     : 'text-emerald-500'
                 } mt-0.5 shrink-0`} />
                 <div className="flex-1 min-w-0">
-                  <h4 title="Missing BBS" className={`text-sm font-bold truncate ${
+                  <h4 title="Missing BBS" className={`text-sm font-bold break-words ${
                     data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
                       ? 'text-amber-700 dark:text-amber-400' 
                       : 'text-emerald-700 dark:text-emerald-400'
                   }`}>
                     Missing BBS
                   </h4>
-                  <p className={`text-xs mt-1 truncate ${
+                  <p className={`text-xs mt-1 break-words ${
                     data.filter(i => !i.bbs || (Array.isArray(i.bbs) && i.bbs.length === 0)).length > 0 
                       ? 'text-amber-600 dark:text-amber-300' 
                       : 'text-emerald-600 dark:text-emerald-300'
@@ -1487,13 +1492,13 @@ const DashboardView = () => {
               <div className="flex items-start gap-3">
                 <Hammer size={20} className="text-blue-500 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <h4 title="Next Casting" className="text-sm font-bold truncate text-blue-700 dark:text-blue-400">Next Casting</h4>
+                  <h4 title="Next Casting" className="text-sm font-bold break-words text-blue-700 dark:text-blue-400">Next Casting</h4>
                   {data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0] ? (
                     (() => {
                       const nextCasting = data.filter(i => i.status !== 'Cast' && i.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))[0];
                       return (
                         <>
-                          <p title={nextCasting.slabId} className="text-xs truncate text-blue-600 dark:text-blue-300 mt-1">{nextCasting.slabId}</p>
+                          <p title={nextCasting.slabId} className="text-xs break-words text-blue-600 dark:text-blue-300 mt-1">{nextCasting.slabId}</p>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                             {new Date(nextCasting.castingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </p>

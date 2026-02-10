@@ -176,16 +176,16 @@ const Card = ({ title, value, icon: IconComponent, subtext, color = "blue", tren
 const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disabled }) => {
   let statusStyle = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600";
   if (currentStatus === 'Delayed') {
-    statusStyle = "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800";
+    statusStyle = "bg-red-600 text-white border-red-700 shadow-sm";
   } else if (currentStatus === 'Cast') {
     if (targetDate && actualDate) {
       const target = new Date(targetDate).setHours(0,0,0,0);
       const actual = new Date(actualDate).setHours(0,0,0,0);
-      if (actual > target) statusStyle = "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 font-bold";
-      else if (actual < target) statusStyle = "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 font-bold";
+      if (actual > target) statusStyle = "bg-red-600 text-white border-red-700 font-bold shadow-sm";
+      else if (actual <= target) statusStyle = "bg-soilGreen-600 text-white border-soilGreen-700 font-bold shadow-sm";
       else statusStyle = "bg-white dark:bg-slate-700 text-slate-700 dark:text-white border-slate-300 dark:border-slate-600";
     } else {
-      statusStyle = "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800";
+      statusStyle = "bg-soilGreen-600 text-white border-soilGreen-700 shadow-sm";
     }
   }
   return (
@@ -762,8 +762,8 @@ const CalendarView = ({ data }) => {
           {dayEvents.map((event, idx) => {
             let colorClass = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"; let icon = <CheckCircle2 size={8} />; let label = event.slabId;
             if (event.type === 'castTarget') { colorClass = "bg-soilGreen-50 dark:bg-soilGreen-900/30 text-soilGreen-700 dark:text-soilGreen-400 border-soilGreen-500 dark:border-soilGreen-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Plan: ${event.slabId}`; }
-            else if (event.type === 'castTargetCompleted') { colorClass = "bg-soilGreen-50 dark:bg-soilGreen-900/30 text-soilGreen-700 dark:text-soilGreen-400 border-soilGreen-600 dark:border-soilGreen-500 border-2 border-dashed"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
-            else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-soilGreen-600 text-white border-soilGreen-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
+            else if (event.type === 'castTargetCompleted') { colorClass = "bg-soilGreen-600 text-white border-soilGreen-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
+            else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-600 text-white border-red-700" : "bg-soilGreen-600 text-white border-soilGreen-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
             else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-soilOrange-50 dark:bg-soilOrange-900/30 text-soilOrange-700 dark:text-soilOrange-400 border-soilOrange-100 dark:border-soilOrange-800"; icon = <Truck size={8} />; }
             else if (event.type === 'bbsActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800"; icon = <Target size={8} />; label = `BBS: ${event.bbsNum}`; }
             else if (event.type === 'bbsTarget') { colorClass = "bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-600 border-dashed text-purple-400 dark:text-purple-500"; icon = <Target size={8} />; label = `Plan BBS: ${event.bbsNum}`; }
@@ -958,6 +958,7 @@ export default function App() {
         setUser(null);
         setSelectedProject(null);
       }
+      setAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -1012,21 +1013,18 @@ export default function App() {
   // Data Fetching depends on Project
   useEffect(() => {
     if (!user || !selectedProject) return;
-
     const q = query(
       collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs'),
       orderBy('castingDate', 'desc'),
       limit(QUERY_LIMIT)
     );
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setData(items);
     }, (error) => {
-      console.error("Error fetching slabs:", error);
-      if (import.meta.env.DEV) console.error(error);
+       console.error("Error fetching data:", error);
+       if (import.meta.env.DEV) console.log("Snapshot error", error);
     });
-
     return () => unsubscribe();
   }, [user?.uid, selectedProject?.id]);
 

@@ -549,9 +549,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Project Timeline */}
-        <ProjectTimeline filteredData={filteredData} />
-
         {/* Critical Tasks Summary */}
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
           <div className="flex justify-between items-center mb-6">
@@ -649,6 +646,9 @@ export default function App() {
             </div>
           </div>
         </div>
+          {/* Project Timeline */}
+        <ProjectTimeline filteredData={filteredData} />
+
         </div>
       </div>
     );

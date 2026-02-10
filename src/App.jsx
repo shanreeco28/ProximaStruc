@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, memo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import DeliveryTags from './components/DeliveryTags';
 import GhostLine from './components/GhostLine';
 import ProjectSelection from './components/ProjectSelection';
@@ -14,7 +14,7 @@ import CalendarView from './components/CalendarView';
 import LoginView from './components/LoginView';
 import ReportView from './components/ReportView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
-import { app, auth, db } from './firebase';
+import { auth, db } from './firebase';
 
 import {
   LayoutDashboard,
@@ -90,6 +90,7 @@ export default function App() {
   const [activeModal, setActiveModal] = useState(null); 
   const [isDark, setIsDark] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [trackerSubTab, setTrackerSubTab] = useState('standard');
 
   // Project Management State
   const [projects, setProjects] = useState(() => {
@@ -213,7 +214,7 @@ export default function App() {
        if (import.meta.env.DEV) console.log("Snapshot error", error);
     });
     return () => unsubscribe();
-  }, [user?.uid, selectedProject?.id]);
+  }, [user?.uid, selectedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Handlers ---
   const handleLogout = async () => {
@@ -654,10 +655,41 @@ export default function App() {
     );
   };
 
-  const TrackerView = () => (
+  const TrackerView = () => {
+    const displayData = filteredData.filter(item => {
+      const isRamp = (item.zone || '').toLowerCase().includes('ramp') || (item.slabId || '').toLowerCase().includes('ramp');
+      return trackerSubTab === 'ramp' ? isRamp : !isRamp;
+    });
+
+    return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in duration-500 pb-20 md:pb-0">
       <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-col md:flex-row items-center gap-2 w-full"><div className="relative w-full md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm outline-none w-full" /></div><div className="flex items-center gap-2 w-full md:w-auto"><input type="date" value={dateFilter.start} onChange={e => setDateFilter({...dateFilter, start: e.target.value})} className="px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs outline-none" /><span className="text-slate-400">-</span><input type="date" value={dateFilter.end} onChange={e => setDateFilter({...dateFilter, end: e.target.value})} className="px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs outline-none" />{(dateFilter.start || dateFilter.end) && (<button aria-label="Clear date filter" onClick={() => setDateFilter({start: '', end: ''})} className="text-slate-400 hover:text-red-500"><X size={16}/></button>)}</div></div>
+        <div className="flex flex-col xl:flex-row items-center gap-2 w-full">
+            <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-lg border border-slate-200 dark:border-slate-600">
+                <button
+                    onClick={() => setTrackerSubTab('standard')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    trackerSubTab === 'standard'
+                        ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                >
+                    Standard Slabs
+                </button>
+                <button
+                    onClick={() => setTrackerSubTab('ramp')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    trackerSubTab === 'ramp'
+                        ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                >
+                    Ramp Tracker
+                </button>
+            </div>
+            <div className="relative w-full md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm outline-none w-full" /></div>
+            <div className="flex items-center gap-2 w-full md:w-auto"><input type="date" value={dateFilter.start} onChange={e => setDateFilter({...dateFilter, start: e.target.value})} className="px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs outline-none" /><span className="text-slate-400">-</span><input type="date" value={dateFilter.end} onChange={e => setDateFilter({...dateFilter, end: e.target.value})} className="px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs outline-none" />{(dateFilter.start || dateFilter.end) && (<button aria-label="Clear date filter" onClick={() => setDateFilter({start: '', end: ''})} className="text-slate-400 hover:text-red-500"><X size={16}/></button>)}</div>
+        </div>
         {user?.role === 'admin' && (<div className="grid grid-cols-2 md:flex gap-2 w-full md:w-auto"><button onClick={() => setActiveModal('bbs')} className="col-span-1 flex items-center justify-center gap-1 md:gap-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-300 px-2 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors border border-slate-200 dark:border-slate-600"><FileSignature size={16} /><span className="truncate">Assign BBS</span></button><button onClick={() => setActiveModal('delivery')} className="col-span-1 flex items-center justify-center gap-1 md:gap-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-300 px-2 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors border border-slate-200 dark:border-slate-600"><PackagePlus size={16} /><span className="truncate">Log HCS</span></button><button onClick={() => setActiveModal('slab')} className="col-span-2 md:col-span-1 flex items-center justify-center gap-2 bg-soilOrange-500 hover:bg-soilOrange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"><Plus size={18} /> Add Casting</button></div>)}
       </div>
       <div className="hidden md:block overflow-x-auto">
@@ -679,7 +711,7 @@ export default function App() {
               </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
-            {filteredData.map((item) => (
+            {displayData.map((item) => (
               <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-slate-700 dark:text-slate-300">
                 <td className="p-4 font-bold text-slate-800 dark:text-white align-top" onDoubleClick={() => startEditingSlabId(item)}>{editingSlabId.id === item.id ? (<input autoFocus type="text" className="w-full bg-white dark:bg-slate-800 border border-blue-300 rounded px-2 py-1 text-sm outline-none" value={editingSlabId.text} onChange={(e) => setEditingSlabId({...editingSlabId, text: e.target.value})} onBlur={saveSlabId} onKeyDown={(e) => e.key === 'Enter' && saveSlabId()} />) : (<div className={user?.role==='admin'?'cursor-pointer hover:text-blue-600':''}>{item.slabId}</div>)}</td>
                 <td className="p-4 align-top">{item.zone}</td>
@@ -696,7 +728,7 @@ export default function App() {
       </div>
       {/* Mobile Card View */}
       <div className="md:hidden bg-slate-50 dark:bg-slate-900 p-4 space-y-4">
-        {filteredData.map(item => (
+        {displayData.map(item => (
           <div key={item.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4 relative overflow-hidden">
              <div className="flex justify-between items-start mb-3"><div><h3 className="font-bold text-slate-800 dark:text-white truncate">{item.slabId}</h3><p className="text-xs text-slate-500 truncate">{item.zone}</p></div><StatusSelect disabled={user?.role !== 'admin'} currentStatus={item.status} targetDate={item.castingDate} actualDate={item.actualCastingDate} onChange={(val) => updateStatus(item, val)} /></div>
              <div className="space-y-3">
@@ -710,6 +742,7 @@ export default function App() {
       </div>
     </div>
   );
+  };
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-500">Connecting to Cloud...</div>;
   if (!user) return <LoginView initialMode={emailConfirmationNeeded ? 'confirm-email' : 'login'} isDark={isDark} toggleTheme={toggleTheme} />;

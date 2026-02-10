@@ -1,7 +1,8 @@
 import React from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 
-const Card = ({ title, value, icon: IconComponent, subtext, color = "blue", trend = null, size = "default" }) => {
+const Card = ({ title, value, icon, subtext, color = "blue", trend = null, size = "default" }) => {
+  const IconComponent = icon;
   const sizeClasses = {
     small: "p-3 md:p-4",
     default: "p-4 md:p-6",

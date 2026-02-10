@@ -1,7 +1,7 @@
 import React from 'react';
 import { BarChart3, Printer, X, Layers, CheckCircle2, Truck, AlertTriangle, Calendar as CalendarIcon, TrendingUp, Activity, Hammer } from 'lucide-react';
 
-const ExecutiveReportModal = ({ selectedProject, user, metrics, data, filteredData, onClose }) => (
+const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, onClose }) => (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm print:bg-white print:static print:block print:p-0 print:h-auto">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] print:shadow-none print:max-h-none print:w-full print:max-w-none print:overflow-visible">
         <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900 print:bg-white print:border-b-2 print:border-black">

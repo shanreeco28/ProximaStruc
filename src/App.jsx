@@ -102,9 +102,9 @@ const AppLogo = ({ className = "h-10 w-10" }) => (
     <rect x="36" y="32" width="8" height="4" fill="#cbd5e1" />
     <rect x="36" y="40" width="8" height="4" fill="#cbd5e1" />
     <rect x="36" y="48" width="8" height="4" fill="#cbd5e1" />
-    <rect x="8" y="14" width="20" height="5" rx="1" fill="#3b82f6" stroke="#1d4ed8" strokeWidth="1"/>
-    <path d="M18 14L18 4" stroke="#f59e0b" strokeWidth="2" />
-    <path d="M48 12L48 4L14 4" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" />
+    <rect x="8" y="14" width="20" height="5" rx="1" fill="#1B5E20" stroke="#14532d" strokeWidth="1"/>
+    <path d="M18 14L18 4" stroke="#F9A825" strokeWidth="2" />
+    <path d="M48 12L48 4L14 4" stroke="#F9A825" strokeWidth="3" strokeLinecap="round" />
     <rect x="48" y="2" width="8" height="6" fill="#b45309" />
     <path d="M2 60H62" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
   </svg>
@@ -336,7 +336,7 @@ const ProjectTimeline = ({ filteredData }) => {
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <Activity className="text-blue-500" size={24} />
+          <Activity className="text-soilGreen-600" size={24} />
           Project Timeline
         </h2>
         <div className="flex gap-2">
@@ -346,7 +346,7 @@ const ProjectTimeline = ({ filteredData }) => {
               onClick={() => setViewMode(mode)}
               className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
                 viewMode === mode
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-soilGreen-600 text-white'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >
@@ -714,9 +714,13 @@ const CalendarView = ({ data }) => {
     filteredData.forEach((item, itemIdx) => {
       const baseId = `${item.id}-${itemIdx}`;
       if (item.castingDate === dateStr) {
-        if (!item.actualCastingDate) dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.slabId || 'Target Casting', author: item.createdBy, ...item });
+        if (item.actualCastingDate === dateStr) {
+           dayEvents.push({ type: 'castTargetCompleted', domId: `evt-cast-target-completed-${baseId}`, tooltipContent: item.slabId || 'Completed on Target', author: item.createdBy, ...item });
+        } else if (!item.actualCastingDate) {
+           dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.slabId || 'Target Casting', author: item.createdBy, ...item });
+        }
       }
-      if (item.actualCastingDate === dateStr) {
+      if (item.actualCastingDate === dateStr && item.castingDate !== dateStr) {
         const isLate = item.castingDate && new Date(item.actualCastingDate) > new Date(item.castingDate);
         dayEvents.push({ type: 'castActual', isLate, domId: `evt-cast-actual-${baseId}`, tooltipContent: item.slabId || 'Actual Casting', author: item.createdBy, targetDate: item.castingDate, dateStr: item.actualCastingDate, ...item });
       }
@@ -729,11 +733,16 @@ const CalendarView = ({ data }) => {
       if (!item.actualCastingDate) {
         if (Array.isArray(item.bbs)) item.bbs.forEach((b, bIdx) => {
             const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
-            if (bObj.actualDate === dateStr) {
+            if (bObj.targetDate === dateStr) {
+               if (bObj.actualDate === dateStr) {
+                  dayEvents.push({ type: 'bbsTargetCompleted', domId: `evt-bbs-target-completed-${baseId}-${bIdx}`, ...item, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Completed on Target', author: bObj.createdBy });
+               } else if (!bObj.actualDate) {
+                  dayEvents.push({ type: 'bbsTarget', domId: `evt-bbs-target-${baseId}-${bIdx}`, ...item, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Target', author: bObj.createdBy, });
+               }
+            }
+            if (bObj.actualDate === dateStr && bObj.targetDate !== dateStr) {
               const isLate = bObj.targetDate && new Date(bObj.actualDate) > new Date(bObj.targetDate);
               dayEvents.push({ type: 'bbsActual', isLate, domId: `evt-bbs-${baseId}-${bIdx}`, ...item, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Delivery', author: bObj.createdBy, dateStr: bObj.actualDate, targetDate: bObj.targetDate });
-            } else if (bObj.targetDate === dateStr && !bObj.actualDate) {
-              dayEvents.push({ type: 'bbsTarget', domId: `evt-bbs-target-${baseId}-${bIdx}`, ...item, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Target', author: bObj.createdBy, });
             }
         });
       }
@@ -748,11 +757,13 @@ const CalendarView = ({ data }) => {
         <div className="mt-1 md:mt-2 space-y-0.5 md:space-y-1 overflow-y-auto max-h-[60px] md:max-h-[85px] scrollbar-hide">
           {dayEvents.map((event, idx) => {
             let colorClass = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"; let icon = <CheckCircle2 size={8} />; let label = event.slabId;
-            if (event.type === 'castTarget') { colorClass = "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-500 dark:border-emerald-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Plan: ${event.slabId}`; }
-            else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-emerald-500 text-white border-emerald-600"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
-            else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800"; icon = <Truck size={8} />; }
+            if (event.type === 'castTarget') { colorClass = "bg-soilGreen-50 dark:bg-soilGreen-900/30 text-soilGreen-700 dark:text-soilGreen-400 border-soilGreen-500 dark:border-soilGreen-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Plan: ${event.slabId}`; }
+            else if (event.type === 'castTargetCompleted') { colorClass = "bg-soilGreen-50 dark:bg-soilGreen-900/30 text-soilGreen-700 dark:text-soilGreen-400 border-soilGreen-600 dark:border-soilGreen-500 border-2 border-dashed"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
+            else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-soilGreen-600 text-white border-soilGreen-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
+            else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-soilOrange-50 dark:bg-soilOrange-900/30 text-soilOrange-700 dark:text-soilOrange-400 border-soilOrange-100 dark:border-soilOrange-800"; icon = <Truck size={8} />; }
             else if (event.type === 'bbsActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800"; icon = <Target size={8} />; label = `BBS: ${event.bbsNum}`; }
             else if (event.type === 'bbsTarget') { colorClass = "bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-600 border-dashed text-purple-400 dark:text-purple-500"; icon = <Target size={8} />; label = `Plan BBS: ${event.bbsNum}`; }
+            else if (event.type === 'bbsTargetCompleted') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-500 dark:border-purple-500 border-2 border-dashed"; icon = <Target size={8} />; label = `BBS Done: ${event.bbsNum}`; }
             else if (event.type === 'ghost') { colorClass = "bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 border-dashed text-slate-400 dark:text-slate-500 z-[15]"; icon = <Target size={8} />; label = event.label; }
             else if (event.type === 'bbsGhost') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800 opacity-80 border-dashed"; icon = <Target size={8} />; label = `BBS: ${event.label}`; }
 
@@ -1229,9 +1240,9 @@ const DashboardView = () => {
     return (
       <div className="space-y-8">
         {/* Header Section */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 md:p-8 text-white shadow-2xl">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -mr-32 -mt-32"></div>
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/10 rounded-full -ml-24 -mb-24"></div>
+        <div className="relative overflow-hidden bg-gradient-to-r from-soilGreen-900 to-soilGreen-800 rounded-2xl p-6 md:p-8 text-white shadow-2xl">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-soilOrange-500/10 rounded-full -mr-32 -mt-32"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-soilGreen-500/10 rounded-full -ml-24 -mb-24"></div>
           <div className="relative z-10">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div>
@@ -1251,7 +1262,7 @@ const DashboardView = () => {
               <div className="flex gap-3">
                 <button 
                   onClick={() => setActiveModal('report')}
-                  className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-lg"
+                  className="bg-soilOrange-500 hover:bg-soilOrange-600 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-lg text-white"
                 >
                   <FileText size={18} /> Generate Report
                 </button>
@@ -1494,7 +1505,7 @@ const DashboardView = () => {
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in duration-500 pb-20 md:pb-0">
       <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-col md:flex-row items-center gap-2 w-full"><div className="relative w-full md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm outline-none w-full" /></div><div className="flex items-center gap-2 w-full md:w-auto"><input type="date" value={dateFilter.start} onChange={e => setDateFilter({...dateFilter, start: e.target.value})} className="px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs outline-none" /><span className="text-slate-400">-</span><input type="date" value={dateFilter.end} onChange={e => setDateFilter({...dateFilter, end: e.target.value})} className="px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs outline-none" />{(dateFilter.start || dateFilter.end) && (<button aria-label="Clear date filter" onClick={() => setDateFilter({start: '', end: ''})} className="text-slate-400 hover:text-red-500"><X size={16}/></button>)}</div></div>
-        {user?.role === 'admin' && (<div className="grid grid-cols-2 md:flex gap-2 w-full md:w-auto"><button onClick={() => setActiveModal('bbs')} className="col-span-1 flex items-center justify-center gap-1 md:gap-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-300 px-2 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors border border-slate-200 dark:border-slate-600"><FileSignature size={16} /><span className="truncate">Assign BBS</span></button><button onClick={() => setActiveModal('delivery')} className="col-span-1 flex items-center justify-center gap-1 md:gap-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-300 px-2 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors border border-slate-200 dark:border-slate-600"><PackagePlus size={16} /><span className="truncate">Log HCS</span></button><button onClick={() => setActiveModal('slab')} className="col-span-2 md:col-span-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"><Plus size={18} /> Add Casting</button></div>)}
+        {user?.role === 'admin' && (<div className="grid grid-cols-2 md:flex gap-2 w-full md:w-auto"><button onClick={() => setActiveModal('bbs')} className="col-span-1 flex items-center justify-center gap-1 md:gap-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-300 px-2 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors border border-slate-200 dark:border-slate-600"><FileSignature size={16} /><span className="truncate">Assign BBS</span></button><button onClick={() => setActiveModal('delivery')} className="col-span-1 flex items-center justify-center gap-1 md:gap-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-300 px-2 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors border border-slate-200 dark:border-slate-600"><PackagePlus size={16} /><span className="truncate">Log HCS</span></button><button onClick={() => setActiveModal('slab')} className="col-span-2 md:col-span-1 flex items-center justify-center gap-2 bg-soilOrange-500 hover:bg-soilOrange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"><Plus size={18} /> Add Casting</button></div>)}
       </div>
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left border-collapse">
@@ -1533,11 +1544,11 @@ const DashboardView = () => {
       {/* Mobile Card View */}
       <div className="md:hidden bg-slate-50 dark:bg-slate-900 p-4 space-y-4">
         {filteredData.map(item => (
-          <div key={item.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4 relative">
-             <div className="flex justify-between items-start mb-3"><div><h3 className="font-bold text-slate-800 dark:text-white">{item.slabId}</h3><p className="text-xs text-slate-500">{item.zone}</p></div><StatusSelect disabled={user?.role !== 'admin'} currentStatus={item.status} targetDate={item.castingDate} actualDate={item.actualCastingDate} onChange={(val) => updateStatus(item, val)} /></div>
+          <div key={item.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4 relative overflow-hidden">
+             <div className="flex justify-between items-start mb-3"><div><h3 className="font-bold text-slate-800 dark:text-white truncate">{item.slabId}</h3><p className="text-xs text-slate-500 truncate">{item.zone}</p></div><StatusSelect disabled={user?.role !== 'admin'} currentStatus={item.status} targetDate={item.castingDate} actualDate={item.actualCastingDate} onChange={(val) => updateStatus(item, val)} /></div>
              <div className="space-y-3">
                  <div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600"><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Target Casting</p><div className="flex items-center justify-between text-sm text-slate-700 dark:text-slate-300"><span className="flex items-center gap-2"><Hammer size={14} className="text-emerald-500" /> {item.castingDate}</span>{user?.role === 'admin' && <button aria-label="Edit casting dates" onClick={() => initiateEditCasting(item)} className="text-slate-400 hover:text-blue-600"><Edit2 size={14} /></button>}</div>{item.actualCastingDate && (<div className="flex items-center gap-2 text-sm text-slate-700 mt-1 pl-6"><span className="text-[10px] text-slate-400 uppercase">Actual:</span><span className="font-bold text-emerald-700 dark:text-emerald-400">{item.actualCastingDate}</span></div>)}</div>
-                 <div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600" onClick={() => startEditingRemark(item)}><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Remarks (Tap to edit)</p>{editingRemark.id === item.id ? (<input autoFocus type="text" className="w-full bg-white dark:bg-slate-800 border border-blue-300 rounded px-2 py-1 text-xs outline-none" value={editingRemark.text} onChange={(e) => setEditingRemark({...editingRemark, text: e.target.value})} onBlur={saveRemark} onKeyDown={(e) => e.key === 'Enter' && saveRemark()} />) : (<div className="text-xs text-slate-600 dark:text-slate-300 min-h-[1.25rem]">{item.remarks || <span className="text-slate-400 italic">No remarks</span>}</div>)}</div>
+                 <div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600" onClick={() => startEditingRemark(item)}><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Remarks (Tap to edit)</p>{editingRemark.id === item.id ? (<input autoFocus type="text" className="w-full bg-white dark:bg-slate-800 border border-blue-300 rounded px-2 py-1 text-xs outline-none" value={editingRemark.text} onChange={(e) => setEditingRemark({...editingRemark, text: e.target.value})} onBlur={saveRemark} onKeyDown={(e) => e.key === 'Enter' && saveRemark()} />) : (<div className="text-xs text-slate-600 dark:text-slate-300 min-h-[1.25rem] break-words">{item.remarks || <span className="text-slate-400 italic">No remarks</span>}</div>)}</div>
                  <div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600"><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">HCS Deliveries</p><DeliveryTags deliveries={item.deliveries} castingDate={item.castingDate} /></div><div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600"><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">BBS List</p><BbsTags bbs={item.bbs} castingDate={item.castingDate} onEdit={(idx) => initiateEditBBS(item, idx)} onDelete={(idx) => handleDeleteBBS(item, idx)} readOnly={user?.role !== 'admin'} /></div></div>
              </div>
              {user?.role === 'admin' && (<button aria-label="Delete entry" onClick={() => deleteEntry(item.id)} className="absolute top-4 right-2 text-slate-300 hover:text-red-500 p-2"><X size={16} /></button>)}
@@ -1552,17 +1563,19 @@ const DashboardView = () => {
   if (!selectedProject) return <ProjectSelection projects={projects} onSelect={setSelectedProject} onAdd={handleAddProject} onLogout={handleLogout} user={user} />;
 
   return (
-    <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300">
-      <nav className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white sticky top-0 z-50 shadow-2xl border-b border-slate-700 print:hidden backdrop-blur-lg">
+    <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300 bg-fixed bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=2070&auto=format&fit=crop')" }}>
+      <div className="fixed inset-0 bg-slate-100/90 dark:bg-slate-900/90 backdrop-blur-[2px] z-0 pointer-events-none"></div>
+      <div className="relative z-10">
+      <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md text-slate-800 dark:text-white sticky top-0 z-50 shadow-sm border-b border-slate-200/50 dark:border-slate-700/50 print:hidden transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center gap-4">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-xl shadow-lg">
-              <AppLogo className="h-8 w-8 text-white" />
+            <div className="bg-white p-2 rounded-xl shadow-lg">
+              <AppLogo className="h-8 w-8" />
             </div>
             <div>
-              <span className="font-bold text-lg md:text-xl tracking-tight hidden md:block">SB-CasTrack</span>
-              <span className="md:hidden font-bold">SB-CT</span>
-              <p className="text-xs text-slate-400 hidden md:block">{selectedProject?.name}</p>
+              <span className="font-bold text-lg md:text-xl tracking-tight hidden md:block text-slate-800 dark:text-white">SB-CasTrack</span>
+              <span className="md:hidden font-bold text-slate-800 dark:text-white">SB-CT</span>
+              <p className="text-xs text-slate-500 dark:text-slate-400 hidden md:block">{selectedProject?.name}</p>
             </div>
           </div>
           
@@ -1578,8 +1591,8 @@ const DashboardView = () => {
                 onClick={() => setActiveTab(tab.id)} 
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeTab === tab.id 
-                    ? 'bg-blue-600 text-white shadow-lg transform scale-105' 
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    ? 'bg-soilOrange-500 text-white shadow-lg transform scale-105'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <tab.icon size={16} />
@@ -1597,25 +1610,25 @@ const DashboardView = () => {
             </button>
             <button 
               onClick={() => setSelectedProject(null)} 
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 hover:text-white rounded-lg transition-colors border border-slate-600"
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
             >
               <RefreshCw size={14} /> Switch Project
             </button>
              <div className="text-right hidden sm:block cursor-pointer group" onClick={() => { setProfileForm({ name: user.name || '', designation: user.designation || '' }); setActiveModal('profile'); }}>
-               <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">{user.name || user.email}</p>
-               <p className="text-[10px] text-slate-400 text-right">{user.designation || 'No Designation'}</p>
+               <p className="text-sm font-medium text-slate-800 dark:text-white group-hover:text-soilOrange-500 transition-colors">{user.name || user.email}</p>
+               <p className="text-[10px] text-slate-500 dark:text-slate-400 text-right">{user.designation || 'No Designation'}</p>
              </div>
             <button 
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"} 
               onClick={toggleTheme} 
-              className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors text-slate-400 hover:text-white"
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-600 dark:text-slate-300"
             >
               {isDark ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             <button 
               aria-label="Logout" 
               onClick={handleLogout} 
-              className="p-2 hover:bg-red-600/20 rounded-lg transition-colors text-slate-400 hover:text-red-400"
+              className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-slate-600 dark:text-slate-300 hover:text-red-500 dark:hover:text-red-400"
             >
               <LogOut size={20} />
             </button>
@@ -1628,6 +1641,7 @@ const DashboardView = () => {
          activeTab === 'reports' ? <ReportView selectedProject={selectedProject} user={user} metrics={metrics} filteredData={filteredData} /> : 
          <CalendarView data={data} />}
       </main>
+      </div>
       <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
       {activeModal && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm print:hidden">

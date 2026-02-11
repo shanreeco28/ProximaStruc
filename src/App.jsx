@@ -304,6 +304,30 @@ export default function App() {
     } catch (err) { alert(err.message); }
   };
   const initiateEditBBS = useCallback((slab, bbsIndex) => { if (!checkAdmin()) return; const item = slab.bbs[bbsIndex]; setEditBbsState({ slabId: slab.id, bbsIndex, data: typeof item === 'object' ? item : { number: item, description: '' } }); setActiveModal('edit-bbs'); }, [checkAdmin, setEditBbsState, setActiveModal]);
+  const initiateAddBBS = useCallback((item) => {
+    if (!checkAdmin()) return;
+    setBbsForm({ selectedSlabId: item.id, bbsNumber: '', description: '', targetDate: '', actualDate: '' });
+    setActiveModal('bbs');
+  }, [checkAdmin, setBbsForm, setActiveModal]);
+
+  const handleCalendarAssignBbs = useCallback((date) => {
+    if (!checkAdmin()) return;
+    setBbsForm({ selectedSlabId: '', bbsNumber: '', description: '', targetDate: date, actualDate: '' });
+    setActiveModal('bbs');
+  }, [checkAdmin, setBbsForm, setActiveModal]);
+
+  const handleCalendarAssignCasting = useCallback((date) => {
+    if (!checkAdmin()) return;
+    setSlabForm({ zone: '', castingDate: date, remarks: '', status: 'Scheduled', actualCastingDate: '' });
+    setActiveModal('slab');
+  }, [checkAdmin, setSlabForm, setActiveModal]);
+
+  const handleCalendarAssignDelivery = useCallback((date) => {
+    if (!checkAdmin()) return;
+    setDeliveryForm({ selectedSlabId: '', date: date, description: '' });
+    setActiveModal('delivery');
+  }, [checkAdmin, setDeliveryForm, setActiveModal]);
+
   const handleSaveBbsEdit = async (e) => { e.preventDefault(); if (!checkAdmin() || !selectedProject) return; const slab = data.find(d => d.id === editBbsState.slabId); if (!slab) return; const updated = [...slab.bbs]; updated[editBbsState.bbsIndex] = editBbsState.data; try { await updateDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs', editBbsState.slabId), { bbs: updated }); setActiveModal(null); } catch (err) { alert(err.message); } };
   const initiateEditCasting = (item) => { if (!checkAdmin()) return; setEditCastingState({ id: item.id, target: item.castingDate || '', actual: item.actualCastingDate || '' }); setActiveModal('edit-casting'); };
   const handleSaveCastingEdit = async (e) => { e.preventDefault(); if (!checkAdmin() || !selectedProject) return; const updates = { castingDate: editCastingState.target, actualCastingDate: editCastingState.actual }; if (editCastingState.actual) updates.status = 'Cast'; try { await updateDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs', editCastingState.id), updates); setActiveModal(null); } catch (err) { alert(err.message); } };
@@ -716,7 +740,7 @@ export default function App() {
                 <td className="p-4 font-bold text-slate-800 dark:text-white align-top" onDoubleClick={() => startEditingSlabId(item)}>{editingSlabId.id === item.id ? (<input autoFocus type="text" className="w-full bg-white dark:bg-slate-800 border border-blue-300 rounded px-2 py-1 text-sm outline-none" value={editingSlabId.text} onChange={(e) => setEditingSlabId({...editingSlabId, text: e.target.value})} onBlur={saveSlabId} onKeyDown={(e) => e.key === 'Enter' && saveSlabId()} />) : (<div className={user?.role==='admin'?'cursor-pointer hover:text-blue-600':''}>{item.slabId}</div>)}</td>
                 <td className="p-4 align-top">{item.zone}</td>
                 <td className="p-4 align-top max-w-[200px]" onDoubleClick={() => startEditingRemark(item)}>{editingRemark.id === item.id ? (<input autoFocus type="text" className="w-full bg-white dark:bg-slate-800 border border-blue-300 rounded px-2 py-1 text-sm outline-none" value={editingRemark.text} onChange={(e) => setEditingRemark({...editingRemark, text: e.target.value})} onBlur={saveRemark} onKeyDown={(e) => e.key === 'Enter' && saveRemark()} />) : (<div className={`truncate ${user?.role==='admin'?'cursor-pointer hover:text-blue-600':''}`}>{item.remarks || <span className="text-slate-300 italic">--</span>}</div>)}</td>
-                <td className="p-4 align-top"><BbsTags bbs={item.bbs} castingDate={item.castingDate} onEdit={(idx) => initiateEditBBS(item, idx)} onDelete={(idx) => handleDeleteBBS(item, idx)} readOnly={user?.role !== 'admin'} /></td>
+                <td className="p-4 align-top"><BbsTags bbs={item.bbs} castingDate={item.castingDate} onEdit={(idx) => initiateEditBBS(item, idx)} onDelete={(idx) => handleDeleteBBS(item, idx)} onAdd={() => initiateAddBBS(item)} readOnly={user?.role !== 'admin'} /></td>
                 <td className="p-4 align-top"><DeliveryTags deliveries={item.deliveries} castingDate={item.castingDate} /></td>
                 <td className="p-4 text-slate-600 align-top"><div className="flex flex-col gap-1"><div className="flex items-center gap-2"><Hammer size={14} className="text-slate-400" /> <span className="text-xs text-slate-500">Target:</span> {item.castingDate}</div>{item.actualCastingDate && (<div className="flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-500" /> <span className="text-xs text-slate-500">Actual:</span> <span className="font-bold">{item.actualCastingDate}</span></div>)}{user?.role === 'admin' && <button onClick={() => initiateEditCasting(item)} className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 mt-1"><Edit2 size={10} /> Edit Dates</button>}</div></td>
                 <td className="p-4 align-top"><StatusSelect disabled={user?.role !== 'admin'} currentStatus={item.status} targetDate={item.castingDate} actualDate={item.actualCastingDate} onChange={(val) => updateStatus(item, val)} /></td>
@@ -734,7 +758,7 @@ export default function App() {
              <div className="space-y-3">
                  <div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600"><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Target Casting</p><div className="flex items-center justify-between text-sm text-slate-700 dark:text-slate-300"><span className="flex items-center gap-2"><Hammer size={14} className="text-emerald-500" /> {item.castingDate}</span>{user?.role === 'admin' && <button aria-label="Edit casting dates" onClick={() => initiateEditCasting(item)} className="text-slate-400 hover:text-blue-600"><Edit2 size={14} /></button>}</div>{item.actualCastingDate && (<div className="flex items-center gap-2 text-sm text-slate-700 mt-1 pl-6"><span className="text-[10px] text-slate-400 uppercase">Actual:</span><span className="font-bold text-emerald-700 dark:text-emerald-400">{item.actualCastingDate}</span></div>)}</div>
                  <div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600" onClick={() => startEditingRemark(item)}><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Remarks (Tap to edit)</p>{editingRemark.id === item.id ? (<input autoFocus type="text" className="w-full bg-white dark:bg-slate-800 border border-blue-300 rounded px-2 py-1 text-xs outline-none" value={editingRemark.text} onChange={(e) => setEditingRemark({...editingRemark, text: e.target.value})} onBlur={saveRemark} onKeyDown={(e) => e.key === 'Enter' && saveRemark()} />) : (<div className="text-xs text-slate-600 dark:text-slate-300 min-h-[1.25rem] break-words">{item.remarks || <span className="text-slate-400 italic">No remarks</span>}</div>)}</div>
-                 <div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600"><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">HCS Deliveries</p><DeliveryTags deliveries={item.deliveries} castingDate={item.castingDate} /></div><div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600"><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">BBS List</p><BbsTags bbs={item.bbs} castingDate={item.castingDate} onEdit={(idx) => initiateEditBBS(item, idx)} onDelete={(idx) => handleDeleteBBS(item, idx)} readOnly={user?.role !== 'admin'} /></div></div>
+                 <div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600"><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">HCS Deliveries</p><DeliveryTags deliveries={item.deliveries} castingDate={item.castingDate} /></div><div className="bg-slate-50 dark:bg-slate-700 p-2 rounded border border-slate-100 dark:border-slate-600"><p className="text-[10px] text-slate-400 uppercase font-bold mb-1">BBS List</p><BbsTags bbs={item.bbs} castingDate={item.castingDate} onEdit={(idx) => initiateEditBBS(item, idx)} onDelete={(idx) => handleDeleteBBS(item, idx)} onAdd={() => initiateAddBBS(item)} readOnly={user?.role !== 'admin'} /></div></div>
              </div>
              {user?.role === 'admin' && (<button aria-label="Delete entry" onClick={() => deleteEntry(item.id)} className="absolute top-4 right-2 text-slate-300 hover:text-red-500 p-2"><X size={16} /></button>)}
           </div>
@@ -825,7 +849,12 @@ export default function App() {
         {activeTab === 'dashboard' ? DashboardView() : 
          activeTab === 'tracker' ? TrackerView() : 
          activeTab === 'reports' ? <ReportView selectedProject={selectedProject} user={user} metrics={metrics} filteredData={filteredData} /> : 
-         <CalendarView data={data} />}
+         <CalendarView
+            data={data}
+            onAssignBBS={handleCalendarAssignBbs}
+            onAssignCasting={handleCalendarAssignCasting}
+            onAssignDelivery={handleCalendarAssignDelivery}
+         />}
       </main>
       </div>
       <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />

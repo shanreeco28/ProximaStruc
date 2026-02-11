@@ -74,12 +74,18 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
               } else if (bObj.targetDate && !bObj.actualDate && isOffScreen(bObj.targetDate)) {
                   offScreen.push({ date: bObj.targetDate, label: `Plan ${bObj.number}`, type: 'target' });
               }
+
+              // Use Actual Date if available, otherwise Target Date for the ghost
+              const effectiveDate = bObj.actualDate || bObj.targetDate;
+              const isTarget = !bObj.actualDate;
+
               return {
                 type: 'bbsGhost',
-                dateStr: bObj.actualDate,
+                dateStr: effectiveDate,
                 label: bObj.number,
+                isTarget,
                 domId: `ghost-bbs-${meta.id}-${i}`,
-                tooltipContent: bObj.description || 'BBS Ghost',
+                tooltipContent: bObj.description || (isTarget ? 'Plan BBS' : 'BBS Ghost'),
                 slabId: meta.slabId
               };
             }).filter(g => g.dateStr);
@@ -201,7 +207,7 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
             else if (event.type === 'bbsTarget') { colorClass = "bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-600 border-dashed text-purple-400 dark:text-purple-500"; icon = <Target size={8} />; label = `Plan BBS: ${event.bbsNum}`; }
             else if (event.type === 'bbsTargetCompleted') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-500 dark:border-purple-500 border-2 border-dashed"; icon = <Target size={8} />; label = `BBS Done: ${event.bbsNum}`; }
             else if (event.type === 'ghost') { colorClass = "bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 border-dashed text-slate-400 dark:text-slate-500 z-[15]"; icon = <Target size={8} />; label = event.label; }
-            else if (event.type === 'bbsGhost') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800 opacity-80 border-dashed"; icon = <Target size={8} />; label = `BBS: ${event.label}`; }
+            else if (event.type === 'bbsGhost') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800 opacity-80 border-dashed"; icon = <Target size={8} />; label = event.isTarget ? `Plan BBS: ${event.label}` : `BBS: ${event.label}`; }
 
             const isFaded = focusedSlabId && event.slabId !== focusedSlabId;
 

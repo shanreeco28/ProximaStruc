@@ -1,14 +1,16 @@
-import React, { useState, useRef } from 'react';
-import { Calendar as CalendarIcon, Search, X, ChevronLeft, ChevronRight, CheckCircle2, Hammer, Truck, Target, Info } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Calendar as CalendarIcon, Search, X, ChevronLeft, ChevronRight, CheckCircle2, Hammer, Truck, Target, Info, PackagePlus } from 'lucide-react';
 import { getDaysInMonth, getFirstDayOfMonth } from '../utils/dateHelpers';
 import GhostLine from './GhostLine';
 import MiniCalendar from './MiniCalendar';
 import BubbleTooltip from './BubbleTooltip';
 
 // --- Calendar View ---
-const CalendarView = ({ data }) => {
+const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, date: null });
   const [ghostConnection, setGhostConnection] = useState(null);
+  const [lockedEventId, setLockedEventId] = useState(null);
   const [filterText, setFilterText] = useState('');
   const [focusedSlabId, setFocusedSlabId] = useState(null);
   const [activeGhosts, setActiveGhosts] = useState([]);
@@ -19,7 +21,25 @@ const CalendarView = ({ data }) => {
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
-  const handleEventHover = (meta, immediate) => {
+  useEffect(() => {
+    const handleClick = () => setContextMenu({ visible: false, x: 0, y: 0, date: null });
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
+
+  const handleContextMenu = (e, dateStr) => {
+    e.preventDefault();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      date: dateStr
+    });
+  };
+
+  const handleEventHover = (meta, immediate, force = false) => {
+    if (!force && lockedEventId && lockedEventId !== meta?.domId) return;
+
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     if (meta && meta.slabId) setFocusedSlabId(meta.slabId);
 
@@ -54,12 +74,18 @@ const CalendarView = ({ data }) => {
               } else if (bObj.targetDate && !bObj.actualDate && isOffScreen(bObj.targetDate)) {
                   offScreen.push({ date: bObj.targetDate, label: `Plan ${bObj.number}`, type: 'target' });
               }
+
+              // Use Actual Date if available, otherwise Target Date for the ghost
+              const effectiveDate = bObj.actualDate || bObj.targetDate;
+              const isTarget = !bObj.actualDate;
+
               return {
                 type: 'bbsGhost',
-                dateStr: bObj.actualDate,
+                dateStr: effectiveDate,
                 label: bObj.number,
+                isTarget,
                 domId: `ghost-bbs-${meta.id}-${i}`,
-                tooltipContent: bObj.description || 'BBS Ghost',
+                tooltipContent: bObj.description || (isTarget ? 'Plan BBS' : 'BBS Ghost'),
                 slabId: meta.slabId
               };
             }).filter(g => g.dateStr);
@@ -91,12 +117,24 @@ const CalendarView = ({ data }) => {
       else hoverTimerRef.current = setTimeout(triggerGhost, 500);
     }
   };
-  const clearGhost = () => {
+  const clearGhost = (force = false) => {
+    if (!force && lockedEventId) return;
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     setGhostConnection(null);
     setFocusedSlabId(null);
     setActiveGhosts([]);
     setOffScreenGhosts({ items: [], rect: null });
+  };
+
+  const handleEventClick = (e, meta) => {
+    e.stopPropagation();
+    if (lockedEventId === meta.domId) {
+      setLockedEventId(null);
+      clearGhost(true);
+    } else {
+      setLockedEventId(meta.domId);
+      handleEventHover(meta, true, true);
+    }
   };
 
   const days = []; for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="h-24 md:h-32 bg-slate-50/50 dark:bg-slate-900/50 border-b border-r border-slate-100 dark:border-slate-800"></div>);
@@ -151,7 +189,12 @@ const CalendarView = ({ data }) => {
     if (ghostConnection && ghostConnection.targetDate === dateStr && !dayEvents.some(e => e.type === 'ghost' && e.label === ghostConnection.label)) dayEvents.push({ type: 'ghost', domId: ghostConnection.startElementId, label: ghostConnection.label, slabId: focusedSlabId });
 
     days.push(
-      <div id={dayId} key={`day-${day}`} className="h-24 md:h-32 bg-white dark:bg-slate-800 border-b border-r border-slate-100 dark:border-slate-700 p-1 md:p-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors group relative overflow-hidden">
+      <div
+        id={dayId}
+        key={`day-${day}`}
+        onContextMenu={(e) => handleContextMenu(e, dateStr)}
+        className="h-24 md:h-32 bg-white dark:bg-slate-800 border-b border-r border-slate-100 dark:border-slate-700 p-1 md:p-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors group relative overflow-hidden"
+      >
         <div className="flex justify-between items-start"><span className={`text-xs md:text-sm font-semibold ${dayEvents.length > 0 ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}`}>{day}</span>{dayEvents.length > 0 && <span className="text-[9px] md:text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-1.5 rounded-full">{dayEvents.length}</span>}</div>
         <div className="mt-1 md:mt-2 space-y-0.5 md:space-y-1 overflow-y-auto max-h-[60px] md:max-h-[85px] scrollbar-hide">
           {dayEvents.map((event, idx) => {
@@ -164,14 +207,20 @@ const CalendarView = ({ data }) => {
             else if (event.type === 'bbsTarget') { colorClass = "bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-600 border-dashed text-purple-400 dark:text-purple-500"; icon = <Target size={8} />; label = `Plan BBS: ${event.bbsNum}`; }
             else if (event.type === 'bbsTargetCompleted') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-500 dark:border-purple-500 border-2 border-dashed"; icon = <Target size={8} />; label = `BBS Done: ${event.bbsNum}`; }
             else if (event.type === 'ghost') { colorClass = "bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 border-dashed text-slate-400 dark:text-slate-500 z-[15]"; icon = <Target size={8} />; label = event.label; }
-            else if (event.type === 'bbsGhost') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800 opacity-80 border-dashed"; icon = <Target size={8} />; label = `BBS: ${event.label}`; }
+            else if (event.type === 'bbsGhost') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800 opacity-80 border-dashed"; icon = <Target size={8} />; label = event.isTarget ? `Plan BBS: ${event.label}` : `BBS: ${event.label}`; }
 
             const isFaded = focusedSlabId && event.slabId !== focusedSlabId;
 
             // Update: Tooltip displays Zone / Level instead of Slab ID
             return (
-              <BubbleTooltip key={`${event.domId || idx}`} title={event.zone || event.label} content={event.tooltipContent} author={event.author} onVisible={handleEventHover} onHidden={clearGhost} meta={event}>
-                <div id={event.domId} className={`relative z-20 text-[9px] md:text-[10px] px-1 py-0.5 rounded border truncate flex items-center gap-1 cursor-default transition-opacity duration-300 ${colorClass} ${isFaded ? 'opacity-20' : ''}`}><span className="shrink-0">{icon}</span><span className="truncate">{label}</span>{event.tooltipContent && <Info size={6} className="ml-auto shrink-0 opacity-50" />}</div>
+              <BubbleTooltip key={`${event.domId || idx}`} title={event.zone || event.label} content={event.tooltipContent} author={event.author} onVisible={handleEventHover} onHidden={() => clearGhost()} meta={event}>
+                <div
+                    id={event.domId}
+                    onClick={(e) => handleEventClick(e, event)}
+                    className={`relative z-20 text-[9px] md:text-[10px] px-1 py-0.5 rounded border truncate flex items-center gap-1 cursor-pointer transition-opacity duration-300 ${colorClass} ${isFaded ? 'opacity-20' : ''}`}
+                >
+                    <span className="shrink-0">{icon}</span><span className="truncate">{label}</span>{event.tooltipContent && <Info size={6} className="ml-auto shrink-0 opacity-50" />}
+                </div>
               </BubbleTooltip>
             );
           })}
@@ -182,6 +231,25 @@ const CalendarView = ({ data }) => {
 
   return (
     <>
+      {contextMenu.visible && (
+        <div
+          className="fixed z-[100] bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-1 min-w-[180px] animate-in fade-in zoom-in-95 duration-100"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+           <div className="px-3 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700 mb-1">
+             Actions for {contextMenu.date}
+           </div>
+           <button onClick={() => onAssignBBS && onAssignBBS(contextMenu.date)} className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2">
+             <Target size={14} className="text-purple-500" /> Assign BBS
+           </button>
+           <button onClick={() => onAssignCasting && onAssignCasting(contextMenu.date)} className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2">
+             <Hammer size={14} className="text-soilGreen-600" /> Schedule Casting
+           </button>
+           <button onClick={() => onAssignDelivery && onAssignDelivery(contextMenu.date)} className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2">
+             <PackagePlus size={14} className="text-soilOrange-500" /> Log HCS Delivery
+           </button>
+        </div>
+      )}
       {offScreenGhosts.items.length > 0 && offScreenGhosts.rect && (
           <div style={{ top: offScreenGhosts.rect.top, left: offScreenGhosts.rect.right + 200 > window.innerWidth ? offScreenGhosts.rect.left - 80 : offScreenGhosts.rect.right + 10 }} className="fixed z-[100] flex flex-col gap-2">
               {offScreenGhosts.items.map((item, i) => <MiniCalendar key={i} date={item.date} label={item.label} type={item.type} />)}

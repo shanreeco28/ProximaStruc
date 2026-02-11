@@ -49,20 +49,27 @@ const CalendarView = ({ data }) => {
         if ((meta.type === 'castActual' || meta.type === 'castTarget' || meta.type === 'castTargetCompleted') && Array.isArray(meta.bbs)) {
             const ghosts = meta.bbs.map((b, i) => {
               const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
-              if (bObj.actualDate && isOffScreen(bObj.actualDate)) {
+              const isActualOff = bObj.actualDate && isOffScreen(bObj.actualDate);
+              const isTargetOff = bObj.targetDate && !bObj.actualDate && isOffScreen(bObj.targetDate);
+
+              if (isActualOff) {
                   offScreen.push({ date: bObj.actualDate, label: `BBS ${bObj.number}`, type: 'actual' });
-              } else if (bObj.targetDate && !bObj.actualDate && isOffScreen(bObj.targetDate)) {
+              } else if (isTargetOff) {
                   offScreen.push({ date: bObj.targetDate, label: `Plan ${bObj.number}`, type: 'target' });
               }
-              return {
-                type: 'bbsGhost',
-                dateStr: bObj.actualDate,
-                label: bObj.number,
-                domId: `ghost-bbs-${meta.id}-${i}`,
-                tooltipContent: bObj.description || 'BBS Ghost',
-                slabId: meta.slabId
-              };
-            }).filter(g => g.dateStr);
+
+              if (bObj.actualDate && !isActualOff) {
+                  return {
+                    type: 'bbsGhost',
+                    dateStr: bObj.actualDate,
+                    label: bObj.number,
+                    domId: `ghost-bbs-${meta.id}-${i}`,
+                    tooltipContent: bObj.description || 'BBS Ghost',
+                    slabId: meta.slabId
+                  };
+              }
+              return null;
+            }).filter(Boolean);
             setActiveGhosts(ghosts);
         }
 

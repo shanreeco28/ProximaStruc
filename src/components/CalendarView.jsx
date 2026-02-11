@@ -10,6 +10,7 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, date: null });
   const [ghostConnection, setGhostConnection] = useState(null);
+  const [lockedEventId, setLockedEventId] = useState(null);
   const [filterText, setFilterText] = useState('');
   const [focusedSlabId, setFocusedSlabId] = useState(null);
   const [activeGhosts, setActiveGhosts] = useState([]);
@@ -36,7 +37,9 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
     });
   };
 
-  const handleEventHover = (meta, immediate) => {
+  const handleEventHover = (meta, immediate, force = false) => {
+    if (!force && lockedEventId && lockedEventId !== meta?.domId) return;
+
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     if (meta && meta.slabId) setFocusedSlabId(meta.slabId);
 
@@ -108,12 +111,24 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
       else hoverTimerRef.current = setTimeout(triggerGhost, 500);
     }
   };
-  const clearGhost = () => {
+  const clearGhost = (force = false) => {
+    if (!force && lockedEventId) return;
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     setGhostConnection(null);
     setFocusedSlabId(null);
     setActiveGhosts([]);
     setOffScreenGhosts({ items: [], rect: null });
+  };
+
+  const handleEventClick = (e, meta) => {
+    e.stopPropagation();
+    if (lockedEventId === meta.domId) {
+      setLockedEventId(null);
+      clearGhost(true);
+    } else {
+      setLockedEventId(meta.domId);
+      handleEventHover(meta, true, true);
+    }
   };
 
   const days = []; for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="h-24 md:h-32 bg-slate-50/50 dark:bg-slate-900/50 border-b border-r border-slate-100 dark:border-slate-800"></div>);
@@ -192,8 +207,14 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
 
             // Update: Tooltip displays Zone / Level instead of Slab ID
             return (
-              <BubbleTooltip key={`${event.domId || idx}`} title={event.zone || event.label} content={event.tooltipContent} author={event.author} onVisible={handleEventHover} onHidden={clearGhost} meta={event}>
-                <div id={event.domId} className={`relative z-20 text-[9px] md:text-[10px] px-1 py-0.5 rounded border truncate flex items-center gap-1 cursor-default transition-opacity duration-300 ${colorClass} ${isFaded ? 'opacity-20' : ''}`}><span className="shrink-0">{icon}</span><span className="truncate">{label}</span>{event.tooltipContent && <Info size={6} className="ml-auto shrink-0 opacity-50" />}</div>
+              <BubbleTooltip key={`${event.domId || idx}`} title={event.zone || event.label} content={event.tooltipContent} author={event.author} onVisible={handleEventHover} onHidden={() => clearGhost()} meta={event}>
+                <div
+                    id={event.domId}
+                    onClick={(e) => handleEventClick(e, event)}
+                    className={`relative z-20 text-[9px] md:text-[10px] px-1 py-0.5 rounded border truncate flex items-center gap-1 cursor-pointer transition-opacity duration-300 ${colorClass} ${isFaded ? 'opacity-20' : ''}`}
+                >
+                    <span className="shrink-0">{icon}</span><span className="truncate">{label}</span>{event.tooltipContent && <Info size={6} className="ml-auto shrink-0 opacity-50" />}
+                </div>
               </BubbleTooltip>
             );
           })}

@@ -11,6 +11,7 @@ import MiniCalendar from './components/MiniCalendar';
 import MobileNav from './components/MobileNav';
 import ProjectTimeline from './components/ProjectTimeline';
 import CalendarView from './components/CalendarView';
+import SiteDiaryView from './components/SiteDiaryView';
 import LoginView from './components/LoginView';
 import ReportView from './components/ReportView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
@@ -49,7 +50,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  RefreshCw
+  RefreshCw,
+  BookOpen
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -794,6 +796,7 @@ export default function App() {
               { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
               { id: 'tracker', label: 'Tracker', icon: FileText },
               { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
+              { id: 'site-diary', label: 'Site Diary', icon: BookOpen },
               { id: 'reports', label: 'Reports', icon: BarChart3 }
             ].map(tab => (
               <button 
@@ -849,6 +852,7 @@ export default function App() {
         {activeTab === 'dashboard' ? DashboardView() : 
          activeTab === 'tracker' ? TrackerView() : 
          activeTab === 'reports' ? <ReportView selectedProject={selectedProject} user={user} metrics={metrics} filteredData={filteredData} /> : 
+         activeTab === 'site-diary' ? <SiteDiaryView selectedProject={selectedProject} user={user} locations={data} /> :
          <CalendarView
             data={data}
             onAssignBBS={handleCalendarAssignBbs}

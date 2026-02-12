@@ -1,11 +1,12 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Calendar as CalendarIcon, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, FileText, Calendar as CalendarIcon, BarChart3, BookOpen } from 'lucide-react';
 
 const MobileNav = ({ activeTab, setActiveTab }) => {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'tracker', label: 'Tracker', icon: FileText },
     { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
+    { id: 'site-diary', label: 'Diary', icon: BookOpen },
     { id: 'reports', label: 'Reports', icon: BarChart3 }
   ];
   return (

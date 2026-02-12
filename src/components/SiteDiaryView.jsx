@@ -1,18 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Users, Activity, Save, Trash2, Plus, FileText } from 'lucide-react';
+import { Calendar, MapPin, Users, Activity, Plus, FileText, Trash2 } from 'lucide-react';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 
-const SiteDiaryView = ({ selectedProject, user, locations }) => {
+// Constants for Dropdowns
+const LEVELS = ['Basement', ...Array.from({length: 10}, (_, i) => `L${i+1}`), 'Roof', 'Ramp'];
+const ZONES = ['A1', 'A2', 'B1', 'B2-A', 'B2-B', 'C', 'D (Ramp)', 'E (STC 4)'];
+const RAMP_LEVELS = Array.from({length: 9}, (_, i) => `Level ${i+1} - Level ${i+2}`);
+const RAMP_PARTS = ['Part 1', 'Part 2', 'Part 3'];
+
+const SiteDiaryView = ({ selectedProject, user }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [entries, setEntries] = useState([]);
+
+  // State for form fields
+  const [level, setLevel] = useState('L1');
+  const [zone, setZone] = useState('A1');
+  const [rampLevel, setRampLevel] = useState(RAMP_LEVELS[0]);
+  const [rampPart, setRampPart] = useState(RAMP_PARTS[0]);
+
   const [formData, setFormData] = useState({
-    location: '',
     subcon: '',
     activity: '',
     manpower: ''
   });
   const [loading, setLoading] = useState(false);
+
+  // Effect to handle Ramp auto-zone logic
+  useEffect(() => {
+    if (level === 'Ramp') {
+        setZone('D (Ramp)');
+    } else {
+        // If switching away from Ramp, reset zone if it was the forced 'D (Ramp)'
+        // or just ensure we have a valid zone.
+        // We'll default to 'A1' if the current zone is 'D (Ramp)' to avoid confusion,
+        // or keep it if it's a valid manual selection (but 'D (Ramp)' implies Ramp).
+        if (zone === 'D (Ramp)') setZone('A1');
+    }
+  }, [level]);
 
   useEffect(() => {
     if (!selectedProject?.id || !selectedDate) return;
@@ -36,13 +61,21 @@ const SiteDiaryView = ({ selectedProject, user, locations }) => {
   const handleAddEntry = async (e) => {
     e.preventDefault();
     if (!selectedProject?.id || !user) return;
-    if (!formData.location || !formData.activity) return;
+    if (!formData.activity) return;
+
+    // Construct Location String
+    let locationString = '';
+    if (level === 'Ramp') {
+        locationString = `${rampLevel} Ramp ${rampPart}`;
+    } else {
+        locationString = `${level} - Zone ${zone}`;
+    }
 
     setLoading(true);
     try {
       await addDoc(collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'site_diary'), {
           date: selectedDate,
-          location: formData.location,
+          location: locationString,
           subcon: formData.subcon || '',
           activity: formData.activity,
           manpower: formData.manpower || '',
@@ -50,8 +83,8 @@ const SiteDiaryView = ({ selectedProject, user, locations }) => {
           uid: user.uid,
           createdAt: new Date().toISOString()
       });
+      // Reset form but keep location selections for quick successive entries
       setFormData({
-        location: '',
         subcon: '',
         activity: '',
         manpower: ''
@@ -73,21 +106,21 @@ const SiteDiaryView = ({ selectedProject, user, locations }) => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20 md:pb-0">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6">
         <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-6">
           <FileText className="text-soilOrange-500" /> Site Diary & Daily Reporting
         </h2>
 
         {/* Date Selection */}
-        <div className="flex items-center gap-4 mb-8">
-            <div className="relative">
+        <div className="flex flex-col md:flex-row md:items-center gap-4 mb-8">
+            <div className="relative w-full md:w-auto">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-soilOrange-500"
+                    className="w-full md:w-auto pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-soilOrange-500"
                 />
             </div>
             <span className="text-sm text-slate-500 dark:text-slate-400">
@@ -100,26 +133,60 @@ const SiteDiaryView = ({ selectedProject, user, locations }) => {
             <div className="lg:col-span-1 space-y-4">
                 <h3 className="font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 pb-2">Add New Entry</h3>
                 <form onSubmit={handleAddEntry} className="space-y-4">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Location / Zone</label>
-                        <div className="relative">
-                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                            <input
-                                list="locations-list"
-                                type="text"
-                                placeholder="Select or type location..."
-                                className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                                value={formData.location}
-                                onChange={e => setFormData({...formData, location: e.target.value})}
-                                required
-                            />
-                            <datalist id="locations-list">
-                                {locations && locations.map((loc, idx) => (
-                                    <option key={idx} value={loc.zone || loc.slabId} />
-                                ))}
-                            </datalist>
+                    {/* Location Dropdowns */}
+                    <div className="space-y-3 p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-100 dark:border-slate-700">
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Location Selection</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Level</label>
+                                <select
+                                    className="w-full px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm outline-none"
+                                    value={level}
+                                    onChange={e => setLevel(e.target.value)}
+                                >
+                                    {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Zone</label>
+                                <select
+                                    className="w-full px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm outline-none disabled:opacity-50"
+                                    value={zone}
+                                    onChange={e => setZone(e.target.value)}
+                                    disabled={level === 'Ramp'}
+                                >
+                                    {ZONES.map(z => <option key={z} value={z}>{z}</option>)}
+                                </select>
+                            </div>
                         </div>
+
+                        {/* Ramp Specific Dropdowns */}
+                        {level === 'Ramp' && (
+                            <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div>
+                                    <label className="block text-[10px] text-slate-400 mb-1">True Ramp Level</label>
+                                    <select
+                                        className="w-full px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs outline-none"
+                                        value={rampLevel}
+                                        onChange={e => setRampLevel(e.target.value)}
+                                    >
+                                        {RAMP_LEVELS.map(r => <option key={r} value={r}>{r}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-slate-400 mb-1">Ramp Part</label>
+                                    <select
+                                        className="w-full px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs outline-none"
+                                        value={rampPart}
+                                        onChange={e => setRampPart(e.target.value)}
+                                    >
+                                        {RAMP_PARTS.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
                     </div>
+
                      <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Sub-contractor</label>
                         <div className="relative">
@@ -159,7 +226,7 @@ const SiteDiaryView = ({ selectedProject, user, locations }) => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-soilOrange-500 hover:bg-soilOrange-600 text-white font-bold py-2 rounded-lg shadow-md transition-colors flex items-center justify-center gap-2"
+                        className="w-full bg-soilOrange-500 hover:bg-soilOrange-600 text-white font-bold py-3 rounded-lg shadow-md transition-colors flex items-center justify-center gap-2"
                     >
                         {loading ? 'Saving...' : <><Plus size={18} /> Add Entry</>}
                     </button>
@@ -183,8 +250,8 @@ const SiteDiaryView = ({ selectedProject, user, locations }) => {
                          {entries.map(entry => (
                              <div key={entry.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow relative group">
                                  <div className="flex justify-between items-start mb-2">
-                                     <div className="flex items-center gap-2">
-                                         <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold px-2 py-1 rounded border border-blue-200 dark:border-blue-800">
+                                     <div className="flex items-center gap-2 flex-wrap">
+                                         <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold px-2 py-1 rounded border border-blue-200 dark:border-blue-800 break-words max-w-[200px] md:max-w-none">
                                              {entry.location}
                                          </span>
                                          {entry.subcon && (
@@ -193,11 +260,11 @@ const SiteDiaryView = ({ selectedProject, user, locations }) => {
                                              </span>
                                          )}
                                      </div>
-                                     <div className="text-[10px] text-slate-400">
+                                     <div className="text-[10px] text-slate-400 shrink-0 ml-2">
                                          {entry.createdAt && new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                      </div>
                                  </div>
-                                 <p className="text-sm text-slate-700 dark:text-slate-300 mb-2 whitespace-pre-wrap">{entry.activity}</p>
+                                 <p className="text-sm text-slate-700 dark:text-slate-300 mb-2 whitespace-pre-wrap break-words">{entry.activity}</p>
                                  {entry.manpower && (
                                      <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 px-2 py-1 rounded inline-block">
                                          Manpower: <span className="font-semibold text-slate-700 dark:text-slate-200">{entry.manpower}</span>

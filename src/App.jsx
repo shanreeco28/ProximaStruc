@@ -114,6 +114,7 @@ export default function App() {
   // --- Persistent State ---
   useEffect(() => {
     const initAuth = async () => {
+
       try {
         if (isSignInWithEmailLink(auth, window.location.href)) {
           let email = window.localStorage.getItem('emailForSignIn');
@@ -203,6 +204,7 @@ export default function App() {
   // Data Fetching depends on Project
   useEffect(() => {
     if (!user || !selectedProject) return;
+
     const q = query(
       collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'slabs'),
       orderBy('castingDate', 'desc'),

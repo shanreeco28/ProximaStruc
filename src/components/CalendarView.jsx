@@ -6,10 +6,10 @@ import MiniCalendar from './MiniCalendar';
 import BubbleTooltip from './BubbleTooltip';
 
 // --- Calendar View ---
-const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) => {
+const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, onEditSlab }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, date: null });
-  const [ghostConnection, setGhostConnection] = useState(null);
+  const [ghostConnections, setGhostConnections] = useState([]);
   const [lockedEventId, setLockedEventId] = useState(null);
   const [filterText, setFilterText] = useState('');
   const [focusedSlabId, setFocusedSlabId] = useState(null);
@@ -44,15 +44,16 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
     if (meta && meta.slabId) setFocusedSlabId(meta.slabId);
 
     const triggerGhost = () => {
-        if (meta.type === 'castTarget' || meta.type === 'bbsTarget' || meta.type === 'castTargetOngoing') {
-            setGhostConnection(null);
+        setGhostConnections([]);
+
+        if (meta.type === 'bbsTarget' || meta.type === 'castTargetOngoing') {
             return;
         }
 
         let label = '';
         if (meta.type === 'delivery') label = `HCS Target: ${meta.slabId}`;
         else if (meta.type === 'bbsActual') label = `BBS Target: ${meta.bbsNum}`;
-        else if (meta.type === 'castActual') label = `Plan: ${meta.slabId}`;
+        else if (meta.type.startsWith('cast')) label = `Plan: ${meta.slabId}`;
 
         const offScreen = [];
         const isOffScreen = (d) => {
@@ -62,10 +63,40 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
              return date < new Date(year, currentDate.getMonth(), 1) || date > new Date(year, currentDate.getMonth() + 1, 0);
         };
 
-        if (meta.targetDate && isOffScreen(meta.targetDate)) {
-             offScreen.push({ date: meta.targetDate, label: 'Target', type: 'target' });
+        const newConnections = [];
+
+        // Casting Ghosts
+        if (meta.type.startsWith('cast')) {
+             // We use originalTargetDate, probableDate, dateStr
+             const original = meta.originalTargetDate || meta.targetDate; // Fallback
+             const probable = meta.probableDate;
+
+             const createGhost = (targetDate, labelText) => {
+                  if (targetDate && targetDate !== meta.dateStr) {
+                       if (isOffScreen(targetDate)) {
+                           offScreen.push({ date: targetDate, label: labelText, type: 'target' });
+                       } else {
+                           newConnections.push({
+                               targetDate: targetDate,
+                               label: labelText,
+                               startElementId: `ghost-${meta.id}-${targetDate}`,
+                               endElementId: meta.domId
+                           });
+                       }
+                  }
+             };
+
+             if (meta.type === 'castActual' || meta.type === 'castTargetCompleted') {
+                 // We are at Actual. Show Probable and/or Original Target ghosts.
+                 if (probable && probable !== meta.dateStr) createGhost(probable, 'Probable');
+                 if (original && original !== meta.dateStr && original !== probable) createGhost(original, 'Target');
+             } else if (meta.type === 'castTarget' && meta.isProbable) {
+                 // We are at Probable. Show Original Target ghost.
+                 if (original && original !== meta.dateStr) createGhost(original, 'Target');
+             }
         }
 
+        // BBS Ghosts
         if ((meta.type === 'castActual' || meta.type === 'castTarget' || meta.type === 'castTargetCompleted') && Array.isArray(meta.bbs)) {
             const ghosts = meta.bbs.map((b, i) => {
               const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
@@ -92,6 +123,20 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
             setActiveGhosts(ghosts);
         }
 
+        // HCS Delivery & BBS Actual pointing to targets
+        if ((meta.type === 'delivery' || meta.type === 'bbsActual') && meta.targetDate && meta.targetDate !== meta.dateStr) {
+             if (isOffScreen(meta.targetDate)) {
+                  offScreen.push({ date: meta.targetDate, label: 'Target', type: 'target' });
+             } else {
+                 newConnections.push({
+                     targetDate: meta.targetDate,
+                     label: label,
+                     startElementId: `ghost-${meta.id}-${meta.targetDate}`,
+                     endElementId: meta.domId
+                 });
+             }
+        }
+
         const domEl = document.getElementById(meta.domId);
         if (offScreen.length > 0 && domEl) {
             setOffScreenGhosts({ items: offScreen, rect: domEl.getBoundingClientRect() });
@@ -99,20 +144,10 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
             setOffScreenGhosts({ items: [], rect: null });
         }
 
-        if ((meta.type === 'castActual' || meta.type === 'castTargetCompleted') && meta.targetDate === meta.dateStr) {
-            setGhostConnection(null);
-        } else {
-            setGhostConnection({
-              targetDate: meta.targetDate,
-              actualDate: meta.dateStr,
-              label: label,
-              endElementId: meta.domId,
-              startElementId: `ghost-${meta.id}-${meta.targetDate}`
-            });
-        }
+        setGhostConnections(newConnections);
     };
 
-    if (meta && (meta.targetDate || meta.type === 'castActual')) {
+    if (meta && (meta.targetDate || meta.type.startsWith('cast'))) {
       if (immediate) triggerGhost();
       else hoverTimerRef.current = setTimeout(triggerGhost, 500);
     }
@@ -120,7 +155,7 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
   const clearGhost = (force = false) => {
     if (!force && lockedEventId) return;
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    setGhostConnection(null);
+    setGhostConnections([]);
     setFocusedSlabId(null);
     setActiveGhosts([]);
     setOffScreenGhosts({ items: [], rect: null });
@@ -150,21 +185,49 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
     const dayId = `cal-day-${dateStr}`; const dayEvents = [];
     filteredData.forEach((item, itemIdx) => {
       const baseId = `${item.id}-${itemIdx}`;
-      if (item.castingDate === dateStr) {
-        if (item.actualCastingDate === dateStr) {
-           dayEvents.push({ type: 'castTargetCompleted', domId: `evt-cast-target-completed-${baseId}`, tooltipContent: item.slabId || 'Completed on Target', author: item.createdBy, targetDate: item.castingDate, dateStr: item.actualCastingDate, ...item });
-        } else if (!item.actualCastingDate) {
+      const effectiveTarget = item.probableCastingDate || item.castingDate;
+      const originalTarget = item.castingDate;
+      const probable = item.probableCastingDate;
+
+      if (item.actualCastingDate === dateStr) {
+          // Completed
+          if (item.actualCastingDate === effectiveTarget) {
+               // Completed on Target (either probable or original)
+               dayEvents.push({
+                   type: 'castTargetCompleted',
+                   domId: `evt-cast-target-completed-${baseId}`,
+                   tooltipContent: item.slabId || 'Completed on Target',
+                   author: item.createdBy,
+                   originalTargetDate: originalTarget,
+                   probableDate: probable,
+                   dateStr: item.actualCastingDate,
+                   ...item
+               });
+          } else {
+               // Completed but not on target
+               const isLate = effectiveTarget && new Date(item.actualCastingDate) > new Date(effectiveTarget);
+               dayEvents.push({
+                   type: 'castActual',
+                   isLate,
+                   domId: `evt-cast-actual-${baseId}`,
+                   tooltipContent: item.slabId || 'Actual Casting',
+                   author: item.createdBy,
+                   originalTargetDate: originalTarget,
+                   probableDate: probable,
+                   dateStr: item.actualCastingDate,
+                   ...item
+               });
+          }
+      } else if (effectiveTarget === dateStr && !item.actualCastingDate) {
+           // Not completed, this is the plan day
+           const isProbable = !!probable;
            if (item.status === 'Ongoing') {
-             dayEvents.push({ type: 'castTargetOngoing', domId: `evt-cast-target-ongoing-${baseId}`, tooltipContent: item.slabId || 'Ongoing Casting', author: item.createdBy, targetDate: item.castingDate, ...item });
+             dayEvents.push({ type: 'castTargetOngoing', domId: `evt-cast-target-ongoing-${baseId}`, tooltipContent: item.slabId || 'Ongoing Casting', author: item.createdBy, targetDate: originalTarget, probableDate: probable, isProbable, dateStr: effectiveTarget, ...item });
            } else {
-             dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.slabId || 'Target Casting', author: item.createdBy, targetDate: item.castingDate, ...item });
+             dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.slabId || (isProbable ? 'Probable Casting' : 'Target Casting'), author: item.createdBy, targetDate: originalTarget, probableDate: probable, isProbable, dateStr: effectiveTarget, ...item });
            }
-        }
       }
-      if (item.actualCastingDate === dateStr && item.castingDate !== dateStr) {
-        const isLate = item.castingDate && new Date(item.actualCastingDate) > new Date(item.castingDate);
-        dayEvents.push({ type: 'castActual', isLate, domId: `evt-cast-actual-${baseId}`, tooltipContent: item.slabId || 'Actual Casting', author: item.createdBy, targetDate: item.castingDate, dateStr: item.actualCastingDate, ...item });
-      }
+
       if (Array.isArray(item.deliveries)) item.deliveries.forEach((d, dIdx) => {
         if (d.date === dateStr) {
           const isLate = item.hcsTargetDate && new Date(d.date) > new Date(item.hcsTargetDate);
@@ -190,7 +253,13 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
     });
 
     activeGhosts.forEach(g => { if (g.dateStr === dateStr) dayEvents.push({ ...g, isGhostItem: true }); });
-    if (ghostConnection && ghostConnection.targetDate === dateStr && !dayEvents.some(e => e.type === 'ghost' && e.label === ghostConnection.label)) dayEvents.push({ type: 'ghost', domId: ghostConnection.startElementId, label: ghostConnection.label, slabId: focusedSlabId });
+
+    // Add ghosts from ghostConnections
+    ghostConnections.forEach(gc => {
+         if (gc.targetDate === dateStr && !dayEvents.some(e => e.type === 'ghost' && e.label === gc.label)) {
+              dayEvents.push({ type: 'ghost', domId: gc.startElementId, label: gc.label, slabId: focusedSlabId });
+         }
+    });
 
     days.push(
       <div
@@ -203,7 +272,18 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
         <div className="mt-1 md:mt-2 space-y-0.5 md:space-y-1 overflow-y-auto max-h-[60px] md:max-h-[85px] scrollbar-hide">
           {dayEvents.map((event, idx) => {
             let colorClass = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"; let icon = <CheckCircle2 size={8} />; let label = event.slabId;
-            if (event.type === 'castTarget') { colorClass = "bg-soilGreen-50 dark:bg-soilGreen-900/30 text-soilGreen-700 dark:text-soilGreen-400 border-soilGreen-500 dark:border-soilGreen-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Plan: ${event.slabId}`; }
+            if (event.type === 'castTarget') {
+                if (event.isProbable) {
+                    // Visual cue for probable
+                    colorClass = "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-500 dark:border-orange-500 border-2 border-dashed";
+                    icon = <Target size={8} />;
+                    label = `Prob: ${event.slabId}`;
+                } else {
+                    colorClass = "bg-soilGreen-50 dark:bg-soilGreen-900/30 text-soilGreen-700 dark:text-soilGreen-400 border-soilGreen-500 dark:border-soilGreen-500 border-2 border-dashed";
+                    icon = <Hammer size={8} />;
+                    label = `Plan: ${event.slabId}`;
+                }
+            }
             else if (event.type === 'castTargetOngoing') { colorClass = "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-500 dark:border-blue-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Ongoing: ${event.slabId}`; }
             else if (event.type === 'castTargetCompleted') { colorClass = "bg-soilGreen-600 text-white border-soilGreen-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
             else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-600 text-white border-red-700" : "bg-soilGreen-600 text-white border-soilGreen-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
@@ -222,6 +302,7 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
                 <div
                     id={event.domId}
                     onClick={(e) => handleEventClick(e, event)}
+                    onDoubleClick={(e) => { e.stopPropagation(); onEditSlab && onEditSlab(event); }}
                     className={`relative z-20 text-[9px] md:text-[10px] px-1 py-0.5 rounded border truncate flex items-center gap-1 cursor-pointer transition-opacity duration-300 ${colorClass} ${isFaded ? 'opacity-20' : ''}`}
                 >
                     <span className="shrink-0">{icon}</span><span className="truncate">{label}</span>{event.tooltipContent && <Info size={6} className="ml-auto shrink-0 opacity-50" />}
@@ -260,7 +341,9 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
               {offScreenGhosts.items.map((item, i) => <MiniCalendar key={i} date={item.date} label={item.label} type={item.type} />)}
           </div>
       )}
-      {ghostConnection && ghostConnection.endElementId && <GhostLine startId={ghostConnection.startElementId} endId={ghostConnection.endElementId} />}
+      {ghostConnections.map((gc, idx) => (
+          <GhostLine key={`ghost-line-${idx}`} startId={gc.startElementId} endId={gc.endElementId} />
+      ))}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in duration-500 mb-20 md:mb-0 relative">
         <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row items-center justify-between gap-4">
           <h2 className="text-base md:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><CalendarIcon className="text-blue-500" size={20} /> {monthName} {year}</h2>

@@ -44,12 +44,12 @@ const SiteDiaryView = ({ selectedProject, user }) => {
 
     const q = query(
       collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'site_diary'),
-      where('date', '==', selectedDate),
-      orderBy('createdAt', 'desc')
+      where('date', '==', selectedDate)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         setEntries(items);
     }, (error) => {
         console.error("Error fetching diary entries:", error);

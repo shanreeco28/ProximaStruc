@@ -44,7 +44,7 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery }) 
     if (meta && meta.slabId) setFocusedSlabId(meta.slabId);
 
     const triggerGhost = () => {
-        if (meta.type === 'castTarget' || meta.type === 'bbsTarget') {
+        if (meta.type === 'castTarget' || meta.type === 'bbsTarget' || meta.type === 'castTargetOngoing') {
             setGhostConnection(null);
             return;
         }

@@ -71,28 +71,41 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
              const original = meta.originalTargetDate || meta.targetDate; // Fallback
              const probable = meta.probableDate;
 
-             const createGhost = (targetDate, labelText) => {
+             const addGhost = (targetDate, labelText, connectToId) => {
                   if (targetDate && targetDate !== meta.dateStr) {
                        if (isOffScreen(targetDate)) {
                            offScreen.push({ date: targetDate, label: labelText, type: 'target' });
+                           return null;
                        } else {
+                           const ghostId = `ghost-${meta.id}-${targetDate}`;
                            newConnections.push({
                                targetDate: targetDate,
                                label: labelText,
-                               startElementId: `ghost-${meta.id}-${targetDate}`,
-                               endElementId: meta.domId
+                               startElementId: ghostId,
+                               endElementId: connectToId
                            });
+                           return ghostId;
                        }
                   }
+                  return null;
              };
 
              if (meta.type === 'castActual' || meta.type === 'castTargetCompleted') {
                  // We are at Actual. Show Probable and/or Original Target ghosts.
-                 if (probable && probable !== meta.dateStr) createGhost(probable, 'Probable');
-                 if (original && original !== meta.dateStr && original !== probable) createGhost(original, 'Target');
+                 // Chain: Target -> Probable -> Actual
+                 let nextLink = meta.domId;
+
+                 if (probable && probable !== meta.dateStr) {
+                     const pId = addGhost(probable, 'Probable', meta.domId);
+                     if (pId) nextLink = pId;
+                 }
+
+                 if (original && original !== meta.dateStr && original !== probable) {
+                     addGhost(original, 'Target', nextLink);
+                 }
              } else if (meta.type === 'castTarget' && meta.isProbable) {
                  // We are at Probable. Show Original Target ghost.
-                 if (original && original !== meta.dateStr) createGhost(original, 'Target');
+                 if (original && original !== meta.dateStr) addGhost(original, 'Target', meta.domId);
              }
         }
 

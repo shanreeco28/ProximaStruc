@@ -199,7 +199,7 @@ const SiteDiaryView = ({ selectedProject, user }) => {
                             <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
                                 type="text"
-                                placeholder="e.g. Acme Corp"
+                                placeholder="Yizhan Construction"
                                 className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                                 value={formData.subcon}
                                 onChange={e => setFormData({...formData, subcon: e.target.value})}

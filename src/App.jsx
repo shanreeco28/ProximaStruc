@@ -119,6 +119,7 @@ export default function App() {
         if (urlParams.get('test_mode') === 'true') {
            console.log("Test Mode Activated");
            setUser({ uid: 'test-user', email: 'test@example.com', name: 'Test User', role: 'admin' });
+           setSelectedProject({ id: 'tnd4-castrack', name: 'TND4 Project' });
            setAuthLoading(false);
            return;
         }

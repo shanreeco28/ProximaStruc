@@ -16,6 +16,12 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
   const [activeGhosts, setActiveGhosts] = useState([]);
   const [offScreenGhosts, setOffScreenGhosts] = useState({ items: [], rect: null });
   const hoverTimerRef = useRef(null);
+  const lockedEventIdRef = useRef(lockedEventId);
+
+  useEffect(() => {
+    lockedEventIdRef.current = lockedEventId;
+  }, [lockedEventId]);
+
   const daysInMonth = getDaysInMonth(currentDate); const firstDay = getFirstDayOfMonth(currentDate);
   const monthName = currentDate.toLocaleString('default', { month: 'long' }); const year = currentDate.getFullYear();
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
@@ -38,13 +44,19 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
   };
 
   const handleEventHover = (meta, immediate, force = false) => {
-    if (!force && lockedEventId && lockedEventId !== meta?.domId) return;
+    // Check lockedEventId via ref to avoid stale closures in timeouts
+    if (!force && lockedEventIdRef.current && lockedEventIdRef.current !== meta?.domId) return;
 
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     if (meta && meta.slabId) setFocusedSlabId(meta.slabId);
 
     const triggerGhost = () => {
+        // Ensure we check lock state again inside the callback just in case
+        if (!force && lockedEventIdRef.current && lockedEventIdRef.current !== meta?.domId) return;
+
         setGhostConnections([]);
+        setActiveGhosts([]);
+        setOffScreenGhosts({ items: [], rect: null });
 
         if (meta.type === 'bbsTarget' || meta.type === 'castTargetOngoing') {
             return;

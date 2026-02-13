@@ -172,9 +172,12 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
         setGhostConnections(newConnections);
     };
 
-    if (meta && (meta.targetDate || meta.type.startsWith('cast'))) {
-      if (immediate) triggerGhost();
-      else hoverTimerRef.current = setTimeout(triggerGhost, 500);
+    // Ensure ghost cleanup/trigger happens immediately on click (immediate=true),
+    // or delayed on hover if the event type is relevant.
+    if (immediate) {
+        triggerGhost();
+    } else if (meta && (meta.targetDate || meta.type.startsWith('cast'))) {
+        hoverTimerRef.current = setTimeout(triggerGhost, 500);
     }
   };
   const clearGhost = (force = false) => {

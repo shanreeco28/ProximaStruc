@@ -14,7 +14,7 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
       return [...data].sort((a, b) => {
           const dateA = new Date(a.castingDate || '1970-01-01');
           const dateB = new Date(b.castingDate || '1970-01-01');
-          return dateB - dateA; // Descending
+          return dateA - dateB; // Ascending
       });
   };
 

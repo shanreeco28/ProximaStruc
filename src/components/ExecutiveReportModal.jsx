@@ -12,7 +12,7 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
   const sortedData = [...filteredData].sort((a, b) => {
       const dateA = new Date(a.castingDate || '1970-01-01');
       const dateB = new Date(b.castingDate || '1970-01-01');
-      return dateB - dateA; // Descending (Latest to Furthest)
+      return dateA - dateB; // Ascending (Earliest to Latest)
   });
 
   const typicalItems = sortedData.filter(item => !isRamp(item));

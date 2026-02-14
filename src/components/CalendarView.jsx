@@ -6,7 +6,7 @@ import MiniCalendar from './MiniCalendar';
 import BubbleTooltip from './BubbleTooltip';
 
 // --- Calendar View ---
-const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, onEditSlab }) => {
+const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, onEditSlab, onEditBBS }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, date: null });
   const [ghostConnections, setGhostConnections] = useState([]);
@@ -267,14 +267,14 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
             const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
             if (bObj.targetDate === dateStr) {
                if (bObj.actualDate === dateStr) {
-                  dayEvents.push({ type: 'bbsTargetCompleted', domId: `evt-bbs-target-completed-${baseId}-${bIdx}`, ...item, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Completed on Target', author: bObj.createdBy });
+                  dayEvents.push({ type: 'bbsTargetCompleted', domId: `evt-bbs-target-completed-${baseId}-${bIdx}`, ...item, bbsIndex: bIdx, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Completed on Target', author: bObj.createdBy });
                } else if (!bObj.actualDate) {
-                  dayEvents.push({ type: 'bbsTarget', domId: `evt-bbs-target-${baseId}-${bIdx}`, ...item, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Target', author: bObj.createdBy, });
+                  dayEvents.push({ type: 'bbsTarget', domId: `evt-bbs-target-${baseId}-${bIdx}`, ...item, bbsIndex: bIdx, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Target', author: bObj.createdBy, });
                }
             }
             if (bObj.actualDate === dateStr && bObj.targetDate !== dateStr) {
               const isLate = bObj.targetDate && new Date(bObj.actualDate) > new Date(bObj.targetDate);
-              dayEvents.push({ type: 'bbsActual', isLate, domId: `evt-bbs-${baseId}-${bIdx}`, ...item, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Delivery', author: bObj.createdBy, dateStr: bObj.actualDate, targetDate: bObj.targetDate });
+              dayEvents.push({ type: 'bbsActual', isLate, domId: `evt-bbs-${baseId}-${bIdx}`, ...item, bbsIndex: bIdx, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Delivery', author: bObj.createdBy, dateStr: bObj.actualDate, targetDate: bObj.targetDate });
             }
         });
       }
@@ -330,7 +330,14 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
                 <div
                     id={event.domId}
                     onClick={(e) => handleEventClick(e, event)}
-                    onDoubleClick={(e) => { e.stopPropagation(); onEditSlab && onEditSlab(event); }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      if (event.type.startsWith('bbs') && !event.type.includes('Ghost') && onEditBBS) {
+                        onEditBBS(event, event.bbsIndex);
+                      } else if (onEditSlab) {
+                        onEditSlab(event);
+                      }
+                    }}
                     className={`relative z-20 text-[9px] md:text-[10px] px-1 py-0.5 rounded border truncate flex items-center gap-1 cursor-pointer transition-opacity duration-300 ${colorClass} ${isFaded ? 'opacity-20' : ''}`}
                 >
                     <span className="shrink-0">{icon}</span><span className="truncate">{label}</span>{event.tooltipContent && <Info size={6} className="ml-auto shrink-0 opacity-50" />}

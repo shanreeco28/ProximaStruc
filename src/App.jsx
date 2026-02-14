@@ -801,7 +801,7 @@ export default function App() {
   if (!selectedProject) return <ProjectSelection projects={projects} onSelect={setSelectedProject} onAdd={handleAddProject} onLogout={handleLogout} user={user} />;
 
   return (
-    <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300 bg-fixed bg-cover bg-center print:bg-none print:bg-white" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=2070&auto=format&fit=crop')" }}>
+    <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300 bg-fixed bg-cover bg-center print:!bg-none print:!bg-white" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=2070&auto=format&fit=crop')" }}>
       <div className="fixed inset-0 bg-slate-100/90 dark:bg-slate-900/90 backdrop-blur-[2px] z-0 pointer-events-none print:hidden"></div>
       <div className="relative z-10">
       <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md text-slate-800 dark:text-white sticky top-0 z-50 shadow-sm border-b border-slate-200/50 dark:border-slate-700/50 print:hidden transition-all duration-300">
@@ -885,6 +885,7 @@ export default function App() {
             onAssignCasting={handleCalendarAssignCasting}
             onAssignDelivery={handleCalendarAssignDelivery}
             onEditSlab={initiateEditCasting}
+            onEditBBS={initiateEditBBS}
          />}
       </main>
       </div>

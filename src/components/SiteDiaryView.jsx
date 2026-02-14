@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Users, Activity, Plus, FileText, Trash2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Calendar, MapPin, Users, Activity, Plus, FileText, Trash2, Printer } from 'lucide-react';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -20,7 +21,7 @@ const SiteDiaryView = ({ selectedProject, user }) => {
   const [rampPart, setRampPart] = useState(RAMP_PARTS[0]);
 
   const [formData, setFormData] = useState({
-    subcon: '',
+    subcon: 'Yizhan Construction',
     activity: '',
     manpower: ''
   });
@@ -44,12 +45,16 @@ const SiteDiaryView = ({ selectedProject, user }) => {
 
     const q = query(
       collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'site_diary'),
-      where('date', '==', selectedDate),
-      orderBy('createdAt', 'desc')
+      where('date', '==', selectedDate)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        items.sort((a, b) => {
+            const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+            const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+            return dateB - dateA;
+        });
         setEntries(items);
     }, (error) => {
         console.error("Error fetching diary entries:", error);
@@ -85,7 +90,7 @@ const SiteDiaryView = ({ selectedProject, user }) => {
       });
       // Reset form but keep location selections for quick successive entries
       setFormData({
-        subcon: '',
+        subcon: 'Yizhan Construction',
         activity: '',
         manpower: ''
       });
@@ -105,8 +110,13 @@ const SiteDiaryView = ({ selectedProject, user }) => {
       }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-20 md:pb-0">
+    <>
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20 md:pb-0 print:hidden">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6">
         <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-6">
           <FileText className="text-soilOrange-500" /> Site Diary & Daily Reporting
@@ -193,7 +203,7 @@ const SiteDiaryView = ({ selectedProject, user }) => {
                             <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
                                 type="text"
-                                placeholder="e.g. Acme Corp"
+                                placeholder="e.g. Yizhan Construction"
                                 className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                                 value={formData.subcon}
                                 onChange={e => setFormData({...formData, subcon: e.target.value})}
@@ -236,7 +246,15 @@ const SiteDiaryView = ({ selectedProject, user }) => {
             {/* Daily Summary List */}
             <div className="lg:col-span-2">
                  <h3 className="font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 pb-2 mb-4 flex justify-between items-center">
-                    <span>Daily Summary</span>
+                    <span className="flex items-center gap-2">Daily Summary
+                      <button
+                        onClick={handlePrint}
+                        className="ml-4 p-1.5 text-slate-500 hover:text-slate-700 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium"
+                        title="Print Daily Summary"
+                      >
+                        <Printer size={14} /> Print
+                      </button>
+                    </span>
                     <span className="text-xs font-normal text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">{entries.length} Entries</span>
                  </h3>
 
@@ -291,6 +309,109 @@ const SiteDiaryView = ({ selectedProject, user }) => {
         </div>
       </div>
     </div>
+
+    {/* Portal-based Print Layout */}
+    {createPortal(
+      <div className="print-portal-root">
+        <style>
+          {`
+            @media print {
+              /* Hide main app UI - relies on App.jsx having print:hidden on main container or root */
+              #root, .print-hidden {
+                display: none !important;
+              }
+
+              /* Show portal content */
+              .print-portal-root {
+                display: block !important;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                background: white;
+                color: black;
+                font-family: sans-serif;
+                z-index: 9999;
+              }
+
+              @page {
+                size: A4;
+                margin: 15mm;
+              }
+
+              body {
+                background: white !important;
+                height: auto !important;
+                overflow: visible !important;
+              }
+
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              th, td { border: 1px solid black; padding: 6px; text-align: left; vertical-align: top; font-size: 11px; }
+              th { background-color: #f3f4f6 !important; font-weight: bold; }
+              .page-break { break-before: page; }
+            }
+
+            @media screen {
+              .print-portal-root {
+                display: none;
+              }
+            }
+          `}
+        </style>
+
+        <div className="p-8 font-sans text-black bg-white">
+          {/* Header */}
+          <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-end">
+             <div>
+                <h1 className="text-2xl font-bold uppercase tracking-wide mb-1">Daily Site Diary</h1>
+                <h2 className="text-lg font-medium">{selectedProject?.name}</h2>
+             </div>
+             <div className="text-right text-xs leading-relaxed">
+                <p><strong>Date:</strong> {new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                <p><strong>Generated By:</strong> {user?.name}</p>
+                <p><strong>Total Entries:</strong> {entries.length}</p>
+             </div>
+          </div>
+
+          {/* Entries Table */}
+          {entries.length === 0 ? (
+            <div className="border border-black p-8 text-center italic text-sm">
+              No diary entries recorded for this date.
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="w-24">Location</th>
+                  <th className="w-24">Sub-contractor</th>
+                  <th>Activity Description</th>
+                  <th className="w-24">Manpower</th>
+                  <th className="w-24">Reported By</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((entry) => (
+                  <tr key={entry.id} className="break-inside-avoid">
+                    <td className="font-bold">{entry.location}</td>
+                    <td>{entry.subcon || '-'}</td>
+                    <td className="whitespace-pre-wrap">{entry.activity}</td>
+                    <td>{entry.manpower || '-'}</td>
+                    <td className="italic text-[10px]">{entry.createdBy}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* Footer */}
+          <div className="mt-8 pt-4 border-t border-black text-center text-[10px] uppercase tracking-widest text-gray-500">
+             Generated by SB-CasTrack | Internal Site Record
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   );
 };
 

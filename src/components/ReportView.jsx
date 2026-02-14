@@ -7,6 +7,17 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
   const [reportType, setReportType] = useState('summary');
   const [showPreview, setShowPreview] = useState(false);
 
+  // Sorting and Grouping Helper
+  const isRamp = (item) => (item.zone || '').toLowerCase().includes('ramp') || (item.slabId || '').toLowerCase().includes('ramp');
+
+  const getSortedData = (data) => {
+      return [...data].sort((a, b) => {
+          const dateA = new Date(a.probableCastingDate || a.castingDate || '1970-01-01');
+          const dateB = new Date(b.probableCastingDate || b.castingDate || '1970-01-01');
+          return dateA - dateB; // Ascending
+      });
+  };
+
   const generateReport = () => {
     const reportData = {
       projectName: selectedProject?.name,
@@ -29,6 +40,11 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
   const printReport = () => {
     window.print();
   };
+
+  // Prepare data for "schedule" view
+  const scheduleData = getSortedData(filteredData.filter(item => item.castingDate));
+  const typicalSchedule = scheduleData.filter(item => !isRamp(item));
+  const rampSchedule = scheduleData.filter(item => isRamp(item));
 
   return (
     <div className="space-y-6">
@@ -150,26 +166,51 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
           )}
 
            {reportType === 'schedule' && (
-            <div className="space-y-4">
-              {filteredData.filter(item => item.castingDate).sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate)).map(item => (
-                <div key={item.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 flex justify-between items-center">
-                   <div>
-                      <h4 className="font-bold text-slate-800 dark:text-white">{item.slabId}</h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">{item.zone}</p>
+            <div className="space-y-8">
+              <div>
+                <h3 className="font-bold text-slate-800 dark:text-white mb-4">Typical Slabs</h3>
+                <div className="space-y-4">
+                  {typicalSchedule.map(item => (
+                    <div key={item.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 flex justify-between items-center">
+                      <div>
+                          <h4 className="font-bold text-slate-800 dark:text-white">{item.slabId}</h4>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">{item.zone}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-slate-800 dark:text-white">{item.probableCastingDate || item.castingDate || '-'}</p>
+                          <p className="text-xs text-slate-500">{item.status}</p>
+                        </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-slate-800 dark:text-white">{item.castingDate}</p>
-                      <p className="text-xs text-slate-500">{item.status}</p>
-                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+
+              {rampSchedule.length > 0 && (
+                <div>
+                  <h3 className="font-bold text-slate-800 dark:text-white mb-4">Ramp Slabs</h3>
+                  <div className="space-y-4">
+                    {rampSchedule.map(item => (
+                      <div key={item.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 flex justify-between items-center">
+                        <div>
+                            <h4 className="font-bold text-slate-800 dark:text-white">{item.slabId}</h4>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">{item.zone}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-slate-800 dark:text-white">{item.probableCastingDate || item.castingDate || '-'}</p>
+                            <p className="text-xs text-slate-500">{item.status}</p>
+                          </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
       {/* --- Print / Preview Layout --- */}
-      <div className={`${showPreview ? 'block' : 'hidden print:block'} bg-white text-black min-h-screen p-8 max-w-[210mm] mx-auto`}>
+      <div className={`${showPreview ? 'block' : 'hidden print:block'} bg-white text-black min-h-screen print:min-h-0 print:h-auto p-8 print:p-0 max-w-[210mm] mx-auto`}>
          {/* Preview Controls */}
          <div className="print:hidden mb-8 flex justify-between items-center bg-slate-100 p-4 rounded-lg border border-slate-200">
             <button
@@ -235,30 +276,66 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
             )}
 
             {(reportType === 'progress' || reportType === 'schedule') && (
-               <table className="w-full border-collapse border border-black text-xs">
-                  <thead>
-                     <tr className="bg-gray-100">
-                        <th className="border border-black p-2 text-left">Casting ID</th>
-                        <th className="border border-black p-2 text-left">Zone / Level</th>
-                        <th className="border border-black p-2 text-center">Status</th>
-                        <th className="border border-black p-2 text-center">Target Date</th>
-                        <th className="border border-black p-2 text-center">Actual Date</th>
-                        <th className="border border-black p-2 text-left">Remarks</th>
-                     </tr>
-                  </thead>
-                  <tbody>
-                     {filteredData.map(item => (
-                        <tr key={item.id} className="break-inside-avoid">
-                           <td className="border border-black p-2 font-bold">{item.slabId}</td>
-                           <td className="border border-black p-2">{item.zone}</td>
-                           <td className="border border-black p-2 text-center">{item.status}</td>
-                           <td className="border border-black p-2 text-center">{item.castingDate || '-'}</td>
-                           <td className="border border-black p-2 text-center">{item.actualCastingDate || '-'}</td>
-                           <td className="border border-black p-2 max-w-[200px] truncate">{item.remarks}</td>
-                        </tr>
-                     ))}
-                  </tbody>
-               </table>
+               <>
+                 {/* Typical Slabs */}
+                 <h4 className="font-bold uppercase mb-2 mt-4">Typical Slabs</h4>
+                 <table className="w-full border-collapse border border-black text-xs mb-6">
+                    <thead>
+                       <tr className="bg-gray-100">
+                          <th className="border border-black p-2 text-left">Casting ID</th>
+                          <th className="border border-black p-2 text-left">Zone / Level</th>
+                          <th className="border border-black p-2 text-center">Status</th>
+                          <th className="border border-black p-2 text-center">Target Date</th>
+                          <th className="border border-black p-2 text-center">Actual Date</th>
+                          <th className="border border-black p-2 text-left">Remarks</th>
+                       </tr>
+                    </thead>
+                    <tbody>
+                       {/* Note: filtering happens here again if reportType is progress/schedule, but reusing 'scheduleData' logic requires extraction */}
+                       {(reportType === 'schedule' ? typicalSchedule : filteredData.filter(i => !isRamp(i))).map(item => (
+                          <tr key={item.id} className="break-inside-avoid">
+                             <td className="border border-black p-2 font-bold">{item.slabId}</td>
+                             <td className="border border-black p-2">{item.zone}</td>
+                             <td className="border border-black p-2 text-center">{item.status}</td>
+                             <td className="border border-black p-2 text-center">{item.probableCastingDate || item.castingDate || '-'}</td>
+                             <td className="border border-black p-2 text-center">{item.actualCastingDate || '-'}</td>
+                             <td className="border border-black p-2 max-w-[200px] truncate">{item.remarks}</td>
+                          </tr>
+                       ))}
+                    </tbody>
+                 </table>
+
+                 {/* Ramp Slabs */}
+                 {(reportType === 'schedule' ? rampSchedule : filteredData.filter(i => isRamp(i))).length > 0 && (
+                   <>
+                     <h4 className="font-bold uppercase mb-2 mt-4">Ramp Slabs</h4>
+                     <table className="w-full border-collapse border border-black text-xs">
+                        <thead>
+                           <tr className="bg-gray-100">
+                              <th className="border border-black p-2 text-left">Casting ID</th>
+                              <th className="border border-black p-2 text-left">Zone / Level</th>
+                              <th className="border border-black p-2 text-center">Status</th>
+                              <th className="border border-black p-2 text-center">Target Date</th>
+                              <th className="border border-black p-2 text-center">Actual Date</th>
+                              <th className="border border-black p-2 text-left">Remarks</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           {(reportType === 'schedule' ? rampSchedule : filteredData.filter(i => isRamp(i))).map(item => (
+                              <tr key={item.id} className="break-inside-avoid">
+                                 <td className="border border-black p-2 font-bold">{item.slabId}</td>
+                                 <td className="border border-black p-2">{item.zone}</td>
+                                 <td className="border border-black p-2 text-center">{item.status}</td>
+                                 <td className="border border-black p-2 text-center">{item.probableCastingDate || item.castingDate || '-'}</td>
+                                 <td className="border border-black p-2 text-center">{item.actualCastingDate || '-'}</td>
+                                 <td className="border border-black p-2 max-w-[200px] truncate">{item.remarks}</td>
+                              </tr>
+                           ))}
+                        </tbody>
+                     </table>
+                   </>
+                 )}
+               </>
             )}
 
             {reportType === 'deliveries' && (
@@ -293,7 +370,7 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
 
          {/* Footer */}
          <div className="mt-8 pt-4 border-t border-black text-center text-[10px] uppercase tracking-widest">
-            Generated by SB-CasTrack | Confidential Internal Report
+            Generated by SB-CasTrack
          </div>
       </div>
     </div>

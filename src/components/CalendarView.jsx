@@ -125,9 +125,12 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
         if ((meta.type === 'castActual' || meta.type === 'castTarget' || meta.type === 'castTargetCompleted') && Array.isArray(meta.bbs)) {
             const ghosts = meta.bbs.map((b, i) => {
               const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
-              if (bObj.actualDate && isOffScreen(bObj.actualDate)) {
+              const isActualOff = bObj.actualDate && isOffScreen(bObj.actualDate);
+              const isTargetOff = bObj.targetDate && !bObj.actualDate && isOffScreen(bObj.targetDate);
+
+              if (isActualOff) {
                   offScreen.push({ date: bObj.actualDate, label: `BBS ${bObj.number}`, type: 'actual' });
-              } else if (bObj.targetDate && !bObj.actualDate && isOffScreen(bObj.targetDate)) {
+              } else if (isTargetOff) {
                   offScreen.push({ date: bObj.targetDate, label: `Plan ${bObj.number}`, type: 'target' });
               }
 

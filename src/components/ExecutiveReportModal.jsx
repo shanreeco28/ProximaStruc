@@ -6,6 +6,18 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
   // Calculate total delays (completed late + currently delayed status)
   const totalDelayed = metrics.late + data.filter(d => d.status === 'Delayed').length;
 
+  // Sorting and Grouping for Report
+  const isRamp = (item) => (item.zone || '').toLowerCase().includes('ramp') || (item.slabId || '').toLowerCase().includes('ramp');
+
+  const sortedData = [...filteredData].sort((a, b) => {
+      const dateA = new Date(a.castingDate || '1970-01-01');
+      const dateB = new Date(b.castingDate || '1970-01-01');
+      return dateB - dateA; // Descending (Latest to Furthest)
+  });
+
+  const typicalItems = sortedData.filter(item => !isRamp(item));
+  const rampItems = sortedData.filter(item => isRamp(item));
+
   return (
     <>
       {/* Interactive Web View - Rendered in normal React tree */}
@@ -239,9 +251,9 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
                 </table>
              </div>
 
-             {/* Detailed Schedule (Last Section, page break before) */}
+             {/* Detailed Schedule (Typical Slabs) */}
              <div className="mb-8 break-before-page">
-                <h3 className="text-lg font-bold uppercase mb-2 border-b border-black inline-block">4. Detailed Casting Schedule</h3>
+                <h3 className="text-lg font-bold uppercase mb-2 border-b border-black inline-block">4. Detailed Casting Schedule - Typical Slabs</h3>
                 <table className="w-full border-collapse border border-black text-xs mt-2">
                   <thead>
                     <tr className="bg-gray-100">
@@ -253,7 +265,7 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredData.map(item => (
+                    {typicalItems.map(item => (
                       <tr key={item.id}>
                         <td className="border border-black p-1 whitespace-nowrap">{item.castingDate || '-'}</td>
                         <td className="border border-black p-1">{item.zone}</td>
@@ -265,6 +277,35 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
                   </tbody>
                 </table>
              </div>
+
+             {/* Detailed Schedule (Ramp Slabs) */}
+             {rampItems.length > 0 && (
+                 <div className="mb-8 break-before-page">
+                    <h3 className="text-lg font-bold uppercase mb-2 border-b border-black inline-block">5. Detailed Casting Schedule - Ramps</h3>
+                    <table className="w-full border-collapse border border-black text-xs mt-2">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border border-black p-1 text-left">Date</th>
+                          <th className="border border-black p-1 text-left">Zone</th>
+                          <th className="border border-black p-1 text-left">ID</th>
+                          <th className="border border-black p-1 text-center">Status</th>
+                          <th className="border border-black p-1 text-left">Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rampItems.map(item => (
+                          <tr key={item.id}>
+                            <td className="border border-black p-1 whitespace-nowrap">{item.castingDate || '-'}</td>
+                            <td className="border border-black p-1">{item.zone}</td>
+                            <td className="border border-black p-1 font-mono">{item.slabId}</td>
+                            <td className="border border-black p-1 text-center">{item.status}</td>
+                            <td className="border border-black p-1 italic max-w-[200px] truncate">{item.remarks}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                 </div>
+             )}
 
              {/* Signature Block */}
              <div className="mt-16 border-t border-black pt-8 grid grid-cols-2 gap-16 break-inside-avoid">

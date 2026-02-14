@@ -114,6 +114,7 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
 
                 body, html {
                   background: white !important;
+                  background-image: none !important;
                   height: auto !important;
                   overflow: visible !important;
                 }
@@ -182,9 +183,9 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
                          <td className="border border-black p-2 text-xs italic">Upcoming work</td>
                       </tr>
                        <tr>
-                         <td className="border border-black p-2 font-bold text-red-700">Critical Delays</td>
-                         <td className="border border-black p-2 text-right font-bold text-red-700">{totalDelayed}</td>
-                         <td className="border border-black p-2 text-xs italic text-red-700">Items behind schedule</td>
+                         <td className="border border-black p-2 font-bold">Critical Delays</td>
+                         <td className="border border-black p-2 text-right font-bold">{totalDelayed}</td>
+                         <td className="border border-black p-2 text-xs italic">Items behind schedule</td>
                       </tr>
                    </tbody>
                 </table>
@@ -252,7 +253,7 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
              </div>
 
              {/* Detailed Schedule (Typical Slabs) */}
-             <div className="mb-8 break-before-page">
+             <div className="mb-8">
                 <h3 className="text-lg font-bold uppercase mb-2 border-b border-black inline-block">4. Detailed Casting Schedule - Typical Slabs</h3>
                 <table className="w-full border-collapse border border-black text-xs mt-2">
                   <thead>
@@ -280,7 +281,7 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
 
              {/* Detailed Schedule (Ramp Slabs) */}
              {rampItems.length > 0 && (
-                 <div className="mb-8 break-before-page">
+                 <div className="mb-8">
                     <h3 className="text-lg font-bold uppercase mb-2 border-b border-black inline-block">5. Detailed Casting Schedule - Ramps</h3>
                     <table className="w-full border-collapse border border-black text-xs mt-2">
                       <thead>

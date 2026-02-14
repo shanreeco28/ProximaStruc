@@ -50,7 +50,11 @@ const SiteDiaryView = ({ selectedProject, user }) => {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        items.sort((a, b) => {
+            const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+            const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+            return dateB - dateA;
+        });
         setEntries(items);
     }, (error) => {
         console.error("Error fetching diary entries:", error);

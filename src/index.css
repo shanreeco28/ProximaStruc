@@ -164,6 +164,7 @@ body {
 @media print {
   body {
     background: white !important;
+    background-image: none !important;
     color: black !important;
     -webkit-print-color-adjust: exact;
   }

@@ -308,7 +308,7 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
                  {/* Ramp Slabs */}
                  {(reportType === 'schedule' ? rampSchedule : filteredData.filter(i => isRamp(i))).length > 0 && (
                    <>
-                     <h4 className="font-bold uppercase mb-2 mt-4 break-before-page">Ramp Slabs</h4>
+                     <h4 className="font-bold uppercase mb-2 mt-4">Ramp Slabs</h4>
                      <table className="w-full border-collapse border border-black text-xs">
                         <thead>
                            <tr className="bg-gray-100">

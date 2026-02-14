@@ -210,7 +210,7 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
       </div>
 
       {/* --- Print / Preview Layout --- */}
-      <div className={`${showPreview ? 'block' : 'hidden print:block'} bg-white text-black min-h-screen p-8 max-w-[210mm] mx-auto`}>
+      <div className={`${showPreview ? 'block' : 'hidden print:block'} bg-white text-black min-h-screen print:min-h-0 print:h-auto p-8 print:p-0 max-w-[210mm] mx-auto`}>
          {/* Preview Controls */}
          <div className="print:hidden mb-8 flex justify-between items-center bg-slate-100 p-4 rounded-lg border border-slate-200">
             <button

@@ -162,11 +162,14 @@ body {
 
 /* Print Styles */
 @media print {
-  body {
+  body, html {
     background: white !important;
     background-image: none !important;
     color: black !important;
     -webkit-print-color-adjust: exact;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
   }
   .no-print {
     display: none !important;

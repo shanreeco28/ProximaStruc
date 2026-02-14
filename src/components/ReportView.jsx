@@ -12,8 +12,8 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
 
   const getSortedData = (data) => {
       return [...data].sort((a, b) => {
-          const dateA = new Date(a.castingDate || '1970-01-01');
-          const dateB = new Date(b.castingDate || '1970-01-01');
+          const dateA = new Date(a.probableCastingDate || a.castingDate || '1970-01-01');
+          const dateB = new Date(b.probableCastingDate || b.castingDate || '1970-01-01');
           return dateA - dateB; // Ascending
       });
   };
@@ -177,7 +177,7 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
                           <p className="text-sm text-slate-600 dark:text-slate-400">{item.zone}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-medium text-slate-800 dark:text-white">{item.castingDate}</p>
+                          <p className="text-sm font-medium text-slate-800 dark:text-white">{item.probableCastingDate || item.castingDate || '-'}</p>
                           <p className="text-xs text-slate-500">{item.status}</p>
                         </div>
                     </div>
@@ -196,7 +196,7 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
                             <p className="text-sm text-slate-600 dark:text-slate-400">{item.zone}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-medium text-slate-800 dark:text-white">{item.castingDate}</p>
+                            <p className="text-sm font-medium text-slate-800 dark:text-white">{item.probableCastingDate || item.castingDate || '-'}</p>
                             <p className="text-xs text-slate-500">{item.status}</p>
                           </div>
                       </div>
@@ -297,7 +297,7 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
                              <td className="border border-black p-2 font-bold">{item.slabId}</td>
                              <td className="border border-black p-2">{item.zone}</td>
                              <td className="border border-black p-2 text-center">{item.status}</td>
-                             <td className="border border-black p-2 text-center">{item.castingDate || '-'}</td>
+                             <td className="border border-black p-2 text-center">{item.probableCastingDate || item.castingDate || '-'}</td>
                              <td className="border border-black p-2 text-center">{item.actualCastingDate || '-'}</td>
                              <td className="border border-black p-2 max-w-[200px] truncate">{item.remarks}</td>
                           </tr>
@@ -326,7 +326,7 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
                                  <td className="border border-black p-2 font-bold">{item.slabId}</td>
                                  <td className="border border-black p-2">{item.zone}</td>
                                  <td className="border border-black p-2 text-center">{item.status}</td>
-                                 <td className="border border-black p-2 text-center">{item.castingDate || '-'}</td>
+                                 <td className="border border-black p-2 text-center">{item.probableCastingDate || item.castingDate || '-'}</td>
                                  <td className="border border-black p-2 text-center">{item.actualCastingDate || '-'}</td>
                                  <td className="border border-black p-2 max-w-[200px] truncate">{item.remarks}</td>
                               </tr>

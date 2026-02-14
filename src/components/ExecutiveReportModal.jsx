@@ -10,8 +10,8 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
   const isRamp = (item) => (item.zone || '').toLowerCase().includes('ramp') || (item.slabId || '').toLowerCase().includes('ramp');
 
   const sortedData = [...filteredData].sort((a, b) => {
-      const dateA = new Date(a.castingDate || '1970-01-01');
-      const dateB = new Date(b.castingDate || '1970-01-01');
+      const dateA = new Date(a.probableCastingDate || a.castingDate || '1970-01-01');
+      const dateB = new Date(b.probableCastingDate || b.castingDate || '1970-01-01');
       return dateA - dateB; // Ascending (Earliest to Latest)
   });
 
@@ -268,7 +268,7 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
                   <tbody>
                     {typicalItems.map(item => (
                       <tr key={item.id}>
-                        <td className="border border-black p-1 whitespace-nowrap">{item.castingDate || '-'}</td>
+                        <td className="border border-black p-1 whitespace-nowrap">{item.probableCastingDate || item.castingDate || '-'}</td>
                         <td className="border border-black p-1">{item.zone}</td>
                         <td className="border border-black p-1 font-mono">{item.slabId}</td>
                         <td className="border border-black p-1 text-center">{item.status}</td>
@@ -296,7 +296,7 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
                       <tbody>
                         {rampItems.map(item => (
                           <tr key={item.id}>
-                            <td className="border border-black p-1 whitespace-nowrap">{item.castingDate || '-'}</td>
+                            <td className="border border-black p-1 whitespace-nowrap">{item.probableCastingDate || item.castingDate || '-'}</td>
                             <td className="border border-black p-1">{item.zone}</td>
                             <td className="border border-black p-1 font-mono">{item.slabId}</td>
                             <td className="border border-black p-1 text-center">{item.status}</td>

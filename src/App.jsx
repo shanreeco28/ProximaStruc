@@ -885,6 +885,7 @@ export default function App() {
             onAssignCasting={handleCalendarAssignCasting}
             onAssignDelivery={handleCalendarAssignDelivery}
             onEditSlab={initiateEditCasting}
+            onEditBBS={initiateEditBBS}
          />}
       </main>
       </div>

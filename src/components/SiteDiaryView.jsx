@@ -378,7 +378,6 @@ const SiteDiaryView = ({ selectedProject, user }) => {
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="w-16">Time</th>
                   <th className="w-24">Location</th>
                   <th className="w-24">Sub-contractor</th>
                   <th>Activity Description</th>
@@ -389,9 +388,6 @@ const SiteDiaryView = ({ selectedProject, user }) => {
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.id} className="break-inside-avoid">
-                    <td className="whitespace-nowrap font-mono text-[10px]">
-                      {entry.createdAt ? new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
-                    </td>
                     <td className="font-bold">{entry.location}</td>
                     <td>{entry.subcon || '-'}</td>
                     <td className="whitespace-pre-wrap">{entry.activity}</td>

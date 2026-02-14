@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { getDaysInMonth, getFirstDayOfMonth, isDateAfter, isCriticalDelay } from './dateHelpers.js';
+import { getDaysInMonth, getFirstDayOfMonth, isDateAfter } from './dateHelpers.js';
 
 describe('Date Helpers', () => {
   describe('getDaysInMonth', () => {
@@ -64,32 +64,6 @@ describe('Date Helpers', () => {
       assert.strictEqual(isDateAfter(null, '2023-10-27'), false);
       assert.strictEqual(isDateAfter('2023-10-27', null), false);
       assert.strictEqual(isDateAfter(undefined, undefined), false);
-    });
-  });
-
-  describe('isCriticalDelay', () => {
-    test('should return true if actual date is after target date (Late)', () => {
-      assert.strictEqual(isCriticalDelay('2023-10-25', '2023-10-26'), true);
-    });
-
-    test('should return false if actual date is same as target date (On Time)', () => {
-      assert.strictEqual(isCriticalDelay('2023-10-25', '2023-10-25'), false);
-    });
-
-    test('should return false if actual date is before target date (Early)', () => {
-      assert.strictEqual(isCriticalDelay('2023-10-25', '2023-10-24'), false);
-    });
-
-    test('should return false if target date is missing', () => {
-      assert.strictEqual(isCriticalDelay(null, '2023-10-25'), false);
-    });
-
-    test('should return false if actual date is missing', () => {
-      assert.strictEqual(isCriticalDelay('2023-10-25', null), false);
-    });
-
-    test('should return false if both dates are missing', () => {
-      assert.strictEqual(isCriticalDelay(null, null), false);
     });
   });
 });

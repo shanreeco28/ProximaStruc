@@ -1,11 +1,12 @@
 import React, { memo } from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, X, Plus } from 'lucide-react';
 
-const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, readOnly }) => {
+const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, onAdd, readOnly }) => {
   let list = Array.isArray(bbs) ? bbs : (bbs ? [bbs] : []);
-  if (list.length === 0) return <span className="text-slate-400 dark:text-slate-600 italic text-xs">Pending</span>;
+
   return (
-    <div className="flex flex-wrap gap-1 justify-end">
+    <div className="flex flex-wrap gap-1 justify-end items-center">
+      {list.length === 0 && <span className="text-slate-400 dark:text-slate-600 italic text-xs mr-1">Pending</span>}
       {list.map((b, idx) => {
         const isObj = typeof b === 'object' && b !== null;
         const text = isObj ? b.number : b;
@@ -24,13 +25,23 @@ const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, readOnly }) => {
           </button>
         );
       })}
+      {!readOnly && onAdd && (
+        <button
+            onClick={(e) => { e.stopPropagation(); onAdd(); }}
+            title="Add BBS"
+            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 transition-colors flex items-center justify-center"
+        >
+            <Plus size={12} />
+        </button>
+      )}
     </div>
   );
 }, (prevProps, nextProps) => {
   return (
     prevProps.bbs === nextProps.bbs &&
     prevProps.castingDate === nextProps.castingDate &&
-    prevProps.readOnly === nextProps.readOnly
+    prevProps.readOnly === nextProps.readOnly &&
+    prevProps.onAdd === nextProps.onAdd
   );
 });
 

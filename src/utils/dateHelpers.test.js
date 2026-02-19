@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { getDaysInMonth, getFirstDayOfMonth, isDateAfter } from './dateHelpers.js';
+import { getDaysInMonth, getFirstDayOfMonth, isDateAfter, isCriticalDelay } from './dateHelpers.js';
 
 describe('Date Helpers', () => {
   describe('getDaysInMonth', () => {
@@ -64,6 +64,25 @@ describe('Date Helpers', () => {
       assert.strictEqual(isDateAfter(null, '2023-10-27'), false);
       assert.strictEqual(isDateAfter('2023-10-27', null), false);
       assert.strictEqual(isDateAfter(undefined, undefined), false);
+    });
+  });
+
+  describe('isCriticalDelay', () => {
+    test('should identify critical delay when actual date is after baseline date', () => {
+      assert.strictEqual(isCriticalDelay('2023-10-28', '2023-10-27'), true);
+    });
+
+    test('should not be critical if actual date matches baseline date', () => {
+      assert.strictEqual(isCriticalDelay('2023-10-27', '2023-10-27'), false);
+    });
+
+    test('should not be critical if actual date is before baseline date', () => {
+      assert.strictEqual(isCriticalDelay('2023-10-26', '2023-10-27'), false);
+    });
+
+    test('should handle missing dates safely (not critical)', () => {
+      assert.strictEqual(isCriticalDelay(null, '2023-10-27'), false);
+      assert.strictEqual(isCriticalDelay('2023-10-27', null), false);
     });
   });
 });

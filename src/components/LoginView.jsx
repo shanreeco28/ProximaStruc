@@ -12,7 +12,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 
-const LoginView = ({ initialMode = 'login', isDark, toggleTheme }) => {
+const LoginView = ({ initialMode = 'login', isDark, toggleTheme, onRegisterData }) => {
   const [mode, setMode] = useState(initialMode);
   const [formData, setFormData] = useState({ email: '', password: '', name: '', birthday: '', designation: '' });
   const [error, setError] = useState('');
@@ -41,12 +41,20 @@ const LoginView = ({ initialMode = 'login', isDark, toggleTheme }) => {
   const handleEmailLogin = async (e) => { e.preventDefault(); setLoading(true); setError(''); try { await signInWithEmailAndPassword(auth, formData.email, formData.password); } catch (err) { setError(err.message); } finally { setLoading(false); } };
   const handleRegister = async (e) => {
     e.preventDefault(); setLoading(true); setError('');
+
+    // Store temp data in memory to sync later (Fixes localStorage security vulnerability)
+    if (onRegisterData) {
+      onRegisterData({ designation: formData.designation, birthday: formData.birthday });
+    }
+
     try {
       const result = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       await updateProfile(result.user, { displayName: formData.name });
-      // Store temp data to sync later
-      localStorage.setItem('temp_user_data', JSON.stringify({ designation: formData.designation, birthday: formData.birthday }));
-    } catch (err) { setError(err.message); } finally { setLoading(false); }
+    } catch (err) {
+      setError(err.message);
+      // Clear temp data on error
+      if (onRegisterData) onRegisterData(null);
+    } finally { setLoading(false); }
   };
   const handleMagicLink = async (e) => { e.preventDefault(); setLoading(true); setError(''); const actionCodeSettings = { url: window.location.href, handleCodeInApp: true }; try { await sendSignInLinkToEmail(auth, formData.email, actionCodeSettings); window.localStorage.setItem('emailForSignIn', formData.email); setMagicSent(true); } catch (err) { setError(err.message); } finally { setLoading(false); } };
 

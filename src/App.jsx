@@ -93,6 +93,7 @@ export default function App() {
   const [isDark, setIsDark] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [trackerSubTab, setTrackerSubTab] = useState('standard');
+  const [tempRegisterData, setTempRegisterData] = useState(null);
 
   // Project Management State
   const [projects, setProjects] = useState(() => {
@@ -185,7 +186,18 @@ export default function App() {
                 setUser(prev => ({ ...prev, ...userDoc.data() }));
             } else {
                 // Create profile if missing
-                const tempData = JSON.parse(localStorage.getItem('temp_user_data') || '{}');
+                let tempData = tempRegisterData || {};
+
+                // Fallback for legacy / reload
+                const localData = localStorage.getItem('temp_user_data');
+                if (localData) {
+                    try {
+                        const parsed = JSON.parse(localData);
+                        tempData = { ...parsed, ...tempData };
+                        localStorage.removeItem('temp_user_data');
+                    } catch (e) { console.error(e); }
+                }
+
                 const newProfile = {
                     name: user.displayName || 'Guest',
                     email: user.email,
@@ -195,7 +207,7 @@ export default function App() {
                     createdAt: new Date().toISOString()
                 };
                 await setDoc(docRef, newProfile);
-                localStorage.removeItem('temp_user_data');
+                setTempRegisterData(null);
                 setUser(prev => ({ ...prev, ...newProfile }));
             }
         } catch (err) {
@@ -797,7 +809,7 @@ export default function App() {
   };
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-500">Connecting to Cloud...</div>;
-  if (!user) return <LoginView initialMode={emailConfirmationNeeded ? 'confirm-email' : 'login'} isDark={isDark} toggleTheme={toggleTheme} />;
+  if (!user) return <LoginView initialMode={emailConfirmationNeeded ? 'confirm-email' : 'login'} isDark={isDark} toggleTheme={toggleTheme} onRegisterData={setTempRegisterData} />;
   if (!selectedProject) return <ProjectSelection projects={projects} onSelect={setSelectedProject} onAdd={handleAddProject} onLogout={handleLogout} user={user} />;
 
   return (

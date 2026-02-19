@@ -114,17 +114,6 @@ export default function App() {
   // --- Persistent State ---
   useEffect(() => {
     const initAuth = async () => {
-      if (import.meta.env.DEV) {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('test_mode') === 'true') {
-           console.log("Test Mode Activated");
-           setUser({ uid: 'test-user', email: 'test@example.com', name: 'Test User', role: 'admin' });
-           setSelectedProject({ id: 'tnd4-castrack', name: 'TND4 Project' });
-           setAuthLoading(false);
-           return;
-        }
-      }
-
       try {
         if (isSignInWithEmailLink(auth, window.location.href)) {
           let email = window.localStorage.getItem('emailForSignIn');
@@ -151,10 +140,6 @@ export default function App() {
     if (savedTheme) setIsDark(savedTheme === 'dark');
 
     // Auth Listener
-    if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('test_mode') === 'true') {
-        return () => {};
-    }
-
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         // Just set the user auth object. Profile syncing happens when project is selected.

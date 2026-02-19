@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { BarChart3, Printer, X, Calendar as CalendarIcon } from 'lucide-react';
+import SlabScheduleTable from './SlabScheduleTable';
 
 const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, onClose }) => {
   // Calculate total delays (completed late + currently delayed status)
@@ -253,59 +254,11 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
              </div>
 
              {/* Detailed Schedule (Typical Slabs) */}
-             <div className="mb-8">
-                <h3 className="text-lg font-bold uppercase mb-2 border-b border-black inline-block">4. Detailed Casting Schedule - Typical Slabs</h3>
-                <table className="w-full border-collapse border border-black text-xs mt-2">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-black p-1 text-left">Date</th>
-                      <th className="border border-black p-1 text-left">Zone</th>
-                      <th className="border border-black p-1 text-left">ID</th>
-                      <th className="border border-black p-1 text-center">Status</th>
-                      <th className="border border-black p-1 text-left">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {typicalItems.map(item => (
-                      <tr key={item.id}>
-                        <td className="border border-black p-1 whitespace-nowrap">{item.probableCastingDate || item.castingDate || '-'}</td>
-                        <td className="border border-black p-1">{item.zone}</td>
-                        <td className="border border-black p-1 font-mono">{item.slabId}</td>
-                        <td className="border border-black p-1 text-center">{item.status}</td>
-                        <td className="border border-black p-1 italic max-w-[200px] truncate">{item.remarks}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-             </div>
+             <SlabScheduleTable title="4. Detailed Casting Schedule - Typical Slabs" data={typicalItems} />
 
              {/* Detailed Schedule (Ramp Slabs) */}
              {rampItems.length > 0 && (
-                 <div className="mb-8">
-                    <h3 className="text-lg font-bold uppercase mb-2 border-b border-black inline-block">5. Detailed Casting Schedule - Ramps</h3>
-                    <table className="w-full border-collapse border border-black text-xs mt-2">
-                      <thead>
-                        <tr className="bg-gray-100">
-                          <th className="border border-black p-1 text-left">Date</th>
-                          <th className="border border-black p-1 text-left">Zone</th>
-                          <th className="border border-black p-1 text-left">ID</th>
-                          <th className="border border-black p-1 text-center">Status</th>
-                          <th className="border border-black p-1 text-left">Remarks</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rampItems.map(item => (
-                          <tr key={item.id}>
-                            <td className="border border-black p-1 whitespace-nowrap">{item.probableCastingDate || item.castingDate || '-'}</td>
-                            <td className="border border-black p-1">{item.zone}</td>
-                            <td className="border border-black p-1 font-mono">{item.slabId}</td>
-                            <td className="border border-black p-1 text-center">{item.status}</td>
-                            <td className="border border-black p-1 italic max-w-[200px] truncate">{item.remarks}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                 </div>
+                 <SlabScheduleTable title="5. Detailed Casting Schedule - Ramps" data={rampItems} />
              )}
 
              {/* Signature Block */}

@@ -1,22 +1,12 @@
 import React, { useState } from 'react';
 import { FileText, Printer, BarChart3, TrendingUp, Truck, Calendar as CalendarIcon, ArrowLeft } from 'lucide-react';
 import StatusSelect from './StatusSelect';
+import { isRamp, getSortedData } from '../utils/reportHelpers';
 
 // --- Report View (Tab) ---
 const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
   const [reportType, setReportType] = useState('summary');
   const [showPreview, setShowPreview] = useState(false);
-
-  // Sorting and Grouping Helper
-  const isRamp = (item) => (item.zone || '').toLowerCase().includes('ramp') || (item.slabId || '').toLowerCase().includes('ramp');
-
-  const getSortedData = (data) => {
-      return [...data].sort((a, b) => {
-          const dateA = new Date(a.probableCastingDate || a.castingDate || '1970-01-01');
-          const dateB = new Date(b.probableCastingDate || b.castingDate || '1970-01-01');
-          return dateA - dateB; // Ascending
-      });
-  };
 
   const generateReport = () => {
     const reportData = {

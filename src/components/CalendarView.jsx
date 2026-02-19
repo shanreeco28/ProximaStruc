@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar as CalendarIcon, Search, X, ChevronLeft, ChevronRight, CheckCircle2, Hammer, Truck, Target, Info, PackagePlus } from 'lucide-react';
 import { getDaysInMonth, getFirstDayOfMonth } from '../utils/dateHelpers';
+import { calculateGhostData } from '../utils/calendarHelpers';
 import GhostLine from './GhostLine';
 import MiniCalendar from './MiniCalendar';
 import BubbleTooltip from './BubbleTooltip';
@@ -51,136 +52,36 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
     if (meta && meta.slabId) setFocusedSlabId(meta.slabId);
 
     const triggerGhost = () => {
-        // Ensure we check lock state again inside the callback just in case
-        if (!force && lockedEventIdRef.current && lockedEventIdRef.current !== meta?.domId) return;
+      // Ensure we check lock state again inside the callback just in case
+      if (!force && lockedEventIdRef.current && lockedEventIdRef.current !== meta?.domId) return;
 
-        setGhostConnections([]);
-        setActiveGhosts([]);
+      setGhostConnections([]);
+      setActiveGhosts([]);
+      setOffScreenGhosts({ items: [], rect: null });
+
+      if (meta.type === 'bbsTarget' || meta.type === 'castTargetOngoing') {
+        return;
+      }
+
+      const { connections, offScreen, activeGhosts } = calculateGhostData(meta, currentDate);
+
+      const domEl = document.getElementById(meta.domId);
+      if (offScreen.length > 0 && domEl) {
+        setOffScreenGhosts({ items: offScreen, rect: domEl.getBoundingClientRect() });
+      } else {
         setOffScreenGhosts({ items: [], rect: null });
+      }
 
-        if (meta.type === 'bbsTarget' || meta.type === 'castTargetOngoing') {
-            return;
-        }
-
-        let label = '';
-        if (meta.type === 'delivery') label = `HCS Target: ${meta.slabId}`;
-        else if (meta.type === 'bbsActual') label = `BBS Target: ${meta.bbsNum}`;
-        else if (meta.type.startsWith('cast')) label = `Plan: ${meta.slabId}`;
-
-        const offScreen = [];
-        const isOffScreen = (d) => {
-             if (!d) return false;
-             const [y, m, day] = d.split('-').map(Number);
-             const date = new Date(y, m - 1, day);
-             return date < new Date(year, currentDate.getMonth(), 1) || date > new Date(year, currentDate.getMonth() + 1, 0);
-        };
-
-        const newConnections = [];
-
-        // Casting Ghosts
-        if (meta.type.startsWith('cast')) {
-             // We use originalTargetDate, probableDate, dateStr
-             const original = meta.originalTargetDate || meta.targetDate; // Fallback
-             const probable = meta.probableDate;
-
-             const addGhost = (targetDate, labelText, connectToId) => {
-                  if (targetDate && targetDate !== meta.dateStr) {
-                       if (isOffScreen(targetDate)) {
-                           offScreen.push({ date: targetDate, label: labelText, type: 'target' });
-                           return null;
-                       } else {
-                           const ghostId = `ghost-${meta.id}-${targetDate}`;
-                           newConnections.push({
-                               targetDate: targetDate,
-                               label: labelText,
-                               startElementId: ghostId,
-                               endElementId: connectToId
-                           });
-                           return ghostId;
-                       }
-                  }
-                  return null;
-             };
-
-             if (meta.type === 'castActual' || meta.type === 'castTargetCompleted') {
-                 // We are at Actual. Show Probable and/or Original Target ghosts.
-                 // Chain: Target -> Probable -> Actual
-                 let nextLink = meta.domId;
-
-                 if (probable && probable !== meta.dateStr) {
-                     const pId = addGhost(probable, 'Probable', meta.domId);
-                     if (pId) nextLink = pId;
-                 }
-
-                 if (original && original !== meta.dateStr && original !== probable) {
-                     addGhost(original, 'Target', nextLink);
-                 }
-             } else if (meta.type === 'castTarget' && meta.isProbable) {
-                 // We are at Probable. Show Original Target ghost.
-                 if (original && original !== meta.dateStr) addGhost(original, 'Target', meta.domId);
-             }
-        }
-
-        // BBS Ghosts
-        if ((meta.type === 'castActual' || meta.type === 'castTarget' || meta.type === 'castTargetCompleted') && Array.isArray(meta.bbs)) {
-            const ghosts = meta.bbs.map((b, i) => {
-              const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
-              const isActualOff = bObj.actualDate && isOffScreen(bObj.actualDate);
-              const isTargetOff = bObj.targetDate && !bObj.actualDate && isOffScreen(bObj.targetDate);
-
-              if (isActualOff) {
-                  offScreen.push({ date: bObj.actualDate, label: `BBS ${bObj.number}`, type: 'actual' });
-              } else if (isTargetOff) {
-                  offScreen.push({ date: bObj.targetDate, label: `Plan ${bObj.number}`, type: 'target' });
-              }
-
-              // Use Actual Date if available, otherwise Target Date for the ghost
-              const effectiveDate = bObj.actualDate || bObj.targetDate;
-              const isTarget = !bObj.actualDate;
-
-              return {
-                type: 'bbsGhost',
-                dateStr: effectiveDate,
-                label: bObj.number,
-                isTarget,
-                domId: `ghost-bbs-${meta.id}-${i}`,
-                tooltipContent: bObj.description || (isTarget ? 'Plan BBS' : 'BBS Ghost'),
-                slabId: meta.slabId
-              };
-            }).filter(g => g.dateStr);
-            setActiveGhosts(ghosts);
-        }
-
-        // HCS Delivery & BBS Actual pointing to targets
-        if ((meta.type === 'delivery' || meta.type === 'bbsActual') && meta.targetDate && meta.targetDate !== meta.dateStr) {
-             if (isOffScreen(meta.targetDate)) {
-                  offScreen.push({ date: meta.targetDate, label: 'Target', type: 'target' });
-             } else {
-                 newConnections.push({
-                     targetDate: meta.targetDate,
-                     label: label,
-                     startElementId: `ghost-${meta.id}-${meta.targetDate}`,
-                     endElementId: meta.domId
-                 });
-             }
-        }
-
-        const domEl = document.getElementById(meta.domId);
-        if (offScreen.length > 0 && domEl) {
-            setOffScreenGhosts({ items: offScreen, rect: domEl.getBoundingClientRect() });
-        } else {
-            setOffScreenGhosts({ items: [], rect: null });
-        }
-
-        setGhostConnections(newConnections);
+      setGhostConnections(connections);
+      if (activeGhosts.length > 0) setActiveGhosts(activeGhosts);
     };
 
     // Ensure ghost cleanup/trigger happens immediately on click (immediate=true),
     // or delayed on hover if the event type is relevant.
     if (immediate) {
-        triggerGhost();
+      triggerGhost();
     } else if (meta && (meta.targetDate || meta.type.startsWith('cast'))) {
-        hoverTimerRef.current = setTimeout(triggerGhost, 500);
+      hoverTimerRef.current = setTimeout(triggerGhost, 500);
     }
   };
   const clearGhost = (force = false) => {

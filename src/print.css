@@ -1,0 +1,126 @@
+@media print {
+  /* -------------------------------------------------------------------------- */
+  /* Global Resets & Layout Hiding */
+  /* -------------------------------------------------------------------------- */
+
+  /* Hide main app UI when either portal view is active for printing */
+  body.print-portal-active-diary #root,
+  body.print-portal-active-report #root,
+  body.print-portal-active-diary .print-hidden,
+  body.print-portal-active-report .print-hidden {
+    display: none !important;
+  }
+
+  /* Reset page layout for print context */
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+
+  body.print-portal-active-diary,
+  body.print-portal-active-report {
+    background: white !important;
+    background-image: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Reset element styles for clean print output */
+  body.print-portal-active-diary *,
+  body.print-portal-active-report * {
+      -webkit-print-color-adjust: exact;
+      box-shadow: none !important;
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /* Portal Visibility Control */
+  /* -------------------------------------------------------------------------- */
+
+  /* Show Diary Portal Content */
+  body.print-portal-active-diary .print-portal-diary {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 9999;
+    background: white;
+    color: black;
+    font-family: sans-serif;
+  }
+
+  /* Show Report Portal Content */
+  body.print-portal-active-report .print-portal-report {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    z-index: 9999;
+    background: white;
+    color: black;
+  }
+
+  /* Conflict Resolution: If both are active, prioritize Report (hide Diary) */
+  body.print-portal-active-report .print-portal-diary {
+    display: none !important;
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /* Shared Print Utilities */
+  /* -------------------------------------------------------------------------- */
+
+  .print-portal-root table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .print-portal-root th {
+    background-color: #f3f4f6 !important;
+    font-weight: bold;
+  }
+
+  .print-portal-root th,
+  .print-portal-root td {
+    border: 1px solid black !important;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  /* Utility classes used by components */
+  .break-inside-avoid { break-inside: avoid; }
+  .page-break, .break-before-page { break-before: page; }
+
+  /* -------------------------------------------------------------------------- */
+  /* Component-Specific Styles */
+  /* -------------------------------------------------------------------------- */
+
+  /* Site Diary Specifics */
+  .print-portal-diary table {
+    margin-top: 10px;
+  }
+
+  .print-portal-diary th,
+  .print-portal-diary td {
+    padding: 6px;
+    font-size: 11px;
+  }
+
+  /* Report Modal Specifics */
+  .print-portal-report th,
+  .print-portal-report td {
+    padding: 4px 8px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Screen Styles */
+/* -------------------------------------------------------------------------- */
+
+/* Ensure portal content is hidden on screen */
+@media screen {
+  .print-portal-root {
+    display: none;
+  }
+}

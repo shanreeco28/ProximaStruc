@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, MapPin, Users, Activity, Plus, FileText, Trash2, Printer } from 'lucide-react';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
 // Constants for Dropdowns
@@ -113,6 +113,14 @@ const SiteDiaryView = ({ selectedProject, user }) => {
   const handlePrint = () => {
     window.print();
   };
+
+  // Manage print class on body
+  useEffect(() => {
+    document.body.classList.add('print-portal-active-diary');
+    return () => {
+      document.body.classList.remove('print-portal-active-diary');
+    };
+  }, []);
 
   return (
     <>
@@ -312,53 +320,7 @@ const SiteDiaryView = ({ selectedProject, user }) => {
 
     {/* Portal-based Print Layout */}
     {createPortal(
-      <div className="print-portal-root">
-        <style>
-          {`
-            @media print {
-              /* Hide main app UI - relies on App.jsx having print:hidden on main container or root */
-              #root, .print-hidden {
-                display: none !important;
-              }
-
-              /* Show portal content */
-              .print-portal-root {
-                display: block !important;
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                background: white;
-                color: black;
-                font-family: sans-serif;
-                z-index: 9999;
-              }
-
-              @page {
-                size: A4;
-                margin: 15mm;
-              }
-
-              body {
-                background: white !important;
-                height: auto !important;
-                overflow: visible !important;
-              }
-
-              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-              th, td { border: 1px solid black; padding: 6px; text-align: left; vertical-align: top; font-size: 11px; }
-              th { background-color: #f3f4f6 !important; font-weight: bold; }
-              .page-break { break-before: page; }
-            }
-
-            @media screen {
-              .print-portal-root {
-                display: none;
-              }
-            }
-          `}
-        </style>
-
+      <div className="print-portal-root print-portal-diary">
         <div className="p-8 font-sans text-black bg-white">
           {/* Header */}
           <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-end">

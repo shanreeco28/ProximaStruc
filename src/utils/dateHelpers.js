@@ -4,3 +4,6 @@ export const isDateAfter = (date1, date2) => {
   if (!date1 || !date2) return false;
   return new Date(date1) > new Date(date2);
 };
+export const isCriticalDelay = (actualDate, baselineDate) => {
+  return isDateAfter(actualDate, baselineDate);
+};

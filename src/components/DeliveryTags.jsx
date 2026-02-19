@@ -7,7 +7,7 @@ const DeliveryTags = ({ deliveries, castingDate }) => {
   return (
     <div className="flex flex-col gap-1.5">
       {list.length > 0 ? list.map((d, idx) => {
-          const isCriticalDelay = isDateAfter(d.date, castingDate);
+          const isCriticalDelay = castingDate && isDateAfter(d.date, castingDate);
           return (
             <div key={idx} className="flex items-center gap-2 text-xs" title={d.description + (d.createdBy ? ` (By: ${d.createdBy})` : '')}>
                <Truck size={12} className={isCriticalDelay ? "text-red-500" : "text-emerald-500"} />

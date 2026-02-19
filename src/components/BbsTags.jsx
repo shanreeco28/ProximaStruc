@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { AlertTriangle, X, Plus } from 'lucide-react';
 
-const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, onAdd, readOnly }) => {
+const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, onAdd, readOnly, context }) => {
   let list = Array.isArray(bbs) ? bbs : (bbs ? [bbs] : []);
 
   return (
@@ -15,10 +15,10 @@ const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, onAdd, readOnly }) =
         const isCriticalDelay = castingDate && actual && new Date(actual) > new Date(castingDate);
         let tooltip = `${desc || text}`; if (isObj && b.createdBy) tooltip += `\n(Added by: ${b.createdBy})`;
         return (
-          <button key={idx} disabled={readOnly} onClick={(e) => { e.stopPropagation(); onEdit && onEdit(idx); }} title={tooltip} className={`font-mono text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap flex items-center gap-1 transition-colors ${isCriticalDelay ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400'} ${readOnly ? 'cursor-default' : ''}`}>
+          <button key={idx} disabled={readOnly} onClick={(e) => { e.stopPropagation(); onEdit && onEdit(context, idx); }} title={tooltip} className={`font-mono text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap flex items-center gap-1 transition-colors ${isCriticalDelay ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400'} ${readOnly ? 'cursor-default' : ''}`}>
             {text} {isCriticalDelay && <AlertTriangle size={8} className="text-red-500" />}
             {!readOnly && onDelete && (
-                <span onClick={(e) => { e.stopPropagation(); onDelete(idx); }} className="ml-1 hover:text-red-500 rounded-full p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center">
+                <span onClick={(e) => { e.stopPropagation(); onDelete(context, idx); }} className="ml-1 hover:text-red-500 rounded-full p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center">
                     <X size={10} />
                 </span>
             )}
@@ -27,7 +27,7 @@ const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, onAdd, readOnly }) =
       })}
       {!readOnly && onAdd && (
         <button
-            onClick={(e) => { e.stopPropagation(); onAdd(); }}
+            onClick={(e) => { e.stopPropagation(); onAdd(context); }}
             title="Add BBS"
             className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 transition-colors flex items-center justify-center"
         >
@@ -35,13 +35,6 @@ const BbsTags = memo(({ bbs, castingDate, onEdit, onDelete, onAdd, readOnly }) =
         </button>
       )}
     </div>
-  );
-}, (prevProps, nextProps) => {
-  return (
-    prevProps.bbs === nextProps.bbs &&
-    prevProps.castingDate === nextProps.castingDate &&
-    prevProps.readOnly === nextProps.readOnly &&
-    prevProps.onAdd === nextProps.onAdd
   );
 });
 

@@ -1,23 +1,12 @@
 import React, { useState } from 'react';
 import { Activity, Calendar as CalendarIcon, CheckCircle2 } from 'lucide-react';
+import { processTimelineData } from '../utils/timelineHelpers';
 
 // --- Project Timeline View ---
 const ProjectTimeline = ({ filteredData }) => {
   const [viewMode, setViewMode] = useState('month'); // month, quarter, project
 
-  const getTimelineData = () => {
-    return filteredData
-      .filter(item => item.castingDate)
-      .sort((a, b) => new Date(a.castingDate) - new Date(b.castingDate))
-      .map(item => ({
-        ...item,
-        startDate: item.castingDate,
-        endDate: item.actualCastingDate || item.castingDate,
-        delay: item.actualCastingDate && new Date(item.actualCastingDate) > new Date(item.castingDate)
-      }));
-  };
-
-  const timelineData = getTimelineData();
+  const timelineData = processTimelineData(filteredData);
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">

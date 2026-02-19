@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Calendar as CalendarIcon, Search, X, ChevronLeft, ChevronRight, CheckCircle2, Hammer, Truck, Target, Info, PackagePlus } from 'lucide-react';
 import { getDaysInMonth, getFirstDayOfMonth } from '../utils/dateHelpers';
+import { groupEventsByDate } from '../utils/calendarHelpers';
 import GhostLine from './GhostLine';
 import MiniCalendar from './MiniCalendar';
 import BubbleTooltip from './BubbleTooltip';
@@ -205,83 +206,18 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
 
   const days = []; for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="h-24 md:h-32 bg-slate-50/50 dark:bg-slate-900/50 border-b border-r border-slate-100 dark:border-slate-800"></div>);
 
-  const filteredData = data.filter(item =>
+  const filteredData = useMemo(() => data.filter(item =>
     !filterText ||
     item.slabId.toLowerCase().includes(filterText.toLowerCase()) ||
     item.zone.toLowerCase().includes(filterText.toLowerCase())
-  );
+  ), [data, filterText]);
+
+  const groupedEvents = useMemo(() => groupEventsByDate(filteredData), [filteredData]);
 
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const dayId = `cal-day-${dateStr}`; const dayEvents = [];
-    filteredData.forEach((item, itemIdx) => {
-      const baseId = `${item.id}-${itemIdx}`;
-      const effectiveTarget = item.probableCastingDate || item.castingDate;
-      const originalTarget = item.castingDate;
-      const probable = item.probableCastingDate;
-
-      if (item.actualCastingDate === dateStr) {
-          // Completed
-          if (item.actualCastingDate === effectiveTarget) {
-               // Completed on Target (either probable or original)
-               dayEvents.push({
-                   type: 'castTargetCompleted',
-                   domId: `evt-cast-target-completed-${baseId}`,
-                   tooltipContent: item.slabId || 'Completed on Target',
-                   author: item.createdBy,
-                   originalTargetDate: originalTarget,
-                   probableDate: probable,
-                   dateStr: item.actualCastingDate,
-                   ...item
-               });
-          } else {
-               // Completed but not on target
-               const isLate = effectiveTarget && new Date(item.actualCastingDate) > new Date(effectiveTarget);
-               dayEvents.push({
-                   type: 'castActual',
-                   isLate,
-                   domId: `evt-cast-actual-${baseId}`,
-                   tooltipContent: item.slabId || 'Actual Casting',
-                   author: item.createdBy,
-                   originalTargetDate: originalTarget,
-                   probableDate: probable,
-                   dateStr: item.actualCastingDate,
-                   ...item
-               });
-          }
-      } else if (effectiveTarget === dateStr && !item.actualCastingDate) {
-           // Not completed, this is the plan day
-           const isProbable = !!probable;
-           if (item.status === 'Ongoing') {
-             dayEvents.push({ type: 'castTargetOngoing', domId: `evt-cast-target-ongoing-${baseId}`, tooltipContent: item.slabId || 'Ongoing Casting', author: item.createdBy, targetDate: originalTarget, probableDate: probable, isProbable, dateStr: effectiveTarget, ...item });
-           } else {
-             dayEvents.push({ type: 'castTarget', domId: `evt-cast-target-${baseId}`, tooltipContent: item.slabId || (isProbable ? 'Probable Casting' : 'Target Casting'), author: item.createdBy, targetDate: originalTarget, probableDate: probable, isProbable, dateStr: effectiveTarget, ...item });
-           }
-      }
-
-      if (Array.isArray(item.deliveries)) item.deliveries.forEach((d, dIdx) => {
-        if (d.date === dateStr) {
-          const isLate = item.hcsTargetDate && new Date(d.date) > new Date(item.hcsTargetDate);
-          dayEvents.push({ type: 'delivery', isLate, domId: `evt-del-${baseId}-${dIdx}`, ...item, tooltipContent: d.description || 'Batch Delivery', author: d.createdBy, dateStr: d.date, targetDate: item.hcsTargetDate });
-        }
-      });
-      if (!item.actualCastingDate) {
-        if (Array.isArray(item.bbs)) item.bbs.forEach((b, bIdx) => {
-            const bObj = typeof b === 'object' ? b : { number: b, actualDate: null };
-            if (bObj.targetDate === dateStr) {
-               if (bObj.actualDate === dateStr) {
-                  dayEvents.push({ type: 'bbsTargetCompleted', domId: `evt-bbs-target-completed-${baseId}-${bIdx}`, ...item, bbsIndex: bIdx, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Completed on Target', author: bObj.createdBy });
-               } else if (!bObj.actualDate) {
-                  dayEvents.push({ type: 'bbsTarget', domId: `evt-bbs-target-${baseId}-${bIdx}`, ...item, bbsIndex: bIdx, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Target', author: bObj.createdBy, });
-               }
-            }
-            if (bObj.actualDate === dateStr && bObj.targetDate !== dateStr) {
-              const isLate = bObj.targetDate && new Date(bObj.actualDate) > new Date(bObj.targetDate);
-              dayEvents.push({ type: 'bbsActual', isLate, domId: `evt-bbs-${baseId}-${bIdx}`, ...item, bbsIndex: bIdx, bbsNum: bObj.number, tooltipContent: bObj.description || 'BBS Delivery', author: bObj.createdBy, dateStr: bObj.actualDate, targetDate: bObj.targetDate });
-            }
-        });
-      }
-    });
+    const dayId = `cal-day-${dateStr}`;
+    const dayEvents = [...(groupedEvents.get(dateStr) || [])];
 
     activeGhosts.forEach(g => { if (g.dateStr === dateStr) dayEvents.push({ ...g, isGhostItem: true }); });
 

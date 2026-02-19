@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { BarChart3, Printer, X, Calendar as CalendarIcon } from 'lucide-react';
 
@@ -17,6 +17,14 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
 
   const typicalItems = sortedData.filter(item => !isRamp(item));
   const rampItems = sortedData.filter(item => isRamp(item));
+
+  // Manage print class on body
+  useEffect(() => {
+    document.body.classList.add('print-portal-active-report');
+    return () => {
+      document.body.classList.remove('print-portal-active-report');
+    };
+  }, []);
 
   return (
     <>
@@ -84,63 +92,7 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
 
       {/* Print Layout View - Rendered via Portal to avoid layout interference */}
       {createPortal(
-        <div className="print-portal-root">
-          <style>
-            {`
-              @media print {
-                /* Hide the main app container completely */
-                #root, .print-hidden {
-                  display: none !important;
-                }
-
-                /* Ensure the portal content is visible */
-                .print-portal-root {
-                  display: block !important;
-                  position: absolute;
-                  top: 0;
-                  left: 0;
-                  width: 100%;
-                  height: auto;
-                  z-index: 9999;
-                  background: white;
-                  color: black;
-                }
-
-                /* Reset page layout */
-                @page {
-                  size: A4;
-                  margin: 15mm;
-                }
-
-                body, html {
-                  background: white !important;
-                  background-image: none !important;
-                  height: auto !important;
-                  overflow: visible !important;
-                }
-
-                /* Reset element styles for print */
-                * {
-                  -webkit-print-color-adjust: exact;
-                  box-shadow: none !important;
-                }
-
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid black !important; padding: 4px 8px; }
-                th { background-color: #f3f4f6 !important; font-weight: bold; }
-                .break-inside-avoid { break-inside: avoid; }
-                .break-before-page { break-before: page; }
-              }
-
-              /* Hide portal content on screen */
-              @media screen {
-                .print-portal-root {
-                  display: none;
-                }
-              }
-            `}
-          </style>
-
+        <div className="print-portal-root print-portal-report">
           <div className="p-8 font-sans text-black bg-white">
              {/* Header */}
              <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-end">

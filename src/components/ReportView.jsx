@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileText, Printer, BarChart3, TrendingUp, Truck, Calendar as CalendarIcon, ArrowLeft } from 'lucide-react';
 import StatusSelect from './StatusSelect';
+import SlabTable from './SlabTable';
 
 // --- Report View (Tab) ---
 const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
@@ -45,6 +46,10 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
   const scheduleData = getSortedData(filteredData.filter(item => item.castingDate));
   const typicalSchedule = scheduleData.filter(item => !isRamp(item));
   const rampSchedule = scheduleData.filter(item => isRamp(item));
+
+  // Data for Print Table (Progress/Schedule)
+  const typicalData = reportType === 'schedule' ? typicalSchedule : filteredData.filter(item => !isRamp(item));
+  const rampData = reportType === 'schedule' ? rampSchedule : filteredData.filter(item => isRamp(item));
 
   return (
     <div className="space-y-6">
@@ -278,62 +283,11 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
             {(reportType === 'progress' || reportType === 'schedule') && (
                <>
                  {/* Typical Slabs */}
-                 <h4 className="font-bold uppercase mb-2 mt-4">Typical Slabs</h4>
-                 <table className="w-full border-collapse border border-black text-xs mb-6">
-                    <thead>
-                       <tr className="bg-gray-100">
-                          <th className="border border-black p-2 text-left">Casting ID</th>
-                          <th className="border border-black p-2 text-left">Zone / Level</th>
-                          <th className="border border-black p-2 text-center">Status</th>
-                          <th className="border border-black p-2 text-center">Target Date</th>
-                          <th className="border border-black p-2 text-center">Actual Date</th>
-                          <th className="border border-black p-2 text-left">Remarks</th>
-                       </tr>
-                    </thead>
-                    <tbody>
-                       {/* Note: filtering happens here again if reportType is progress/schedule, but reusing 'scheduleData' logic requires extraction */}
-                       {(reportType === 'schedule' ? typicalSchedule : filteredData.filter(i => !isRamp(i))).map(item => (
-                          <tr key={item.id} className="break-inside-avoid">
-                             <td className="border border-black p-2 font-bold">{item.slabId}</td>
-                             <td className="border border-black p-2">{item.zone}</td>
-                             <td className="border border-black p-2 text-center">{item.status}</td>
-                             <td className="border border-black p-2 text-center">{item.probableCastingDate || item.castingDate || '-'}</td>
-                             <td className="border border-black p-2 text-center">{item.actualCastingDate || '-'}</td>
-                             <td className="border border-black p-2 max-w-[200px] truncate">{item.remarks}</td>
-                          </tr>
-                       ))}
-                    </tbody>
-                 </table>
+                 <SlabTable title="Typical Slabs" data={typicalData} />
 
                  {/* Ramp Slabs */}
-                 {(reportType === 'schedule' ? rampSchedule : filteredData.filter(i => isRamp(i))).length > 0 && (
-                   <>
-                     <h4 className="font-bold uppercase mb-2 mt-4">Ramp Slabs</h4>
-                     <table className="w-full border-collapse border border-black text-xs">
-                        <thead>
-                           <tr className="bg-gray-100">
-                              <th className="border border-black p-2 text-left">Casting ID</th>
-                              <th className="border border-black p-2 text-left">Zone / Level</th>
-                              <th className="border border-black p-2 text-center">Status</th>
-                              <th className="border border-black p-2 text-center">Target Date</th>
-                              <th className="border border-black p-2 text-center">Actual Date</th>
-                              <th className="border border-black p-2 text-left">Remarks</th>
-                           </tr>
-                        </thead>
-                        <tbody>
-                           {(reportType === 'schedule' ? rampSchedule : filteredData.filter(i => isRamp(i))).map(item => (
-                              <tr key={item.id} className="break-inside-avoid">
-                                 <td className="border border-black p-2 font-bold">{item.slabId}</td>
-                                 <td className="border border-black p-2">{item.zone}</td>
-                                 <td className="border border-black p-2 text-center">{item.status}</td>
-                                 <td className="border border-black p-2 text-center">{item.probableCastingDate || item.castingDate || '-'}</td>
-                                 <td className="border border-black p-2 text-center">{item.actualCastingDate || '-'}</td>
-                                 <td className="border border-black p-2 max-w-[200px] truncate">{item.remarks}</td>
-                              </tr>
-                           ))}
-                        </tbody>
-                     </table>
-                   </>
+                 {rampData.length > 0 && (
+                   <SlabTable title="Ramp Slabs" data={rampData} />
                  )}
                </>
             )}

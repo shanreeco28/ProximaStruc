@@ -26,7 +26,7 @@ const LoginView = ({ initialMode = 'login', isDark, toggleTheme, onRegisterData 
     setLoading(true); setError('');
     try {
       await signInWithEmailLink(auth, formData.email, window.location.href);
-      window.localStorage.removeItem('emailForSignIn');
+      window.sessionStorage.removeItem('emailForSignIn');
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   };
@@ -56,7 +56,7 @@ const LoginView = ({ initialMode = 'login', isDark, toggleTheme, onRegisterData 
       if (onRegisterData) onRegisterData(null);
     } finally { setLoading(false); }
   };
-  const handleMagicLink = async (e) => { e.preventDefault(); setLoading(true); setError(''); const actionCodeSettings = { url: window.location.href, handleCodeInApp: true }; try { await sendSignInLinkToEmail(auth, formData.email, actionCodeSettings); window.localStorage.setItem('emailForSignIn', formData.email); setMagicSent(true); } catch (err) { setError(err.message); } finally { setLoading(false); } };
+  const handleMagicLink = async (e) => { e.preventDefault(); setLoading(true); setError(''); const actionCodeSettings = { url: window.location.href, handleCodeInApp: true }; try { await sendSignInLinkToEmail(auth, formData.email, actionCodeSettings); window.sessionStorage.setItem('emailForSignIn', formData.email); setMagicSent(true); } catch (err) { setError(err.message); } finally { setLoading(false); } };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">

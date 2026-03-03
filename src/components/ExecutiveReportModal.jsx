@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { BarChart3, Printer, X, Calendar as CalendarIcon } from 'lucide-react';
+import { BarChart3, Printer, X, Calendar } from 'lucide-react';
 
 const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, onClose }) => {
   // Calculate total delays (completed late + currently delayed status)
@@ -58,7 +58,7 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
 
               {/* Monthly Progress Table (Web View) */}
               <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-6 bg-slate-50/50 dark:bg-slate-800/50">
-                 <h4 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><CalendarIcon size={18} /> Monthly Progress</h4>
+                 <h4 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><Calendar size={18} /> Monthly Progress</h4>
                  <table className="w-full text-sm text-left">
                      <thead className="bg-slate-100 dark:bg-slate-900 text-xs uppercase font-bold text-slate-600 dark:text-slate-300">
                          <tr><th className="p-3">Month</th><th className="p-3 text-right">Planned</th><th className="p-3 text-right">Actual</th><th className="p-3 text-right">Variance</th></tr>

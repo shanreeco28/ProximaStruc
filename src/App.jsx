@@ -128,14 +128,14 @@ export default function App() {
 
       try {
         if (isSignInWithEmailLink(auth, window.location.href)) {
-          let email = window.localStorage.getItem('emailForSignIn');
+          let email = window.sessionStorage.getItem('emailForSignIn');
           if (!email) {
             setEmailConfirmationNeeded(true);
             setAuthLoading(false);
             return;
           }
           await signInWithEmailLink(auth, email, window.location.href);
-          window.localStorage.removeItem('emailForSignIn');
+          window.sessionStorage.removeItem('emailForSignIn');
         } else if (typeof window !== 'undefined' && (window).__initial_auth_token && (window).__initial_auth_token) {
           try { await signInWithCustomToken(auth, (window).__initial_auth_token); } catch (err) {
             console.log('Custom token sign in failed:', err);

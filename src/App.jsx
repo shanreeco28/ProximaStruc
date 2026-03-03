@@ -16,6 +16,7 @@ import LoginView from './components/LoginView';
 import ReportView from './components/ReportView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
 import { auth, db } from './firebase';
+import { isRamp } from './utils/slabHelpers';
 
 import {
   LayoutDashboard,
@@ -709,8 +710,8 @@ export default function App() {
 
   const TrackerView = () => {
     const displayData = filteredData.filter(item => {
-      const isRamp = (item.zone || '').toLowerCase().includes('ramp') || (item.slabId || '').toLowerCase().includes('ramp');
-      return trackerSubTab === 'ramp' ? isRamp : !isRamp;
+      const isItemRamp = isRamp(item);
+      return trackerSubTab === 'ramp' ? isItemRamp : !isItemRamp;
     });
 
     return (

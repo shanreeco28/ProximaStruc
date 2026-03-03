@@ -1,19 +1,14 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { BarChart3, Printer, X, Calendar as CalendarIcon } from 'lucide-react';
+import { isRamp, sortSlabsByDate } from '../utils/slabHelpers';
 
 const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, onClose }) => {
   // Calculate total delays (completed late + currently delayed status)
   const totalDelayed = metrics.late + data.filter(d => d.status === 'Delayed').length;
 
   // Sorting and Grouping for Report
-  const isRamp = (item) => (item.zone || '').toLowerCase().includes('ramp') || (item.slabId || '').toLowerCase().includes('ramp');
-
-  const sortedData = [...filteredData].sort((a, b) => {
-      const dateA = new Date(a.probableCastingDate || a.castingDate || '1970-01-01');
-      const dateB = new Date(b.probableCastingDate || b.castingDate || '1970-01-01');
-      return dateA - dateB; // Ascending (Earliest to Latest)
-  });
+  const sortedData = sortSlabsByDate(filteredData);
 
   const typicalItems = sortedData.filter(item => !isRamp(item));
   const rampItems = sortedData.filter(item => isRamp(item));

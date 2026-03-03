@@ -299,7 +299,7 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
                              <td className="border border-black p-2 text-center">{item.status}</td>
                              <td className="border border-black p-2 text-center">{item.probableCastingDate || item.castingDate || '-'}</td>
                              <td className="border border-black p-2 text-center">{item.actualCastingDate || '-'}</td>
-                             <td className="border border-black p-2 max-w-[200px] truncate">{item.remarks}</td>
+                             <td className="border border-black p-2 break-words whitespace-pre-wrap">{item.remarks}</td>
                           </tr>
                        ))}
                     </tbody>
@@ -328,7 +328,7 @@ const ReportView = ({ selectedProject, user, metrics, filteredData }) => {
                                  <td className="border border-black p-2 text-center">{item.status}</td>
                                  <td className="border border-black p-2 text-center">{item.probableCastingDate || item.castingDate || '-'}</td>
                                  <td className="border border-black p-2 text-center">{item.actualCastingDate || '-'}</td>
-                                 <td className="border border-black p-2 max-w-[200px] truncate">{item.remarks}</td>
+                                 <td className="border border-black p-2 break-words whitespace-pre-wrap">{item.remarks}</td>
                               </tr>
                            ))}
                         </tbody>

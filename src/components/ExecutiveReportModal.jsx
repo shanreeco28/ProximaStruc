@@ -216,7 +216,7 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
                         <td className="border border-black p-1">{item.zone}</td>
                         <td className="border border-black p-1 font-mono">{item.slabId}</td>
                         <td className="border border-black p-1 text-center">{item.status}</td>
-                        <td className="border border-black p-1 italic max-w-[200px] truncate">{item.remarks}</td>
+                        <td className="border border-black p-1 italic break-words whitespace-pre-wrap">{item.remarks}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -244,7 +244,7 @@ const ExecutiveReportModal = ({ selectedProject, metrics, data, filteredData, on
                             <td className="border border-black p-1">{item.zone}</td>
                             <td className="border border-black p-1 font-mono">{item.slabId}</td>
                             <td className="border border-black p-1 text-center">{item.status}</td>
-                            <td className="border border-black p-1 italic max-w-[200px] truncate">{item.remarks}</td>
+                            <td className="border border-black p-1 italic break-words whitespace-pre-wrap">{item.remarks}</td>
                           </tr>
                         ))}
                       </tbody>

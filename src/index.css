@@ -160,6 +160,11 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Print Root Management */
+#print-root {
+  display: none;
+}
+
 /* Print Styles */
 @media print {
   body, html {
@@ -171,12 +176,27 @@ body {
     min-height: 0 !important;
     overflow: visible !important;
   }
+
+  /* Toggle roots based on print-mode-active class */
+  body.print-mode-active #root {
+    display: none !important;
+  }
+  body.print-mode-active #print-root {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 9999;
+    background: white;
+  }
+
   .no-print {
     display: none !important;
   }
   @page {
     size: A4;
-    margin: 10mm;
+    margin: 15mm;
   }
   .print-break-inside-avoid {
     break-inside: avoid;
@@ -188,6 +208,38 @@ body {
   /* Hide scrollbars in print */
   ::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Shared Report Table Styles */
+  .print-report-table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .print-report-table th, .print-report-table td {
+    border: 1px solid black !important;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  .print-report-table th {
+    background-color: #f3f4f6 !important;
+    font-weight: bold;
+  }
+
+  .print-diary-table table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+  .print-diary-table th, .print-diary-table td {
+    border: 1px solid black;
+    padding: 6px;
+    text-align: left;
+    vertical-align: top;
+    font-size: 11px;
+  }
+  .print-diary-table th {
+    background-color: #f3f4f6 !important;
+    font-weight: bold;
   }
 }
 

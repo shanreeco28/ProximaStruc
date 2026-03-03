@@ -127,14 +127,14 @@ export default function App() {
 
       try {
         if (isSignInWithEmailLink(auth, window.location.href)) {
-          let email = window.localStorage.getItem('emailForSignIn');
+          let email = window.sessionStorage.getItem('emailForSignIn');
           if (!email) {
             setEmailConfirmationNeeded(true);
             setAuthLoading(false);
             return;
           }
           await signInWithEmailLink(auth, email, window.location.href);
-          window.localStorage.removeItem('emailForSignIn');
+          window.sessionStorage.removeItem('emailForSignIn');
         } else if (typeof window !== 'undefined' && (window).__initial_auth_token && (window).__initial_auth_token) {
           try { await signInWithCustomToken(auth, (window).__initial_auth_token); } catch (err) {
             console.log('Custom token sign in failed:', err);
@@ -185,7 +185,7 @@ export default function App() {
                 setUser(prev => ({ ...prev, ...userDoc.data() }));
             } else {
                 // Create profile if missing
-                const tempData = JSON.parse(localStorage.getItem('temp_user_data') || '{}');
+                const tempData = JSON.parse(window.sessionStorage.getItem('temp_user_data') || '{}');
                 const newProfile = {
                     name: user.displayName || 'Guest',
                     email: user.email,
@@ -195,7 +195,7 @@ export default function App() {
                     createdAt: new Date().toISOString()
                 };
                 await setDoc(docRef, newProfile);
-                localStorage.removeItem('temp_user_data');
+                window.sessionStorage.removeItem('temp_user_data');
                 setUser(prev => ({ ...prev, ...newProfile }));
             }
         } catch (err) {

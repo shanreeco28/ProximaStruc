@@ -15,6 +15,7 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
   const [focusedSlabId, setFocusedSlabId] = useState(null);
   const [activeGhosts, setActiveGhosts] = useState([]);
   const [offScreenGhosts, setOffScreenGhosts] = useState({ items: [], rect: null });
+  const [filterOption, setFilterOption] = useState('all');
   const hoverTimerRef = useRef(null);
   const lockedEventIdRef = useRef(lockedEventId);
 
@@ -205,11 +206,19 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
 
   const days = []; for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="h-24 md:h-32 bg-slate-50/50 dark:bg-slate-900/50 border-b border-r border-slate-100 dark:border-slate-800"></div>);
 
-  const filteredData = data.filter(item =>
-    !filterText ||
-    item.slabId.toLowerCase().includes(filterText.toLowerCase()) ||
-    item.zone.toLowerCase().includes(filterText.toLowerCase())
-  );
+  const filteredData = data.filter(item => {
+    const textMatch = !filterText ||
+      (item.slabId || '').toLowerCase().includes(filterText.toLowerCase()) ||
+      (Array.isArray(item.bbs) ? item.bbs.map(b => (typeof b === 'object' ? b.number : b)).join(' ') : '').toLowerCase().includes(filterText.toLowerCase()) ||
+      (item.zone || '').toLowerCase().includes(filterText.toLowerCase());
+
+    const isRamp = (item.zone || '').toLowerCase().includes('ramp') || (item.slabId || '').toLowerCase().includes('ramp');
+    let optionMatch = true;
+    if (filterOption === 'typical') optionMatch = !isRamp;
+    if (filterOption === 'ramp') optionMatch = isRamp;
+
+    return textMatch && optionMatch;
+  });
 
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -390,6 +399,17 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                <input type="text" placeholder="Filter Zone/ID..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="w-full pl-8 pr-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm outline-none" />
                {filterText && <button aria-label="Clear filter" onClick={() => setFilterText('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500"><X size={14} /></button>}
+             </div>
+             <div className="relative flex-1 md:w-40">
+               <select
+                 value={filterOption}
+                 onChange={(e) => setFilterOption(e.target.value)}
+                 className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm outline-none appearance-none"
+               >
+                 <option value="all">All Slabs</option>
+                 <option value="typical">Typical Slabs</option>
+                 <option value="ramp">Ramps</option>
+               </select>
              </div>
              <div className="flex gap-1">
                 <button aria-label="Previous month" onClick={prevMonth} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400"><ChevronLeft size={18} /></button><button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300">Today</button><button aria-label="Next month" onClick={nextMonth} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400"><ChevronRight size={18} /></button>

@@ -15,6 +15,7 @@ import SiteDiaryView from './components/SiteDiaryView';
 import LoginView from './components/LoginView';
 import ReportView from './components/ReportView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { auth, db } from './firebase';
 
 import {
@@ -85,8 +86,15 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [emailConfirmationNeeded, setEmailConfirmationNeeded] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [data, setData] = useState([]);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const activeTab = location.pathname.substring(1) || 'dashboard';
+
+  // Helper to sync tab clicks with React Router
+  const setActiveTab = (tabId) => {
+      navigate(`/${tabId}`);
+  };
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
   const [activeModal, setActiveModal] = useState(null); 
@@ -145,8 +153,6 @@ export default function App() {
     initAuth();
     
     // Load simple local storage
-    const savedTab = localStorage.getItem('sb-tab');
-    if (savedTab) setActiveTab(savedTab);
     const savedTheme = localStorage.getItem('sb-theme');
     if (savedTheme) setIsDark(savedTheme === 'dark');
 
@@ -208,7 +214,6 @@ export default function App() {
   }, [user?.uid, selectedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
-  useEffect(() => { if (activeTab) localStorage.setItem('sb-tab', activeTab); }, [activeTab]);
   useEffect(() => { 
     localStorage.setItem('sb-theme', isDark ? 'dark' : 'light'); 
     if (isDark) document.documentElement.classList.add('dark');
@@ -875,18 +880,25 @@ export default function App() {
         </div>
       </nav>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
-        {activeTab === 'dashboard' ? DashboardView() : 
-         activeTab === 'tracker' ? TrackerView() : 
-         activeTab === 'reports' ? <ReportView selectedProject={selectedProject} user={user} metrics={metrics} filteredData={filteredData} /> : 
-         activeTab === 'site-diary' ? <SiteDiaryView selectedProject={selectedProject} user={user} locations={data} /> :
-         <CalendarView
-            data={data}
-            onAssignBBS={handleCalendarAssignBbs}
-            onAssignCasting={handleCalendarAssignCasting}
-            onAssignDelivery={handleCalendarAssignDelivery}
-            onEditSlab={initiateEditCasting}
-            onEditBBS={initiateEditBBS}
-         />}
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardView />} />
+          <Route path="/tracker" element={<TrackerView />} />
+          <Route path="/reports" element={<ReportView selectedProject={selectedProject} user={user} metrics={metrics} filteredData={filteredData} />} />
+          <Route path="/site-diary" element={<SiteDiaryView selectedProject={selectedProject} user={user} locations={data} />} />
+          <Route path="/calendar" element={
+            <CalendarView
+              data={data}
+              onAssignBBS={handleCalendarAssignBbs}
+              onAssignCasting={handleCalendarAssignCasting}
+              onAssignDelivery={handleCalendarAssignDelivery}
+              onEditSlab={initiateEditCasting}
+              onEditBBS={initiateEditBBS}
+            />
+          } />
+          {/* Catch-all route redirects to dashboard */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </main>
       </div>
       <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />

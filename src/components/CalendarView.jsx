@@ -208,12 +208,13 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
 
   const filteredData = data.filter(item => {
     const textMatch = !filterText ||
-      item.slabId.toLowerCase().includes(filterText.toLowerCase()) ||
-      item.zone.toLowerCase().includes(filterText.toLowerCase());
+      (item.slabId || '').toLowerCase().includes(filterText.toLowerCase()) ||
+      (Array.isArray(item.bbs) ? item.bbs.map(b => (typeof b === 'object' ? b.number : b)).join(' ') : '').toLowerCase().includes(filterText.toLowerCase()) ||
+      (item.zone || '').toLowerCase().includes(filterText.toLowerCase());
 
     const isRamp = (item.zone || '').toLowerCase().includes('ramp') || (item.slabId || '').toLowerCase().includes('ramp');
     let optionMatch = true;
-    if (filterOption === 'standard') optionMatch = !isRamp;
+    if (filterOption === 'typical') optionMatch = !isRamp;
     if (filterOption === 'ramp') optionMatch = isRamp;
 
     return textMatch && optionMatch;
@@ -406,7 +407,7 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
                  className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm outline-none appearance-none"
                >
                  <option value="all">All Slabs</option>
-                 <option value="standard">Standard</option>
+                 <option value="typical">Typical Slabs</option>
                  <option value="ramp">Ramps</option>
                </select>
              </div>

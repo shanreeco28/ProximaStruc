@@ -11,6 +11,19 @@ const ZONES = ['A1', 'A2', 'B1', 'B2-A', 'B2-B', 'C', 'D (Ramp)', 'E (STC 4)'];
 const RAMP_LEVELS = Array.from({length: 9}, (_, i) => `Level ${i+1} - Level ${i+2}`);
 const RAMP_PARTS = ['Part 1', 'Part 2', 'Part 3'];
 
+const ACTIVITY_CATEGORIES = [
+  'Site Execution & Progress',
+  'Inspection & Drawings',
+  'EHS & Housekeeping',
+  'Plant & Equipment Check',
+  'Sub-contractor Coordination',
+  'M&E / Archi Interface',
+  'Surveying & Setting Out',
+  'Meetings',
+  'Other'
+];
+
+
 const SiteDiaryView = ({ selectedProject, user }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [entries, setEntries] = useState([]);
@@ -23,6 +36,8 @@ const SiteDiaryView = ({ selectedProject, user }) => {
 
   const [formData, setFormData] = useState({
     subcon: 'Yizhan Construction',
+    category: ACTIVITY_CATEGORIES[0],
+    equipment: '',
     activity: '',
     manpower: ''
   });
@@ -85,6 +100,8 @@ const SiteDiaryView = ({ selectedProject, user }) => {
           date: selectedDate,
           location: locationString,
           subcon: formData.subcon || '',
+          category: formData.category || ACTIVITY_CATEGORIES[0],
+          equipment: formData.equipment || '',
           activity: formData.activity,
           manpower: formData.manpower || '',
           createdBy: user.name || user.email,
@@ -94,6 +111,8 @@ const SiteDiaryView = ({ selectedProject, user }) => {
       // Reset form but keep location selections for quick successive entries
       setFormData({
         subcon: 'Yizhan Construction',
+        category: ACTIVITY_CATEGORIES[0],
+        equipment: '',
         activity: '',
         manpower: ''
       });
@@ -213,6 +232,17 @@ const SiteDiaryView = ({ selectedProject, user }) => {
                             />
                         </div>
                     </div>
+
+                     <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Activity Category</label>
+                        <select
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            value={formData.category}
+                            onChange={e => setFormData({...formData, category: e.target.value})}
+                        >
+                            {ACTIVITY_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
                      <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Activity Description</label>
                         <div className="relative">
@@ -225,6 +255,17 @@ const SiteDiaryView = ({ selectedProject, user }) => {
                                 required
                             />
                         </div>
+                    </div>
+
+                     <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Plant & Equipment</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. 1 Crane, 2 Water Pumps"
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            value={formData.equipment}
+                            onChange={e => setFormData({...formData, equipment: e.target.value})}
+                        />
                     </div>
                      <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Manpower / Resources</label>
@@ -280,6 +321,11 @@ const SiteDiaryView = ({ selectedProject, user }) => {
                                                  <Users size={12} /> {entry.subcon}
                                              </span>
                                          )}
+                                         {entry.category && (
+                                             <span className="text-xs text-soilOrange-600 dark:text-soilOrange-400 font-medium flex items-center gap-1">
+                                                 <Activity size={12} /> {entry.category}
+                                             </span>
+                                         )}
                                      </div>
                                      <div className="text-[10px] text-slate-400 shrink-0 ml-2">
                                          {entry.createdAt && new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -289,6 +335,11 @@ const SiteDiaryView = ({ selectedProject, user }) => {
                                  {entry.manpower && (
                                      <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 px-2 py-1 rounded inline-block">
                                          Manpower: <span className="font-semibold text-slate-700 dark:text-slate-200">{entry.manpower}</span>
+                                     </div>
+                                 )}
+                                 {entry.equipment && (
+                                     <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 px-2 py-1 rounded inline-block ml-2">
+                                         Equipment: <span className="font-semibold text-slate-700 dark:text-slate-200">{entry.equipment}</span>
                                      </div>
                                  )}
                                  <div className="text-[10px] text-slate-400 mt-2 text-right">
@@ -339,8 +390,9 @@ const SiteDiaryView = ({ selectedProject, user }) => {
                 <tr className="bg-gray-100">
                   <th className="w-24">Location</th>
                   <th className="w-24">Sub-contractor</th>
+                  <th className="w-24">Category</th>
                   <th>Activity Description</th>
-                  <th className="w-24">Manpower</th>
+                  <th className="w-24">Manpower & Equipment</th>
                   <th className="w-24">Reported By</th>
                 </tr>
               </thead>
@@ -349,8 +401,12 @@ const SiteDiaryView = ({ selectedProject, user }) => {
                   <tr key={entry.id} className="break-inside-avoid">
                     <td className="font-bold">{entry.location}</td>
                     <td>{entry.subcon || '-'}</td>
+                    <td>{entry.category || '-'}</td>
                     <td className="whitespace-pre-wrap">{entry.activity}</td>
-                    <td>{entry.manpower || '-'}</td>
+                    <td>
+                      <div>M: {entry.manpower || '-'}</div>
+                      <div>E: {entry.equipment || '-'}</div>
+                    </td>
                     <td className="italic text-[10px]">{entry.createdBy}</td>
                   </tr>
                 ))}

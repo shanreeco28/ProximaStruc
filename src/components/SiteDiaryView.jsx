@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Users, Activity, Plus, FileText, Trash2, Printer } from 'lucide-react';
+import { Calendar, MapPin, Users, Activity, Plus, FileText, Trash2, Printer, Wand2, Loader2 } from 'lucide-react';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { usePrintMode } from '../hooks/usePrintMode';
 import PrintPortal from './PrintPortal';
+import { enhanceActivityDescription } from '../utils/aiEnhancer';
 
 // Constants for Dropdowns
 const LEVELS = ['Basement', ...Array.from({length: 10}, (_, i) => `L${i+1}`), 'Roof', 'Ramp'];
@@ -42,6 +43,7 @@ const SiteDiaryView = ({ selectedProject, user }) => {
     manpower: ''
   });
   const [loading, setLoading] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
 
   usePrintMode(true);
 
@@ -130,6 +132,20 @@ const SiteDiaryView = ({ selectedProject, user }) => {
       } catch (err) {
           alert(`Error deleting entry: ${err.message}`);
       }
+  };
+
+  const handleEnhanceActivity = async () => {
+    if (!formData.activity.trim()) return;
+
+    setIsEnhancing(true);
+    try {
+      const enhancedText = await enhanceActivityDescription(formData.activity);
+      setFormData(prev => ({ ...prev, activity: enhancedText }));
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsEnhancing(false);
+    }
   };
 
   const handlePrint = () => {
@@ -244,14 +260,27 @@ const SiteDiaryView = ({ selectedProject, user }) => {
                         </select>
                     </div>
                      <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Activity Description</label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Activity Description</label>
+                            <button
+                                type="button"
+                                onClick={handleEnhanceActivity}
+                                disabled={isEnhancing || !formData.activity.trim()}
+                                className="text-xs font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 px-2 py-1 rounded transition-colors"
+                                title="Auto-fix spelling, grammar, and improve professional tone using AI"
+                            >
+                                {isEnhancing ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                                {isEnhancing ? 'Enhancing...' : '✨ Auto-Enhance'}
+                            </button>
+                        </div>
                         <div className="relative">
                             <Activity className="absolute left-3 top-3 text-slate-400" size={16} />
                             <textarea
                                 placeholder="Describe work done..."
-                                className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm min-h-[100px] resize-none"
+                                className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm min-h-[100px] resize-none disabled:opacity-50"
                                 value={formData.activity}
                                 onChange={e => setFormData({...formData, activity: e.target.value})}
+                                disabled={isEnhancing}
                                 required
                             />
                         </div>

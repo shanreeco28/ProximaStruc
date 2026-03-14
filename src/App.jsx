@@ -277,6 +277,7 @@ export default function App() {
   };
 
   const handleDeleteProject = (projectId) => {
+      if (!checkAdmin()) return;
       setProjects(projects.filter(p => p.id !== projectId));
       if (selectedProject?.id === projectId) {
           setSelectedProject(null);

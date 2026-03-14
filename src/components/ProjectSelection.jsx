@@ -49,7 +49,7 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
 
               {/* Active Indicator (optional logic if needed) */}
               <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 flex gap-2">
-                {onDelete && (
+                {user?.role === 'admin' && onDelete && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

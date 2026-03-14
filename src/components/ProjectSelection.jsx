@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Briefcase, Plus, LogOut, ArrowRight, Building, CheckCircle2 } from 'lucide-react';
+import { Briefcase, Plus, LogOut, ArrowRight, Building, CheckCircle2, Trash2 } from 'lucide-react';
 
-const ProjectSelection = ({ projects, onSelect, onAdd, onLogout, user }) => {
+const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user }) => {
   const [newProjectName, setNewProjectName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
 
@@ -48,7 +48,21 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onLogout, user }) => {
               </div>
 
               {/* Active Indicator (optional logic if needed) */}
-              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500">
+              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 flex gap-2">
+                {onDelete && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Are you sure you want to delete project "${project.name}"?`)) {
+                        onDelete(project.id);
+                      }
+                    }}
+                    className="text-slate-400 hover:text-red-500 transition-colors"
+                    title="Delete Project"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                )}
                 <CheckCircle2 size={20} />
               </div>
             </button>

@@ -276,6 +276,13 @@ export default function App() {
       setProjects([...projects, newProj]);
   };
 
+  const handleDeleteProject = (projectId) => {
+      setProjects(projects.filter(p => p.id !== projectId));
+      if (selectedProject?.id === projectId) {
+          setSelectedProject(null);
+      }
+  };
+
   // Profile Update
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
@@ -803,7 +810,7 @@ export default function App() {
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-500">Connecting to Cloud...</div>;
   if (!user) return <LoginView initialMode={emailConfirmationNeeded ? 'confirm-email' : 'login'} isDark={isDark} toggleTheme={toggleTheme} />;
-  if (!selectedProject) return <ProjectSelection projects={projects} onSelect={setSelectedProject} onAdd={handleAddProject} onLogout={handleLogout} user={user} />;
+  if (!selectedProject) return <ProjectSelection projects={projects} onSelect={setSelectedProject} onAdd={handleAddProject} onDelete={handleDeleteProject} onLogout={handleLogout} user={user} />;
 
   return (
     <div className="min-h-screen font-sans text-slate-900 dark:text-slate-50 transition-colors duration-300 bg-fixed bg-cover bg-center print:!bg-none print:!bg-white" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=2070&auto=format&fit=crop')" }}>

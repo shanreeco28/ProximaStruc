@@ -151,7 +151,7 @@ export default function App() {
             console.log('Custom token sign in failed:', err);
           }
         }
-      } catch (error) { console.error("Auth error:", error); } finally { setAuthLoading(false); }
+      } catch (error) { console.error("Auth error:", error); }
     };
     initAuth();
     

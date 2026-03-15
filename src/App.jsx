@@ -107,7 +107,10 @@ export default function App() {
      const saved = localStorage.getItem('sb-projects');
      return saved ? JSON.parse(saved) : [{ id: 'tnd4-castrack', name: 'TND4 Project' }];
   });
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(() => {
+     const saved = localStorage.getItem('sb-selected-project');
+     return saved ? JSON.parse(saved) : null;
+  });
 
   const [editingRemark, setEditingRemark] = useState({ id: null, text: '' });
   const [editingSlabId, setEditingSlabId] = useState({ id: null, text: '' });
@@ -148,7 +151,7 @@ export default function App() {
             console.log('Custom token sign in failed:', err);
           }
         }
-      } catch (error) { console.error("Auth error:", error); } finally { setAuthLoading(false); }
+      } catch (error) { console.error("Auth error:", error); }
     };
     initAuth();
     
@@ -178,6 +181,15 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('sb-projects', JSON.stringify(projects));
   }, [projects]);
+
+  // --- Selected Project Sync Effect ---
+  useEffect(() => {
+    if (selectedProject) {
+      localStorage.setItem('sb-selected-project', JSON.stringify(selectedProject));
+    } else {
+      localStorage.removeItem('sb-selected-project');
+    }
+  }, [selectedProject]);
 
   // --- Sync User Profile when Project Selected ---
   useEffect(() => {

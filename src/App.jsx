@@ -54,7 +54,8 @@ import {
   ArrowDown,
   RefreshCw,
   BookOpen,
-  Users
+  Users,
+  Menu
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -103,6 +104,7 @@ export default function App() {
   const [isDark, setIsDark] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [trackerSubTab, setTrackerSubTab] = useState('standard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Project Management State
   const [projects, setProjects] = useState(() => {
@@ -829,6 +831,13 @@ export default function App() {
       <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md text-slate-800 dark:text-white sticky top-0 z-50 shadow-sm border-b border-slate-200/50 dark:border-slate-700/50 print:hidden transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              aria-label="Open Sidebar"
+            >
+              <Menu size={24} />
+            </button>
             <div className="bg-white p-2 rounded-xl shadow-lg">
               <AppLogo className="h-8 w-8" />
             </div>
@@ -842,12 +851,9 @@ export default function App() {
           <div className="hidden md:flex items-center space-x-1">
             {[
               { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-              { id: 'tracker', label: 'Tracker', icon: FileText },
               { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
-              { id: 'site-diary', label: 'Site Diary', icon: BookOpen },
-              { id: 'reports', label: 'Reports', icon: BarChart3 },
-              { id: 'users', label: 'Users', icon: Users, adminOnly: true }
-            ].filter(tab => !tab.adminOnly || user?.role === 'admin').map(tab => (
+              { id: 'site-diary', label: 'Site Diary', icon: BookOpen }
+            ].map(tab => (
               <button 
                 key={tab.id} 
                 onClick={() => setActiveTab(tab.id)} 
@@ -921,6 +927,77 @@ export default function App() {
       </main>
       </div>
       <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
+
+      {/* Retractable Sidebar */}
+      {isSidebarOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsSidebarOpen(false)}
+          ></div>
+
+          {/* Sidebar Panel */}
+          <div className="relative flex w-full max-w-xs flex-1 flex-col bg-white dark:bg-slate-900 shadow-2xl animate-in slide-in-from-left duration-300">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
+              <span className="font-bold text-lg text-slate-800 dark:text-white">More Options</span>
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                aria-label="Close Sidebar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <nav className="flex-1 overflow-y-auto p-4 space-y-2">
+              {[
+                { id: 'tracker', label: 'Tracker', icon: FileText },
+                { id: 'reports', label: 'Reports', icon: BarChart3 },
+                { id: 'users', label: 'Users', icon: Users, adminOnly: true }
+              ].filter(tab => !tab.adminOnly || user?.role === 'admin').map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setIsSidebarOpen(false);
+                  }}
+                  className={`flex items-center w-full gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <tab.icon size={18} />
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
+                  {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800 dark:text-white">{user.name || user.email}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{user.designation || user.role}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  handleLogout();
+                  setIsSidebarOpen(false);
+                }}
+                className="flex items-center w-full gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <LogOut size={18} />
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Root-level Report Modal */}
       {activeModal === 'report' && (

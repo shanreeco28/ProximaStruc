@@ -15,6 +15,7 @@ import SiteDiaryView from './components/SiteDiaryView';
 import LoginView from './components/LoginView';
 import ReportView from './components/ReportView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
+import UserManagementView from './components/UserManagementView';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { auth, db } from './firebase';
 
@@ -52,7 +53,8 @@ import {
   ArrowUp,
   ArrowDown,
   RefreshCw,
-  BookOpen
+  BookOpen,
+  Users
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -273,12 +275,19 @@ export default function App() {
           alert('Project ID already exists.');
           return;
       }
-      setProjects([...projects, newProj]);
+      const updatedProjects = [...projects, newProj];
+      setProjects(updatedProjects);
+      localStorage.setItem('sb-projects', JSON.stringify(updatedProjects));
   };
 
-  const handleDeleteProject = (projectId) => {
+  const handleDeleteProject = async (projectId) => {
       if (!checkAdmin()) return;
-      setProjects(projects.filter(p => p.id !== projectId));
+      // Ideally we would delete from Firestore here, but since projects are stored in local state/storage
+      // in this simplified example without a central projects collection, we just remove it locally.
+      // We will ensure it updates localStorage.
+      const updatedProjects = projects.filter(p => p.id !== projectId);
+      setProjects(updatedProjects);
+      localStorage.setItem('sb-projects', JSON.stringify(updatedProjects));
       if (selectedProject?.id === projectId) {
           setSelectedProject(null);
       }
@@ -836,8 +845,9 @@ export default function App() {
               { id: 'tracker', label: 'Tracker', icon: FileText },
               { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
               { id: 'site-diary', label: 'Site Diary', icon: BookOpen },
-              { id: 'reports', label: 'Reports', icon: BarChart3 }
-            ].map(tab => (
+              { id: 'reports', label: 'Reports', icon: BarChart3 },
+              { id: 'users', label: 'Users', icon: Users, adminOnly: true }
+            ].filter(tab => !tab.adminOnly || user?.role === 'admin').map(tab => (
               <button 
                 key={tab.id} 
                 onClick={() => setActiveTab(tab.id)} 
@@ -894,6 +904,7 @@ export default function App() {
           <Route path="/tracker" element={<TrackerView />} />
           <Route path="/reports" element={<ReportView selectedProject={selectedProject} user={user} metrics={metrics} filteredData={filteredData} />} />
           <Route path="/site-diary" element={<SiteDiaryView selectedProject={selectedProject} user={user} locations={data} />} />
+          <Route path="/users" element={<UserManagementView selectedProject={selectedProject} user={user} />} />
           <Route path="/calendar" element={
             <CalendarView
               data={data}

@@ -47,8 +47,8 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
                 Open Workspace <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
               </div>
 
-              {/* Active Indicator (optional logic if needed) */}
-              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 flex gap-2">
+              {/* Actions (Delete & Active Indicator) */}
+              <div className="absolute top-4 right-4 flex gap-2">
                 {user?.role === 'admin' && onDelete && (
                   <button
                     onClick={(e) => {
@@ -63,7 +63,9 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
                     <Trash2 size={20} />
                   </button>
                 )}
-                <CheckCircle2 size={20} />
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500">
+                  <CheckCircle2 size={20} />
+                </div>
               </div>
             </button>
           ))}

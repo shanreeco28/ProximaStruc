@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Briefcase, Plus, LogOut, ArrowRight, Building, CheckCircle2 } from 'lucide-react';
+import { Briefcase, Plus, LogOut, ArrowRight, Building, CheckCircle2, Trash2 } from 'lucide-react';
 
-const ProjectSelection = ({ projects, onSelect, onAdd, onLogout, user }) => {
+const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user }) => {
   const [newProjectName, setNewProjectName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
 
@@ -47,9 +47,25 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onLogout, user }) => {
                 Open Workspace <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
               </div>
 
-              {/* Active Indicator (optional logic if needed) */}
-              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500">
-                <CheckCircle2 size={20} />
+              {/* Actions (Delete & Active Indicator) */}
+              <div className="absolute top-4 right-4 flex gap-2">
+                {user?.role === 'admin' && onDelete && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Are you sure you want to delete project "${project.name}"?`)) {
+                        onDelete(project.id);
+                      }
+                    }}
+                    className="text-slate-400 hover:text-red-500 transition-colors"
+                    title="Delete Project"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                )}
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500">
+                  <CheckCircle2 size={20} />
+                </div>
               </div>
             </button>
           ))}

@@ -162,7 +162,10 @@ body {
 
 /* Print Root Management */
 #print-root {
-  display: none;
+  position: absolute;
+  left: -9999px;
+  visibility: hidden;
+  height: 0;
 }
 
 /* Print Styles */
@@ -182,12 +185,11 @@ body {
     display: none !important;
   }
   body.print-mode-active #print-root {
+    position: static !important;
+    visibility: visible !important;
+    height: auto !important;
     display: block !important;
-    position: absolute;
-    top: 0;
-    left: 0;
     width: 100%;
-    z-index: 9999;
     background: white;
   }
 

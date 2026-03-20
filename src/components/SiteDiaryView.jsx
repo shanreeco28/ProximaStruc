@@ -145,14 +145,14 @@ const SiteDiaryView = ({ selectedProject, user }) => {
         </h2>
 
         {/* Date Selection */}
-        <div className="flex flex-col md:flex-row md:items-center flex-wrap gap-4 mb-8">
-            <div className="relative w-full md:w-auto">
+        <div className="flex flex-col md:flex-row md:items-center flex-wrap gap-4 mb-8 overflow-hidden">
+            <div className="relative w-full md:w-auto max-w-full">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full md:w-auto pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-soilOrange-500"
+                    className="w-full md:w-auto max-w-full block min-w-0 pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-soilOrange-500"
                 />
             </div>
             <span className="text-sm text-slate-500 dark:text-slate-400 break-words max-w-full">

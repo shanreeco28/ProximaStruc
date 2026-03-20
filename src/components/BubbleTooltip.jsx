@@ -1,23 +1,41 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 const BubbleTooltip = ({ title, content, author, children, onVisible, onHidden, meta }) => {
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [show, setShow] = useState(false);
   const timerRef = useRef(null);
+  const triggerRef = useRef(null);
+
+  const updatePosition = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPosition({ top: rect.top - 8, left: rect.left + rect.width / 2 });
+    }
+  };
+
+  useEffect(() => {
+    if (show) {
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition, true);
+
+      return () => {
+        window.removeEventListener('scroll', updatePosition, true);
+        window.removeEventListener('resize', updatePosition, true);
+      };
+    }
+  }, [show]);
 
   const handleMouseEnter = (e) => {
     if (onVisible) onVisible(meta, false);
     if (!content && !author && !title) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    setPosition({ top: rect.top - 8, left: rect.left + rect.width / 2 });
+    updatePosition();
     timerRef.current = setTimeout(() => setShow(true), 2000);
   };
 
   const handleClick = (e) => {
     e.stopPropagation();
     if (!content && !author && !title) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    setPosition({ top: rect.top - 8, left: rect.left + rect.width / 2 });
+    updatePosition();
 
     if (show) {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -34,7 +52,7 @@ const BubbleTooltip = ({ title, content, author, children, onVisible, onHidden, 
 
   return (
     <>
-      <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} onClick={handleClick} className="relative w-full cursor-pointer">
+      <div ref={triggerRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} onClick={handleClick} className="relative w-full cursor-pointer">
         {children}
       </div>
       {show && (

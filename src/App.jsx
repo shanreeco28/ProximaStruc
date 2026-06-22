@@ -14,6 +14,9 @@ import CalendarView from './components/CalendarView';
 import SiteDiaryView from './components/SiteDiaryView';
 import LoginView from './components/LoginView';
 import ReportView from './components/ReportView';
+import InspectionsView from './components/InspectionsView';
+import LiftingView from './components/LiftingView';
+import MaterialsView from './components/MaterialsView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
 import UserManagementView from './components/UserManagementView';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -55,7 +58,10 @@ import {
   RefreshCw,
   BookOpen,
   Users,
-  Menu
+  Menu,
+  FileCheck,
+  Building2 as Crane,
+  Package
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -854,8 +860,8 @@ export default function App() {
               <AppLogo className="h-8 w-8" />
             </div>
             <div>
-              <span className="font-bold text-lg md:text-xl tracking-tight hidden md:block text-slate-800 dark:text-white">SB-CasTrack</span>
-              <span className="md:hidden font-bold text-slate-800 dark:text-white">SB-CT</span>
+              <span className="font-bold text-lg md:text-xl tracking-tight hidden md:block text-slate-800 dark:text-white">CasTrack</span>
+              <span className="md:hidden font-bold text-slate-800 dark:text-white">CasTrack</span>
               <p className="text-xs text-slate-500 dark:text-slate-400 hidden md:block">{selectedProject?.name}</p>
             </div>
           </div>
@@ -920,6 +926,9 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardView />} />
           <Route path="/tracker" element={<TrackerView />} />
+          <Route path="/inspections" element={<InspectionsView selectedProject={selectedProject} />} />
+          <Route path="/lifting" element={<LiftingView selectedProject={selectedProject} />} />
+          <Route path="/materials" element={<MaterialsView selectedProject={selectedProject} />} />
           <Route path="/reports" element={<ReportView selectedProject={selectedProject} user={user} metrics={metrics} filteredData={filteredData} />} />
           <Route path="/site-diary" element={<SiteDiaryView selectedProject={selectedProject} user={user} locations={data} />} />
           <Route path="/users" element={<UserManagementView selectedProject={selectedProject} user={user} />} />
@@ -965,6 +974,9 @@ export default function App() {
             <nav className="flex-1 overflow-y-auto p-4 space-y-2">
               {[
                 { id: 'tracker', label: 'Tracker', icon: FileText },
+                { id: 'inspections', label: 'Inspections & QA/QC', icon: FileCheck },
+                { id: 'lifting', label: 'Lifting Operations', icon: Crane },
+                { id: 'materials', label: 'Material Tracking', icon: Package },
                 { id: 'reports', label: 'Reports', icon: BarChart3 },
                 { id: 'users', label: 'Users', icon: Users, adminOnly: true }
               ].filter(tab => !tab.adminOnly || user?.role === 'admin').map(tab => (

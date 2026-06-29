@@ -12,10 +12,10 @@ const StatusSelect = ({ currentStatus, targetDate, actualDate, onChange, disable
       const target = new Date(targetDate).setHours(0,0,0,0);
       const actual = new Date(actualDate).setHours(0,0,0,0);
       if (actual > target) statusStyle = "bg-red-600 text-white border-red-700 font-bold shadow-sm";
-      else if (actual <= target) statusStyle = "bg-soilGreen-600 text-white border-soilGreen-700 font-bold shadow-sm";
+      else if (actual <= target) statusStyle = "bg-zinc-600 text-white border-zinc-700 font-bold shadow-sm";
       else statusStyle = "bg-white dark:bg-slate-700 text-slate-700 dark:text-white border-slate-300 dark:border-slate-600";
     } else {
-      statusStyle = "bg-soilGreen-600 text-white border-soilGreen-700 shadow-sm";
+      statusStyle = "bg-zinc-600 text-white border-zinc-700 shadow-sm";
     }
   }
   return (

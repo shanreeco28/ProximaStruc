@@ -319,15 +319,15 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
                     icon = <Target size={8} />;
                     label = `Prob: ${event.slabId}`;
                 } else {
-                    colorClass = "bg-soilGreen-50 dark:bg-soilGreen-900/30 text-soilGreen-700 dark:text-soilGreen-400 border-soilGreen-500 dark:border-soilGreen-500 border-2 border-dashed";
+                    colorClass = "bg-zinc-50 dark:bg-zinc-900/30 text-zinc-700 dark:text-zinc-400 border-zinc-500 dark:border-zinc-500 border-2 border-dashed";
                     icon = <Hammer size={8} />;
                     label = `Plan: ${event.slabId}`;
                 }
             }
             else if (event.type === 'castTargetOngoing') { colorClass = "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-500 dark:border-blue-500 border-2 border-dashed"; icon = <Hammer size={8} />; label = `Ongoing: ${event.slabId}`; }
-            else if (event.type === 'castTargetCompleted') { colorClass = "bg-soilGreen-600 text-white border-soilGreen-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
-            else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-600 text-white border-red-700" : "bg-soilGreen-600 text-white border-soilGreen-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
-            else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-soilOrange-50 dark:bg-soilOrange-900/30 text-soilOrange-700 dark:text-soilOrange-400 border-soilOrange-100 dark:border-soilOrange-800"; icon = <Truck size={8} />; }
+            else if (event.type === 'castTargetCompleted') { colorClass = "bg-zinc-600 text-white border-zinc-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
+            else if (event.type === 'castActual') { colorClass = event.isLate ? "bg-red-600 text-white border-red-700" : "bg-zinc-600 text-white border-zinc-700"; icon = <CheckCircle2 size={8} />; label = `Done: ${event.slabId}`; }
+            else if (event.type === 'delivery') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-neutral-50 dark:bg-neutral-900/30 text-neutral-700 dark:text-neutral-400 border-neutral-100 dark:border-neutral-800"; icon = <Truck size={8} />; }
             else if (event.type === 'bbsActual') { colorClass = event.isLate ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800"; icon = <Target size={8} />; label = `BBS: ${event.bbsNum}`; }
             else if (event.type === 'bbsTarget') { colorClass = "bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-600 border-dashed text-purple-400 dark:text-purple-500"; icon = <Target size={8} />; label = `Plan BBS: ${event.bbsNum}`; }
             else if (event.type === 'bbsTargetCompleted') { colorClass = "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-500 dark:border-purple-500 border-2 border-dashed"; icon = <Target size={8} />; label = `BBS Done: ${event.bbsNum}`; }
@@ -376,10 +376,10 @@ const CalendarView = ({ data, onAssignBBS, onAssignCasting, onAssignDelivery, on
              <Target size={14} className="text-purple-500" /> Assign BBS
            </button>
            <button onClick={() => onAssignCasting && onAssignCasting(contextMenu.date)} className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2">
-             <Hammer size={14} className="text-soilGreen-600" /> Schedule Casting
+             <Hammer size={14} className="text-zinc-600" /> Schedule Casting
            </button>
            <button onClick={() => onAssignDelivery && onAssignDelivery(contextMenu.date)} className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2">
-             <PackagePlus size={14} className="text-soilOrange-500" /> Log HCS Delivery
+             <PackagePlus size={14} className="text-neutral-500" /> Log HCS Delivery
            </button>
         </div>
       )}

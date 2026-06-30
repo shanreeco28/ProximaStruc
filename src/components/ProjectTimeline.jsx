@@ -23,7 +23,7 @@ const ProjectTimeline = ({ filteredData }) => {
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <Activity className="text-soilGreen-600" size={24} />
+          <Activity className="text-zinc-600" size={24} />
           Project Timeline
         </h2>
         <div className="flex gap-2">
@@ -33,7 +33,7 @@ const ProjectTimeline = ({ filteredData }) => {
               onClick={() => setViewMode(mode)}
               className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
                 viewMode === mode
-                  ? 'bg-soilGreen-600 text-white'
+                  ? 'bg-zinc-600 text-white'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >

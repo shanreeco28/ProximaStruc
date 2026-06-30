@@ -259,6 +259,6 @@ body {
 }
 
 *:focus-visible {
-  outline: 2px solid #F9A825; /* soilOrange-500 */
+  outline: 2px solid #71717a; /* zinc-500 */
   outline-offset: 2px;
 }

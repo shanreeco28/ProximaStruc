@@ -109,7 +109,7 @@ export default function App() {
   // Project Management State
   const [projects, setProjects] = useState(() => {
      const saved = localStorage.getItem('sb-projects');
-     return saved ? JSON.parse(saved) : [{ id: 'tnd4-castrack', name: 'TND4 Project' }];
+     return saved ? JSON.parse(saved) : [{ id: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'default-project', name: 'Default Project' }];
   });
   const [selectedProject, setSelectedProject] = useState(() => {
      const saved = localStorage.getItem('sb-selected-project');
@@ -134,7 +134,7 @@ export default function App() {
         if (urlParams.get('test_mode') === 'true') {
            console.log("Test Mode Activated");
            setUser({ uid: 'test-user', email: 'test@example.com', name: 'Test User', role: 'admin' });
-           setSelectedProject({ id: 'tnd4-castrack', name: 'TND4 Project' });
+           setSelectedProject({ id: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'default-project', name: 'Default Project' });
            setAuthLoading(false);
            return;
         }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Calendar as CalendarIcon, BarChart3, BookOpen } from 'lucide-react';
+import { LayoutDashboard, FileText, Calendar as CalendarIcon, BarChart3, BookOpen, FileCheck, Building2 as Crane, Package } from 'lucide-react';
 
 const MobileNav = ({ activeTab, setActiveTab }) => {
   const tabs = [
@@ -7,7 +7,9 @@ const MobileNav = ({ activeTab, setActiveTab }) => {
     { id: 'tracker', label: 'Tracker', icon: FileText },
     { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
     { id: 'site-diary', label: 'Diary', icon: BookOpen },
-    { id: 'reports', label: 'Reports', icon: BarChart3 }
+    { id: 'inspections', label: 'QA/QC', icon: FileCheck },
+    { id: 'lifting', label: 'Lifting', icon: Crane },
+    { id: 'materials', label: 'Materials', icon: Package }
   ];
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-700 p-2 pb-safe z-50 shadow-2xl flex justify-around items-center no-print">

@@ -83,6 +83,7 @@ import {
   arrayUnion,
   setDoc,
   getDoc,
+  getDocs,
   orderBy,
   limit
 } from 'firebase/firestore';
@@ -214,10 +215,15 @@ export default function App() {
             } else {
                 // Create profile if missing
                 const tempData = JSON.parse(localStorage.getItem('temp_user_data') || '{}');
+
+                // Check if this is the first user in the project
+                const usersSnap = await getDocs(query(collection(db, 'artifacts', selectedProject.id, 'users'), limit(1)));
+                const assignedRole = usersSnap.empty ? 'admin' : 'guest';
+
                 const newProfile = {
                     name: user.displayName || 'Guest',
                     email: user.email,
-                    role: 'guest', // Default role
+                    role: assignedRole,
                     designation: tempData.designation || 'N/A',
                     birthday: tempData.birthday || '',
                     createdAt: new Date().toISOString()

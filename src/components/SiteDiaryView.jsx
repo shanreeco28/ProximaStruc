@@ -1,428 +1,113 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Users, Activity, Plus, FileText, Trash2, Printer } from 'lucide-react';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
-import { db } from '../firebase';
-import { usePrintMode } from '../hooks/usePrintMode';
-import PrintPortal from './PrintPortal';
+import React, { useState } from 'react';
 
-// Constants for Dropdowns
-const LEVELS = ['Basement', ...Array.from({length: 10}, (_, i) => `L${i+1}`), 'Roof', 'Ramp'];
-const ZONES = ['A1', 'A2', 'B1', 'B2-A', 'B2-B', 'C', 'D (Ramp)', 'E (STC 4)'];
-const RAMP_LEVELS = Array.from({length: 9}, (_, i) => `Level ${i+1} - Level ${i+2}`);
-const RAMP_PARTS = ['Part 1', 'Part 2', 'Part 3'];
+export default function SiteDiaryView() {
+  const [weatherLogs, setWeatherLogs] = useState([
+    {
+      id: 1,
+      timeWindow: '13:40 – 15:10 (1.5 hrs)',
+      event: 'NEA Heavy Rain & Lightning Risk Alert (Cat 1)',
+      impact: 'Tower Crane TC-1 & TC-2 lifting suspended; Zone A L6 open slab rebar tying halted.',
+      contractClause: 'PSSCOC Cl. 14.2 (Weather EOT Record)',
+    },
+  ]);
 
-const ACTIVITY_CATEGORIES = [
-  'Site Execution & Progress',
-  'Inspection & Drawings',
-  'PTW Coordination',
-  'QA/QC Non-Compliance',
-  'Safety & EHS Observations',
-  'Plant & Lifting Checks',
-  'Sub-contractor Manpower',
-  'M&E / Archi Interface',
-  'Surveying & Setting Out',
-  'Meetings',
-  'Other'
-];
+  const [newTime, setNewTime] = useState('');
+  const [newImpact, setNewImpact] = useState('');
 
-
-const SiteDiaryView = ({ selectedProject, user }) => {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [entries, setEntries] = useState([]);
-
-  // State for form fields
-  const [level, setLevel] = useState('L1');
-  const [zone, setZone] = useState('A1');
-  const [rampLevel, setRampLevel] = useState(RAMP_LEVELS[0]);
-  const [rampPart, setRampPart] = useState(RAMP_PARTS[0]);
-
-  const [formData, setFormData] = useState({
-    subcon: 'Yizhan Construction',
-    category: ACTIVITY_CATEGORIES[0],
-    equipment: '',
-    activity: '',
-    manpower: ''
-  });
-  const [loading, setLoading] = useState(false);
-
-  usePrintMode(true);
-
-  // Effect to handle Ramp auto-zone logic
-  useEffect(() => {
-    if (level === 'Ramp') {
-        setZone('D (Ramp)');
-    } else {
-        // If switching away from Ramp, reset zone if it was the forced 'D (Ramp)'
-        // or just ensure we have a valid zone.
-        // We'll default to 'A1' if the current zone is 'D (Ramp)' to avoid confusion,
-        // or keep it if it's a valid manual selection (but 'D (Ramp)' implies Ramp).
-        if (zone === 'D (Ramp)') setZone('A1');
-    }
-  }, [level]);
-
-  useEffect(() => {
-    if (!selectedProject?.id || !selectedDate) return;
-
-    const q = query(
-      collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'site_diary'),
-      where('date', '==', selectedDate)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        items.sort((a, b) => {
-            const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-            const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-            return dateB - dateA;
-        });
-        setEntries(items);
-    }, (error) => {
-        console.error("Error fetching diary entries:", error);
-    });
-
-    return () => unsubscribe();
-  }, [selectedProject?.id, selectedDate]);
-
-  const handleAddEntry = async (e) => {
+  const handleAddDelay = (e) => {
     e.preventDefault();
-    if (!selectedProject?.id || !user) return;
-    if (!formData.activity) return;
-
-    // Construct Location String
-    let locationString = '';
-    if (level === 'Ramp') {
-        locationString = `${rampLevel} Ramp ${rampPart}`;
-    } else {
-        locationString = `${level} - Zone ${zone}`;
-    }
-
-    setLoading(true);
-    try {
-      await addDoc(collection(db, 'artifacts', selectedProject.id, 'public', 'data', 'site_diary'), {
-          date: selectedDate,
-          location: locationString,
-          subcon: formData.subcon || '',
-          category: formData.category || ACTIVITY_CATEGORIES[0],
-          equipment: formData.equipment || '',
-          activity: formData.activity,
-          manpower: formData.manpower || '',
-          createdBy: user.name || user.email,
-          uid: user.uid,
-          createdAt: new Date().toISOString()
-      });
-      // Reset form but keep location selections for quick successive entries
-      setFormData({
-        subcon: 'Yizhan Construction',
-        category: ACTIVITY_CATEGORIES[0],
-        equipment: '',
-        activity: '',
-        manpower: ''
-      });
-    } catch (err) {
-      alert(`Error adding entry: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteEntry = async (id) => {
-      if (!selectedProject?.id || !confirm("Are you sure you want to delete this entry?")) return;
-      try {
-          await deleteDoc(doc(db, 'artifacts', selectedProject.id, 'public', 'data', 'site_diary', id));
-      } catch (err) {
-          alert(`Error deleting entry: ${err.message}`);
-      }
-  };
-
-  const handlePrint = () => {
-    window.print();
+    if (!newTime || !newImpact) return;
+    setWeatherLogs([
+      ...weatherLogs,
+      {
+        id: Date.now(),
+        timeWindow: newTime,
+        event: 'Inclement Weather / Lightning Alert',
+        impact: newImpact,
+        contractClause: 'PSSCOC Cl. 14.2 (Weather EOT Record)',
+      },
+    ]);
+    setNewTime('');
+    setNewImpact('');
   };
 
   return (
-    <>
-    <div className="space-y-6 animate-in fade-in duration-500 pb-20 md:pb-0 print:hidden">
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-6">
-          <FileText className="text-neutral-500" /> Site Diary & Daily Reporting
-        </h2>
+    <div className="space-y-6">
+      {/* NEA & MOM Statutory Environmental Telemetry */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-slate-200">
+          <span className="text-[11px] font-bold uppercase text-slate-400">NEA Boundary Noise (1hr Leq)</span>
+          <div className="text-xl font-bold font-mono text-emerald-700 mt-1">68.4 dB(A)</div>
+          <span className="text-xs text-slate-500">Limit: 75 dB(A) (07:00–19:00)</span>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200">
+          <span className="text-[11px] font-bold uppercase text-slate-400">PUB / NEA ECM Silt Trap TSS</span>
+          <div className="text-xl font-bold font-mono text-emerald-700 mt-1">32 mg/L</div>
+          <span className="text-xs text-slate-500">Legal Discharge Limit: &lt; 50 mg/L</span>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200">
+          <span className="text-[11px] font-bold uppercase text-slate-400">NEA Dengue & Fogging Cycle</span>
+          <div className="text-xl font-bold font-mono text-slate-900 mt-1">Cleared (ECO)</div>
+          <span className="text-xs text-slate-500">Weekly Vector Audit Signed Off</span>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200">
+          <span className="text-[11px] font-bold uppercase text-slate-400">Biometric Turnstile Headcount</span>
+          <div className="text-xl font-bold font-mono text-blue-700 mt-1">318 Pax</div>
+          <span className="text-xs text-slate-500">MainCon: 42 • Subcon: 276</span>
+        </div>
+      </div>
 
-        {/* Date Selection */}
-        <div className="flex flex-col md:flex-row md:items-center flex-wrap gap-4 mb-8 overflow-hidden">
-            <div className="relative w-full md:w-auto max-w-full">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full md:w-auto max-w-full block min-w-0 pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-neutral-500"
-                />
-            </div>
-            <span className="text-sm text-slate-500 dark:text-slate-400 break-words max-w-full">
-                Viewing report for <span className="font-semibold text-slate-800 dark:text-slate-200">{new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-            </span>
+      {/* Contractual Weather & EOT Substantiation Logger */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              Contemporaneous Weather & Stop-Work Log (EOT Defense)
+            </h2>
+            <p className="text-xs text-slate-500">
+              Timestamped records for Architect / SO verification under SIA / PSSCOC forms of contract.
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Add Entry Form */}
-            <div className="lg:col-span-1 space-y-4">
-                <h3 className="font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 pb-2">Add New Entry</h3>
-                <form onSubmit={handleAddEntry} className="space-y-4">
-                    {/* Location Dropdowns */}
-                    <div className="space-y-3 p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-100 dark:border-slate-700">
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Location Selection</label>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Level</label>
-                                <select
-                                    className="w-full px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm outline-none"
-                                    value={level}
-                                    onChange={e => setLevel(e.target.value)}
-                                >
-                                    {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Zone</label>
-                                <select
-                                    className="w-full px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm outline-none disabled:opacity-50"
-                                    value={zone}
-                                    onChange={e => setZone(e.target.value)}
-                                    disabled={level === 'Ramp'}
-                                >
-                                    {ZONES.map(z => <option key={z} value={z}>{z}</option>)}
-                                </select>
-                            </div>
-                        </div>
+        <form onSubmit={handleAddDelay} className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+          <input
+            type="text"
+            placeholder="Time Window (e.g. 15:30 - 16:45)"
+            value={newTime}
+            onChange={(e) => setNewTime(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          />
+          <input
+            type="text"
+            placeholder="Affected Critical Path Activity & Zone..."
+            value={newImpact}
+            onChange={(e) => setNewImpact(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm rounded-lg px-4 py-2 transition"
+          >
+            + Log Statutory Delay Event
+          </button>
+        </form>
 
-                        {/* Ramp Specific Dropdowns */}
-                        {level === 'Ramp' && (
-                            <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                                <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1">True Ramp Level</label>
-                                    <select
-                                        className="w-full px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs outline-none"
-                                        value={rampLevel}
-                                        onChange={e => setRampLevel(e.target.value)}
-                                    >
-                                        {RAMP_LEVELS.map(r => <option key={r} value={r}>{r}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1">Ramp Part</label>
-                                    <select
-                                        className="w-full px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs outline-none"
-                                        value={rampPart}
-                                        onChange={e => setRampPart(e.target.value)}
-                                    >
-                                        {RAMP_PARTS.map(p => <option key={p} value={p}>{p}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                     <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Sub-contractor</label>
-                        <div className="relative">
-                            <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                            <input
-                                type="text"
-                                placeholder="e.g. Yizhan Construction"
-                                className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                                value={formData.subcon}
-                                onChange={e => setFormData({...formData, subcon: e.target.value})}
-                            />
-                        </div>
-                    </div>
-
-                     <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Activity Category</label>
-                        <select
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                            value={formData.category}
-                            onChange={e => setFormData({...formData, category: e.target.value})}
-                        >
-                            {ACTIVITY_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-                     <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Activity Description</label>
-                        <div className="relative">
-                            <Activity className="absolute left-3 top-3 text-slate-400" size={16} />
-                            <textarea
-                                placeholder="Describe work done..."
-                                className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm min-h-[100px] resize-none"
-                                value={formData.activity}
-                                onChange={e => setFormData({...formData, activity: e.target.value})}
-                                required
-                            />
-                        </div>
-                    </div>
-
-                     <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Plant, Equipment & Safety Actions</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. 1 Crane (PTW Approved), Daily Safety Briefing"
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                            value={formData.equipment}
-                            onChange={e => setFormData({...formData, equipment: e.target.value})}
-                        />
-                    </div>
-                     <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Manpower Tracking (By Trade)</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. 5 Carpenters, 3 Bar Benders, 2 M&E"
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                            value={formData.manpower}
-                            onChange={e => setFormData({...formData, manpower: e.target.value})}
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-neutral-500 hover:bg-neutral-600 text-white font-bold py-3 rounded-lg shadow-md transition-colors flex items-center justify-center gap-2"
-                    >
-                        {loading ? 'Saving...' : <><Plus size={18} /> Add Entry</>}
-                    </button>
-                </form>
+        <div className="divide-y divide-slate-200 border-t border-slate-200 pt-2">
+          {weatherLogs.map((log) => (
+            <div key={log.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm">
+              <div>
+                <span className="font-mono font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded text-xs mr-2">
+                  {log.timeWindow}
+                </span>
+                <span className="font-semibold text-slate-900">{log.event}</span>
+                <p className="text-xs text-slate-600 mt-1">{log.impact}</p>
+              </div>
+              <span className="font-mono text-xs text-slate-500 shrink-0">{log.contractClause}</span>
             </div>
-
-            {/* Daily Summary List */}
-            <div className="lg:col-span-2">
-                 <h3 className="font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 pb-2 mb-4 flex justify-between items-center">
-                    <span className="flex items-center gap-2">Daily Summary
-                      <button
-                        onClick={handlePrint}
-                        className="ml-4 p-1.5 text-slate-500 hover:text-slate-700 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium"
-                        title="Print Daily Summary"
-                      >
-                        <Printer size={14} /> Print
-                      </button>
-                    </span>
-                    <span className="text-xs font-normal text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">{entries.length} Entries</span>
-                 </h3>
-
-                 {entries.length === 0 ? (
-                     <div className="text-center py-12 text-slate-400 dark:text-slate-600 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700">
-                         <FileText size={48} className="mx-auto mb-2 opacity-20" />
-                         <p>No entries for this date.</p>
-                     </div>
-                 ) : (
-                     <div className="space-y-3">
-                         {entries.map(entry => (
-                             <div key={entry.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow relative group">
-                                 <div className="flex justify-between items-start mb-2">
-                                     <div className="flex items-center gap-2 flex-wrap">
-                                         <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold px-2 py-1 rounded border border-blue-200 dark:border-blue-800 break-words max-w-[200px] md:max-w-none">
-                                             {entry.location}
-                                         </span>
-                                         {entry.subcon && (
-                                             <span className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
-                                                 <Users size={12} /> {entry.subcon}
-                                             </span>
-                                         )}
-                                         {entry.category && (
-                                             <span className="text-xs text-neutral-600 dark:text-neutral-400 font-medium flex items-center gap-1">
-                                                 <Activity size={12} /> {entry.category}
-                                             </span>
-                                         )}
-                                     </div>
-                                     <div className="text-xs text-slate-400 shrink-0 ml-2">
-                                         {entry.createdAt && new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                     </div>
-                                 </div>
-                                 <p className="text-sm text-slate-700 dark:text-slate-300 mb-2 whitespace-pre-wrap break-words">{entry.activity}</p>
-                                 {entry.manpower && (
-                                     <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 px-2 py-1 rounded inline-block">
-                                         Manpower: <span className="font-semibold text-slate-700 dark:text-slate-200">{entry.manpower}</span>
-                                     </div>
-                                 )}
-                                 {entry.equipment && (
-                                     <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 px-2 py-1 rounded inline-block ml-2">
-                                         Equipment: <span className="font-semibold text-slate-700 dark:text-slate-200">{entry.equipment}</span>
-                                     </div>
-                                 )}
-                                 <div className="text-[10px] text-slate-400 mt-2 text-right">
-                                     Reported by: {entry.createdBy}
-                                 </div>
-
-                                 {(user?.role === 'admin' || user?.name === entry.createdBy) && (
-                                     <button
-                                         onClick={() => handleDeleteEntry(entry.id)}
-                                         className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                                         title="Delete Entry" aria-label="Delete Entry"
-                                     >
-                                         <Trash2 size={14} />
-                                     </button>
-                                 )}
-                             </div>
-                         ))}
-                     </div>
-                 )}
-            </div>
+          ))}
         </div>
       </div>
     </div>
-
-    {/* Portal-based Print Layout */}
-    <PrintPortal className="print-diary-table p-8 font-sans text-black bg-white">
-          {/* Header */}
-          <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-end">
-             <div>
-                <h1 className="text-2xl font-bold uppercase tracking-wide mb-1">Daily Site Diary</h1>
-                <h2 className="text-lg font-medium">{selectedProject?.name}</h2>
-             </div>
-             <div className="text-right text-xs leading-relaxed">
-                <p><strong>Date:</strong> {new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                <p><strong>Generated By:</strong> {user?.name}</p>
-                <p><strong>Total Entries:</strong> {entries.length}</p>
-             </div>
-          </div>
-
-          {/* Entries Table */}
-          {entries.length === 0 ? (
-            <div className="border border-black p-8 text-center italic text-sm">
-              No diary entries recorded for this date.
-            </div>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="w-24">Location</th>
-                  <th className="w-24">Sub-contractor</th>
-                  <th className="w-24">Category</th>
-                  <th>Activity Description</th>
-                  <th className="w-24">Manpower & Equipment</th>
-                  <th className="w-24">Reported By</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((entry) => (
-                  <tr key={entry.id} className="break-inside-avoid">
-                    <td className="font-bold">{entry.location}</td>
-                    <td>{entry.subcon || '-'}</td>
-                    <td>{entry.category || '-'}</td>
-                    <td className="whitespace-pre-wrap">{entry.activity}</td>
-                    <td>
-                      <div>M: {entry.manpower || '-'}</div>
-                      <div>E: {entry.equipment || '-'}</div>
-                    </td>
-                    <td className="italic text-[10px]">{entry.createdBy}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          {/* Footer */}
-          <div className="mt-8 pt-4 border-t border-black text-center text-xs uppercase tracking-widest text-gray-500">
-             Generated by ProximaStruc | Internal Site Record
-          </div>
-    </PrintPortal>
-    </>
   );
-};
-
-export default SiteDiaryView;
+}

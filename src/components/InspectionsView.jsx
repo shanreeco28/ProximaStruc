@@ -149,3 +149,28 @@ export default function InspectionsView({ inspections = DEFAULT_RFIS, onUpdateSt
                   return (
                     <div
                       key={label}
+                      className={`p-2.5 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
+                        completed
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                          : 'bg-slate-50 border-slate-200 text-slate-400'
+                      } ${current ? 'ring-2 ring-blue-500' : ''}`}
+                    >
+                      <span
+                        className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                          completed ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {idx + 1}
+                      </span>
+                      <span className="truncate">{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

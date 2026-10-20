@@ -258,6 +258,47 @@ body {
   }
 }
 
+@layer base {
+  :root {
+    /* High-contrast enterprise surface palette */
+    --surface-canvas: #f8fafc;
+    --surface-card: #ffffff;
+    --border-subtle: #e2e8f0;
+    --border-strong: #94a3b8;
+  }
+
+  /* Tabular numerals for aligned engineering coordinates, tonnage, and dates */
+  .font-mono,
+  table td,
+  .kpi-metric {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Enforce minimum 44x44px touch targets for site tablet ergonomics (WCAG 2.5.5) */
+@media (pointer: coarse) {
+  button,
+  select,
+  input[type="checkbox"],
+  .interactive-tag {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Clean ISO-standard A4 output for PrintPortal.jsx & ExecutiveReportModal.jsx */
+@media print {
+  aside,
+  header,
+  .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+}
+
 *:focus-visible {
   outline: 2px solid #71717a; /* zinc-500 */
   outline-offset: 2px;

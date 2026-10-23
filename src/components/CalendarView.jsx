@@ -1,36 +1,6 @@
 import React from 'react';
 
-const LOOKAHEAD_TASKS = [
-  {
-    wbs: 'WBS-1.4.2',
-    activity: 'Zone A • L6 Core Wall & Slab Casting (G40)',
-    baseline: '20 Oct 2026',
-    forecast: '20 Oct 2026',
-    variance: '0d (On Track)',
-    rfiStatus: '1 Pending RTO (RFI-STR-104)',
-    critical: true,
-  },
-  {
-    wbs: 'WBS-1.4.3',
-    activity: 'Zone A • L7 Vertical Column Rebar & Formwork',
-    baseline: '22 Oct 2026',
-    forecast: '24 Oct 2026',
-    variance: '-2d (BBS Delay)',
-    rfiStatus: 'Drafting',
-    critical: true,
-  },
-  {
-    wbs: 'WBS-2.1.5',
-    activity: 'Zone B • Podium Precast Beam Installation',
-    baseline: '25 Oct 2026',
-    forecast: '25 Oct 2026',
-    variance: '0d (On Track)',
-    rfiStatus: 'Cleared (RFI-STR-103)',
-    critical: false,
-  },
-];
-
-export default function CalendarView() {
+export default function CalendarView({ tasks }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
       <div className="p-5 border-b border-slate-200 flex items-center justify-between">
@@ -60,7 +30,7 @@ export default function CalendarView() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {LOOKAHEAD_TASKS.map((t) => (
+            {tasks.map((t) => (
               <tr key={t.wbs} className="hover:bg-slate-50">
                 <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{t.wbs}</td>
                 <td className="py-3.5 px-4">

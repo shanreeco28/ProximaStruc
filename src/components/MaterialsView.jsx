@@ -1,57 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 
-const DEFAULT_MATERIALS = [
-  {
-    id: 'BBS-L6-042',
-    type: 'Rebar (BBS)',
-    supplier: 'NatSteel Holdings',
-    element: 'Zone A • L6 Slab & Drop Panels (T16, T20, T25)',
-    quantity: '48.5 Tonnes',
-    doNumber: 'DO-NS-88412',
-    deliverySlot: 'Delivered • Yard Bay 2',
-    craneSlot: 'TC-1 Booked (Completed)',
-    sopaClaimable: true,
-    sopaValue: 67900,
-    status: 'Installed & Cast-Ready',
-  },
-  {
-    id: 'CONC-L6-011',
-    type: 'Ready-Mix Concrete',
-    supplier: 'Pan-United Concrete (G40 Pump Mix)',
-    element: 'Zone A • L6 Core Wall & Slab Pour',
-    quantity: '210.0 m³',
-    doNumber: 'Batch Pre-Order #410',
-    deliverySlot: 'Today 16:30 (12 Trucks Staggered)',
-    craneSlot: 'Placing Boom PB-1',
-    sopaClaimable: false,
-    sopaValue: 33600,
-    status: 'Awaiting RTO Clearance',
-  },
-  {
-    id: 'BBS-L6-045',
-    type: 'Rebar (BBS)',
-    supplier: 'NatSteel Holdings',
-    element: 'Zone B • L4 Perimeter Beams',
-    quantity: '22.0 Tonnes',
-    doNumber: 'Pending Dispatch',
-    deliverySlot: 'Delayed (+1 Day)',
-    craneSlot: '50T Mobile Crane (Hold)',
-    sopaClaimable: false,
-    sopaValue: 30800,
-    status: 'Fabrication Delay',
-  },
-];
-
-export default function MaterialsView({ materials = DEFAULT_MATERIALS }) {
-  const [rows, setRows] = useState(materials);
-
-  const toggleSopaClaim = (id) => {
-    setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, sopaClaimable: !r.sopaClaimable } : r))
-    );
-  };
-
-  const totalClaimable = rows
+export default function MaterialsView({ materials, onToggleSopa }) {
+  const totalClaimable = materials
     .filter((r) => r.sopaClaimable)
     .reduce((acc, r) => acc + r.sopaValue, 0);
 
@@ -107,7 +57,7 @@ export default function MaterialsView({ materials = DEFAULT_MATERIALS }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {rows.map((item) => (
+              {materials.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/80">
                   <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
                     {item.id}
@@ -142,7 +92,7 @@ export default function MaterialsView({ materials = DEFAULT_MATERIALS }) {
                   </td>
                   <td className="py-3.5 px-4 text-right">
                     <button
-                      onClick={() => toggleSopaClaim(item.id)}
+                      onClick={() => onToggleSopa && onToggleSopa(item.id)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition ${
                         item.sopaClaimable
                           ? 'bg-emerald-600 text-white'

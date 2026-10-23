@@ -1,36 +1,6 @@
 import React, { useState } from 'react';
 
-const DEFAULT_CLAIMS = [
-  {
-    claimNo: 'PC-14 (Current)',
-    period: '26 Sep – 25 Oct 2026',
-    claimedAmount: 1485000,
-    certifiedAmount: 1420000,
-    variationOrders: '+S$ 65,000 (VO-08 Approved)',
-    sopaStatus: 'Pending Payment Response (Due 08 Nov)',
-    retention: '5% (Capped)',
-  },
-  {
-    claimNo: 'PC-13',
-    period: '26 Aug – 25 Sep 2026',
-    claimedAmount: 1310000,
-    certifiedAmount: 1295000,
-    variationOrders: '+S$ 18,500 (VO-07)',
-    sopaStatus: 'Paid in Full (Tax Invoice Settled)',
-    retention: '5%',
-  },
-  {
-    claimNo: 'PC-12',
-    period: '26 Jul – 25 Aug 2026',
-    claimedAmount: 1190000,
-    certifiedAmount: 1190000,
-    variationOrders: 'S$ 0',
-    sopaStatus: 'Paid in Full (Tax Invoice Settled)',
-    retention: '5%',
-  },
-];
-
-export default function ReportView({ claims = DEFAULT_CLAIMS }) {
+export default function ReportView({ claims }) {
   const [selectedMetric, setSelectedMetric] = useState('commercial');
 
   return (

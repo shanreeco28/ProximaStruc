@@ -83,8 +83,7 @@ const DEFAULT_PERSONNEL = [
 
 const CATEGORIES = ['All', 'Main Contractor', 'Consultant / RE / RTO', 'Specialist Subcontractor'];
 
-export default function UserManagementView({ users = DEFAULT_PERSONNEL, onUpdateUser }) {
-  const [personnel, setPersonnel] = useState(users);
+export default function UserManagementView({ users, onAddPersonnel, onToggleBiometricGate }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -111,33 +110,12 @@ export default function UserManagementView({ users = DEFAULT_PERSONNEL, onUpdate
     return { label: 'VALID', style: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
   };
 
-  const toggleBiometricGate = (id) => {
-    setPersonnel((prev) =>
-      prev.map((person) => {
-        if (person.id !== id) return person;
-        const isSuspended = person.biometricStatus.includes('Suspended');
-        const updated = {
-          ...person,
-          biometricStatus: isSuspended
-            ? 'Active (All Zones)'
-            : 'Suspended (PM Override)',
-        };
-        if (onUpdateUser) onUpdateUser(updated);
-        return updated;
-      })
-    );
-  };
-
-  const handleAddPersonnel = (e) => {
+  const handleFormSubmit = (e) => {
     e.preventDefault();
     if (!newUser.name || !newUser.organization) return;
-    const created = {
-      ...newUser,
-      id: `USR-00${personnel.length + 1}`,
-      biometricStatus: 'Active (All Zones)',
-      ptwAuthority: ['Submit RFI', 'Apply PTW'],
-    };
-    setPersonnel([created, ...personnel]);
+
+    if (onAddPersonnel) onAddPersonnel(newUser);
+
     setIsAddModalOpen(false);
     setNewUser({
       name: '',
@@ -151,7 +129,7 @@ export default function UserManagementView({ users = DEFAULT_PERSONNEL, onUpdate
     });
   };
 
-  const filteredPersonnel = personnel.filter((p) => {
+  const filteredPersonnel = users.filter((p) => {
     const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -170,7 +148,7 @@ export default function UserManagementView({ users = DEFAULT_PERSONNEL, onUpdate
             Authorized CDE Users
           </span>
           <div className="text-2xl font-bold font-mono text-slate-900 mt-1">
-            {personnel.length} Personnel
+            {users.length} Personnel
           </div>
           <span className="text-xs text-slate-500">ISO 19650 Role-Based Matrix</span>
         </div>
@@ -328,7 +306,7 @@ export default function UserManagementView({ users = DEFAULT_PERSONNEL, onUpdate
 
                     <td className="py-4 px-4 text-right">
                       <button
-                        onClick={() => toggleBiometricGate(person.id)}
+                        onClick={() => onToggleBiometricGate && onToggleBiometricGate(person.id)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                           isGateActive
                             ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
@@ -366,7 +344,7 @@ export default function UserManagementView({ users = DEFAULT_PERSONNEL, onUpdate
               </button>
             </div>
 
-            <form onSubmit={handleAddPersonnel} className="space-y-4 text-sm">
+            <form onSubmit={handleFormSubmit} className="space-y-4 text-sm">
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                   Full Name (As per FIN / NRIC)

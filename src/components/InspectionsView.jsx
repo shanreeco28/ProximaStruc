@@ -41,26 +41,20 @@ const DEFAULT_RFIS = [
 
 const STAGES = ['Draft', 'MainCon QC Pass', 'Submitted to RTO', 'Cleared to Cast'];
 
-export default function InspectionsView({ inspections = DEFAULT_RFIS, onUpdateStage }) {
-  const [items, setItems] = useState(inspections);
+export default function InspectionsView({ inspections, onUpdateStage }) {
   const [filterDiscipline, setFilterDiscipline] = useState('All');
 
   const handleAdvance = (id) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id === id && item.stage < 3) {
-          const updated = { ...item, stage: item.stage + 1 };
-          if (onUpdateStage) onUpdateStage(updated);
-          return updated;
-        }
-        return item;
-      })
-    );
+    const item = inspections.find((i) => i.id === id);
+    if (item && item.stage < 3) {
+      const updated = { ...item, stage: item.stage + 1 };
+      if (onUpdateStage) onUpdateStage(updated);
+    }
   };
 
   const filtered = filterDiscipline === 'All'
-    ? items
-    : items.filter((i) => i.discipline === filterDiscipline);
+    ? inspections
+    : inspections.filter((i) => i.discipline === filterDiscipline);
 
   return (
     <div className="space-y-6">

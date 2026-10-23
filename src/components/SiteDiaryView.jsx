@@ -1,32 +1,20 @@
 import React, { useState } from 'react';
 
-export default function SiteDiaryView() {
-  const [weatherLogs, setWeatherLogs] = useState([
-    {
-      id: 1,
-      timeWindow: '13:40 – 15:10 (1.5 hrs)',
-      event: 'NEA Heavy Rain & Lightning Risk Alert (Cat 1)',
-      impact: 'Tower Crane TC-1 & TC-2 lifting suspended; Zone A L6 open slab rebar tying halted.',
-      contractClause: 'PSSCOC Cl. 14.2 (Weather EOT Record)',
-    },
-  ]);
-
+export default function SiteDiaryView({ weatherLogs, onAddWeatherLog }) {
   const [newTime, setNewTime] = useState('');
   const [newImpact, setNewImpact] = useState('');
 
   const handleAddDelay = (e) => {
     e.preventDefault();
     if (!newTime || !newImpact) return;
-    setWeatherLogs([
-      ...weatherLogs,
-      {
-        id: Date.now(),
-        timeWindow: newTime,
-        event: 'Inclement Weather / Lightning Alert',
-        impact: newImpact,
-        contractClause: 'PSSCOC Cl. 14.2 (Weather EOT Record)',
-      },
-    ]);
+
+    onAddWeatherLog && onAddWeatherLog({
+      timeWindow: newTime,
+      event: 'Inclement Weather / Lightning Alert',
+      impact: newImpact,
+      contractClause: 'PSSCOC Cl. 14.2 (Weather EOT Record)',
+    });
+
     setNewTime('');
     setNewImpact('');
   };

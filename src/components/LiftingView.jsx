@@ -1,47 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 
-const DEFAULT_LIFTS = [
-  {
-    id: 'PTW-LIFT-204',
-    crane: 'Tower Crane TC-1 (Luffing 12T)',
-    lmExpiry: '2027-03-14 (Valid)',
-    zone: 'Zone A • L6 Core',
-    loadDescription: 'Precast Staircase Flight PSF-6A (4.2 Tonnes)',
-    radius: '28m (72% SWL)',
-    supervisor: 'Ahamed R. (WSQ-8821)',
-    rigger: 'Velu M. (WSQ-4410)',
-    signalman: 'Hossain K. (WSQ-3109)',
-    windSpeed: '14 km/h',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'PTW-LIFT-205',
-    crane: '50T Mobile Crane (Kato)',
-    lmExpiry: '2026-12-01 (Valid)',
-    zone: 'Zone B • Holding Bay',
-    loadDescription: 'NatSteel Rebar Bundles Unloading (2.8 Tonnes)',
-    radius: '14m (55% SWL)',
-    supervisor: 'Suresh P. (WSQ-7712)',
-    rigger: 'Rahman A. (WSQ-2901)',
-    signalman: 'Kumar S. (WSQ-5582)',
-    windSpeed: '16 km/h',
-    status: 'PENDING_WSHO',
-  },
-];
-
-export default function LiftingView({ lifts = DEFAULT_LIFTS }) {
-  const [permits, setPermits] = useState(lifts);
-
-  const togglePermitStatus = (id) => {
-    setPermits((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p;
-        const next = p.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-        return { ...p, status: next };
-      })
-    );
-  };
-
+export default function LiftingView({ lifts, onToggleLift }) {
   return (
     <div className="space-y-6">
       {/* MOM WSH Statutory Telemetry Banner */}
@@ -66,7 +25,7 @@ export default function LiftingView({ lifts = DEFAULT_LIFTS }) {
 
       {/* PTW Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {permits.map((ptw) => {
+        {lifts.map((ptw) => {
           const isActive = ptw.status === 'ACTIVE';
           return (
             <div
@@ -136,7 +95,7 @@ export default function LiftingView({ lifts = DEFAULT_LIFTS }) {
                   Daily Re-Validation: <strong className="text-slate-800">07:30 HRS</strong>
                 </span>
                 <button
-                  onClick={() => togglePermitStatus(ptw.id)}
+                  onClick={() => onToggleLift && onToggleLift(ptw.id)}
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition ${
                     isActive
                       ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'

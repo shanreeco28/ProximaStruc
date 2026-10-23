@@ -25,7 +25,7 @@ const BubbleTooltip = ({ title, content, author, children, onVisible, onHidden, 
     }
   }, [show]);
 
-  const handleMouseEnter = (e) => {
+  const handleMouseEnter = () => {
     if (onVisible) onVisible(meta, false);
     if (!content && !author && !title) return;
     updatePosition();

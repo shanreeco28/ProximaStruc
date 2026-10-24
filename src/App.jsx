@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
+import { LogIn } from 'lucide-react';
 // Existing Component Imports from your repository structure
 import AppLogo from './components/AppLogo';
 import CalendarView from './components/CalendarView';
@@ -10,6 +12,7 @@ import ReportView from './components/ReportView';
 import UserManagementView from './components/UserManagementView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
 import MobileNav from './components/MobileNav';
+import LoginView from './components/LoginView';
 
 const DEFAULT_RFIS = [
   {
@@ -303,8 +306,9 @@ const NAV_GROUPS = [
   },
 ];
 
-export default function App() {
+function MainApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const navigate = useNavigate();
   const [isExecModalOpen, setIsExecModalOpen] = useState(false);
   const [selectedZone, setSelectedZone] = useState('All Zones');
 
@@ -517,6 +521,14 @@ export default function App() {
 
           <div className="flex items-center gap-3">
             <button
+              onClick={() => navigate('/login')}
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm transition"
+            >
+              <LogIn size={16} />
+              <span className="hidden sm:inline">Log In / Sign Up</span>
+              <span className="sm:hidden">Log In</span>
+            </button>
+            <button
               onClick={() => setIsExecModalOpen(true)}
               className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm transition"
             >
@@ -633,6 +645,15 @@ export default function App() {
         />
       )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/*" element={<MainApp />} />
+      <Route path="/login" element={<LoginView />} />
+    </Routes>
   );
 }
 

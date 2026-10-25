@@ -1,4 +1,3 @@
-@@ -1,116 +1,149 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Moon, Sun, Shield, Mail, CheckCircle2 } from 'lucide-react';

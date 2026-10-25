@@ -13,271 +13,17 @@ import MobileNav from './components/MobileNav';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import LoginView from './components/LoginView';
 import ProjectSelection from './components/ProjectSelection';
 
 
-const DEFAULT_RFIS = [
-  {
-    id: 'RFI-STR-104',
-    zone: 'Zone A • L6 Core & Slab',
-    discipline: 'Structural',
-    element: 'Post-Tension Tendon & Bottom Rebar',
-    rtoName: 'RTO Lim K.H.',
-    reName: 'RE Tan W.M.',
-    targetCast: '2026-10-20 16:30',
-    stage: 2,
-    conquasScore: 'Pending',
-    bbsLinked: 'BBS-L6-042 (Verified)',
-  },
-  {
-    id: 'RFI-MEP-089',
-    zone: 'Zone A • L6 Core & Slab',
-    discipline: 'M&E Sleeve / Conduit',
-    element: 'Cast-in Sanitary & Electrical Sleeves',
-    rtoName: 'RTO Rajendran',
-    reName: 'RE Tan W.M.',
-    targetCast: '2026-10-20 16:30',
-    stage: 3,
-    conquasScore: 'Pass (First-Time)',
-    bbsLinked: 'N/A',
-  },
-  {
-    id: 'RFI-STR-103',
-    zone: 'Zone B • Podium L3',
-    discipline: 'Structural',
-    element: 'Core Wall CW2 Pre-Close Formwork',
-    rtoName: 'RTO Lim K.H.',
-    reName: 'RE Tan W.M.',
-    targetCast: '2026-10-21 10:00',
-    stage: 3,
-    conquasScore: '96.5% (CONQUAS)',
-    bbsLinked: 'BBS-CW2-019 (Verified)',
-  },
-];
 
-const DEFAULT_LIFTS = [
-  {
-    id: 'PTW-LIFT-204',
-    crane: 'Tower Crane TC-1 (Luffing 12T)',
-    lmExpiry: '2027-03-14 (Valid)',
-    zone: 'Zone A • L6 Core',
-    loadDescription: 'Precast Staircase Flight PSF-6A (4.2 Tonnes)',
-    radius: '28m (72% SWL)',
-    supervisor: 'Ahamed R. (WSQ-8821)',
-    rigger: 'Velu M. (WSQ-4410)',
-    signalman: 'Hossain K. (WSQ-3109)',
-    windSpeed: '14 km/h',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'PTW-LIFT-205',
-    crane: '50T Mobile Crane (Kato)',
-    lmExpiry: '2026-12-01 (Valid)',
-    zone: 'Zone B • Holding Bay',
-    loadDescription: 'NatSteel Rebar Bundles Unloading (2.8 Tonnes)',
-    radius: '14m (55% SWL)',
-    supervisor: 'Suresh P. (WSQ-7712)',
-    rigger: 'Rahman A. (WSQ-2901)',
-    signalman: 'Kumar S. (WSQ-5582)',
-    windSpeed: '16 km/h',
-    status: 'PENDING_WSHO',
-  },
-];
 
-const DEFAULT_MATERIALS = [
-  {
-    id: 'BBS-L6-042',
-    type: 'Rebar (BBS)',
-    supplier: 'NatSteel Holdings',
-    element: 'Zone A • L6 Slab & Drop Panels (T16, T20, T25)',
-    quantity: '48.5 Tonnes',
-    doNumber: 'DO-NS-88412',
-    deliverySlot: 'Delivered • Yard Bay 2',
-    craneSlot: 'TC-1 Booked (Completed)',
-    sopaClaimable: true,
-    sopaValue: 67900,
-    status: 'Installed & Cast-Ready',
-  },
-  {
-    id: 'CONC-L6-011',
-    type: 'Ready-Mix Concrete',
-    supplier: 'Pan-United Concrete (G40 Pump Mix)',
-    element: 'Zone A • L6 Core Wall & Slab Pour',
-    quantity: '210.0 m³',
-    doNumber: 'Batch Pre-Order #410',
-    deliverySlot: 'Today 16:30 (12 Trucks Staggered)',
-    craneSlot: 'Placing Boom PB-1',
-    sopaClaimable: false,
-    sopaValue: 33600,
-    status: 'Awaiting RTO Clearance',
-  },
-  {
-    id: 'BBS-L6-045',
-    type: 'Rebar (BBS)',
-    supplier: 'NatSteel Holdings',
-    element: 'Zone B • L4 Perimeter Beams',
-    quantity: '22.0 Tonnes',
-    doNumber: 'Pending Dispatch',
-    deliverySlot: 'Delayed (+1 Day)',
-    craneSlot: '50T Mobile Crane (Hold)',
-    sopaClaimable: false,
-    sopaValue: 30800,
-    status: 'Fabrication Delay',
-  },
-];
 
-const DEFAULT_CLAIMS = [
-  {
-    claimNo: 'PC-14 (Current)',
-    period: '26 Sep – 25 Oct 2026',
-    claimedAmount: 1485000,
-    certifiedAmount: 1420000,
-    variationOrders: '+S$ 65,000 (VO-08 Approved)',
-    sopaStatus: 'Pending Payment Response (Due 08 Nov)',
-    retention: '5% (Capped)',
-  },
-  {
-    claimNo: 'PC-13',
-    period: '26 Aug – 25 Sep 2026',
-    claimedAmount: 1310000,
-    certifiedAmount: 1295000,
-    variationOrders: '+S$ 18,500 (VO-07)',
-    sopaStatus: 'Paid in Full (Tax Invoice Settled)',
-    retention: '5%',
-  },
-  {
-    claimNo: 'PC-12',
-    period: '26 Jul – 25 Aug 2026',
-    claimedAmount: 1190000,
-    certifiedAmount: 1190000,
-    variationOrders: 'S$ 0',
-    sopaStatus: 'Paid in Full (Tax Invoice Settled)',
-    retention: '5%',
-  },
-];
 
-const DEFAULT_WEATHER_LOGS = [
-  {
-    id: 1,
-    timeWindow: '13:40 – 15:10 (1.5 hrs)',
-    event: 'NEA Heavy Rain & Lightning Risk Alert (Cat 1)',
-    impact: 'Tower Crane TC-1 & TC-2 lifting suspended; Zone A L6 open slab rebar tying halted.',
-    contractClause: 'PSSCOC Cl. 14.2 (Weather EOT Record)',
-  },
-];
 
-const DEFAULT_PERSONNEL = [
-  {
-    id: 'USR-001',
-    name: 'Shan Reeco Socorro',
-    role: 'Project Manager / Lead PE',
-    organization: 'Main Contractor (Project LC1)',
-    category: 'Main Contractor',
-    cdePermission: 'CDE Approver (Level 4 - Final Authority)',
-    statutoryReg: 'MWSHCS Certified • PM PTW Signatory',
-    certExpiry: '2028-10-15',
-    bizSafe: 'bizSAFE Star',
-    biometricStatus: 'Active (Gate A & B)',
-    ptwAuthority: ['Approve High-Risk PTW', 'Close RFI', 'Certify SOPA Claim'],
-  },
-  {
-    id: 'USR-002',
-    name: 'Er. Tan Wei Ming',
-    role: 'Resident Engineer (RE - C&S)',
-    organization: 'QP(S) Consultant Team',
-    category: 'Consultant / RE / RTO',
-    cdePermission: 'Statutory Reviewer (Level 3 - Hold Point Sign-off)',
-    statutoryReg: 'IES/ACES RE #4092',
-    certExpiry: '2027-06-30',
-    bizSafe: 'N/A (QP Rep)',
-    biometricStatus: 'Active (All Zones)',
-    ptwAuthority: ['Approve Structural RFI', 'Issue Site Memo'],
-  },
-  {
-    id: 'USR-003',
-    name: 'Lim Kah Heng',
-    role: 'Resident Technical Officer (RTO)',
-    organization: 'QP(S) Consultant Team',
-    category: 'Consultant / RE / RTO',
-    cdePermission: 'Statutory Inspector (Level 3 - RFI Inspection)',
-    statutoryReg: 'IES/ACES RTO #8814',
-    certExpiry: '2027-04-12',
-    bizSafe: 'N/A (QP Rep)',
-    biometricStatus: 'Active (All Zones)',
-    ptwAuthority: ['Inspect Rebar / Formwork', 'Witness Cube Test'],
-  },
-  {
-    id: 'USR-004',
-    name: 'Rajan Subramaniam',
-    role: 'Workplace Safety & Health Officer (WSHO)',
-    organization: 'Main Contractor (WSH Dept)',
-    category: 'Main Contractor',
-    cdePermission: 'Statutory Endorser (Level 3 - WSH & Environmental)',
-    statutoryReg: 'MOM WSHO Reg #WSH-2910 • NEA ECO',
-    certExpiry: '2027-09-01',
-    bizSafe: 'bizSAFE Star',
-    biometricStatus: 'Active (All Zones)',
-    ptwAuthority: ['Endorse Lifting PTW', 'Issue Stop-Work Order', 'NEA Vector Sign-off'],
-  },
-  {
-    id: 'USR-005',
-    name: 'Ahamed Rasheed',
-    role: 'Appointed Lifting Supervisor',
-    organization: 'Apex Precast & Rigging Pte Ltd',
-    category: 'Specialist Subcontractor',
-    cdePermission: 'Field Contributor (Level 1 - PTW Applicant)',
-    statutoryReg: 'WSQ Lifting Sup #LS-8821 • CSOC Valid',
-    certExpiry: '2026-11-05',
-    bizSafe: 'bizSAFE Level 4',
-    biometricStatus: 'Active (Zone A & B)',
-    ptwAuthority: ['Apply Lifting PTW', 'Daily Crane Pre-Check'],
-  },
-  {
-    id: 'USR-006',
-    name: 'David Chen',
-    role: 'Subcon Site Manager (Rebar & Formwork)',
-    organization: 'JinBuilders Structural Pte Ltd',
-    category: 'Specialist Subcontractor',
-    cdePermission: 'Field Contributor (Level 1 - RFI Prep & BBS)',
-    statutoryReg: 'BCSS Certified • CoreTrade Sup',
-    certExpiry: '2026-10-18',
-    bizSafe: 'bizSAFE Level 3',
-    biometricStatus: 'Suspended (Cert Renewal Pending)',
-    ptwAuthority: ['Submit Internal QC', 'Log BBS Delivery'],
-  },
-];
 
-const LOOKAHEAD_TASKS = [
-  {
-    wbs: 'WBS-1.4.2',
-    activity: 'Zone A • L6 Core Wall & Slab Casting (G40)',
-    baseline: '20 Oct 2026',
-    forecast: '20 Oct 2026',
-    variance: '0d (On Track)',
-    rfiStatus: '1 Pending RTO (RFI-STR-104)',
-    critical: true,
-  },
-  {
-    wbs: 'WBS-1.4.3',
-    activity: 'Zone A • L7 Vertical Column Rebar & Formwork',
-    baseline: '22 Oct 2026',
-    forecast: '24 Oct 2026',
-    variance: '-2d (BBS Delay)',
-    rfiStatus: 'Drafting',
-    critical: true,
-  },
-  {
-    wbs: 'WBS-2.1.5',
-    activity: 'Zone B • Podium Precast Beam Installation',
-    baseline: '25 Oct 2026',
-    forecast: '25 Oct 2026',
-    variance: '0d (On Track)',
-    rfiStatus: 'Cleared (RFI-STR-103)',
-    critical: false,
-  },
-];
 
 const NAV_GROUPS = [
   {
@@ -318,22 +64,20 @@ export default function App() {
     const saved = localStorage.getItem('sb-selected-project');
     return saved ? JSON.parse(saved) : null;
   });
-  const [projects, setProjects] = useState(() => {
-    const saved = localStorage.getItem('sb-projects');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [projects, setProjects] = useState([]);
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isExecModalOpen, setIsExecModalOpen] = useState(false);
   const [selectedZone, setSelectedZone] = useState('All Zones');
 
-  const [inspections, setInspections] = useState(DEFAULT_RFIS);
-  const [lifts, setLifts] = useState(DEFAULT_LIFTS);
-  const [materials, setMaterials] = useState(DEFAULT_MATERIALS);
-  const [claims] = useState(DEFAULT_CLAIMS);
-  const [weatherLogs, setWeatherLogs] = useState(DEFAULT_WEATHER_LOGS);
+  const [inspections, setInspections] = useState([]);
+  const [lifts, setLifts] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [claims] = useState([]);
+  const [weatherLogs, setWeatherLogs] = useState([]);
   const [personnel, setPersonnel] = useState([]);
-  const [tasks] = useState(LOOKAHEAD_TASKS);
+  const [tasks] = useState([]);
+  const [zones, setZones] = useState([]);
 
 
   useEffect(() => {
@@ -353,25 +97,89 @@ export default function App() {
   }, [selectedProject]);
 
   useEffect(() => {
-    localStorage.setItem('sb-projects', JSON.stringify(projects));
-  }, [projects]);
+    if (!user) return;
+    const q = collection(db, 'projects');
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const projectsData = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      setProjects(projectsData);
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   useEffect(() => {
     if (!selectedProject || !user) return;
-    const q = collection(db, `artifacts/${selectedProject.id}/users`);
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const usersData = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-      setPersonnel(usersData);
-    });
-    return () => unsubscribe();
+    const listeners = [];
+
+    const subscribe = (collectionName, setter) => {
+      const q = collection(db, `artifacts/${selectedProject.id}/${collectionName}`);
+      const unsub = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+        setter(data);
+      });
+      listeners.push(unsub);
+    };
+
+    subscribe('users', setPersonnel);
+    subscribe('tasks', setTasks);
+    subscribe('inspections', setInspections);
+    subscribe('materials', setMaterials);
+    subscribe('weatherLogs', setWeatherLogs);
+    subscribe('lifts', setLifts);
+    subscribe('zones', setZones);
+
+    return () => {
+      listeners.forEach((unsub) => unsub());
+    };
   }, [selectedProject, user]);
   
   const currentUser = personnel.find(p => p.email === user?.email);
+  const isPrivileged = ['admin', 'manager', 'engineer'].includes(currentUser?.systemRole);
 
-
-  const handleAddWeatherLog = (newLog) => {
-    setWeatherLogs((prev) => [...prev, { ...newLog, id: Date.now() }]);
+  const handleAddZone = () => {
+    const newZone = window.prompt("Enter new zone name:");
+    if (newZone?.trim()) {
+      addRecord('zones', { name: newZone.trim() });
+    }
   };
+
+  const filterByZone = (arr) => {
+    if (selectedZone === 'All Zones') return arr;
+    return arr.filter(item => item.zone === selectedZone);
+  };
+
+  const addRecord = async (collectionName, record) => {
+    if (!selectedProject) return;
+    try {
+      const recordWithMeta = {
+        ...record,
+        createdBy: user.email,
+        createdAt: new Date().toISOString()
+      };
+
+      const docRef = record.id
+        ? doc(db, `artifacts/${selectedProject.id}/${collectionName}`, record.id)
+        : doc(collection(db, `artifacts/${selectedProject.id}/${collectionName}`));
+
+      await setDoc(docRef, recordWithMeta);
+    } catch (e) {
+      console.error(`Error adding to ${collectionName}:`, e);
+    }
+  };
+
+  const updateRecord = async (collectionName, id, updates) => {
+    if (!selectedProject) return;
+    try {
+      await updateDoc(doc(db, `artifacts/${selectedProject.id}/${collectionName}`, id), updates);
+    } catch (e) {
+      console.error(`Error updating in ${collectionName}:`, e);
+    }
+  };
+
+  const filteredTasks = filterByZone(tasks);
+  const filteredInspections = filterByZone(inspections);
+  const filteredMaterials = filterByZone(materials);
+  const filteredWeatherLogs = filterByZone(weatherLogs);
+  const filteredLifts = filterByZone(lifts);
 
 
   const handleAddPersonnel = async (newUser) => {
@@ -445,9 +253,9 @@ export default function App() {
     );
   };
 
-  const pendingInspections = inspections.filter((i) => i.stage < 3).length;
-  const delayedMaterials = materials.filter((m) => m.status.includes('Delay')).length;
-  const activeLifts = lifts.filter((l) => l.status === 'ACTIVE').length;
+  const pendingInspections = filteredInspections.filter((i) => i.stage < 3).length;
+  const delayedMaterials = filteredMaterials.filter((m) => m.status.includes('Delay')).length;
+  const activeLifts = filteredLifts.filter((l) => l.status === 'ACTIVE').length;
 
   const dynamicNavGroups = [
     {
@@ -495,8 +303,20 @@ export default function App() {
         projects={projects}
         user={user}
         onSelect={setSelectedProject}
-        onAdd={(newProject) => setProjects(prev => [...prev, newProject])}
-        onDelete={(id) => setProjects(prev => prev.filter(p => p.id !== id))}
+        onAdd={async (newProject) => {
+          try {
+            await setDoc(doc(db, 'projects', newProject.id), newProject);
+          } catch (e) {
+            console.error('Error adding project:', e);
+          }
+        }}
+        onDelete={async (id) => {
+          try {
+            await deleteDoc(doc(db, 'projects', id));
+          } catch (e) {
+            console.error('Error deleting project:', e);
+          }
+        }}
         onLogout={() => signOut(auth)}
       />
     );
@@ -523,18 +343,23 @@ export default function App() {
 
         {/* Active Contract Selector */}
         <div className="p-4 border-b border-slate-800 bg-slate-950/40">
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">
-            Active Contract / Zone
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+              Active Contract / Zone
+            </label>
+            {isPrivileged && (
+              <button onClick={handleAddZone} className="text-xs text-blue-400 hover:text-blue-300">+</button>
+            )}
+          </div>
           <select
             value={selectedZone}
             onChange={(e) => setSelectedZone(e.target.value)}
             className="w-full bg-slate-800 border border-slate-700 text-slate-100 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="All Zones">Contract LC1 — All Zones</option>
-            <option value="Zone A">Zone A (Tower 1 - Core & Slab)</option>
-            <option value="Zone B">Zone B (Podium & Precast)</option>
-            <option value="External">External Works & Cut/Fill</option>
+            <option value="All Zones">All Zones</option>
+            {zones.map(z => (
+              <option key={z.id} value={z.name}>{z.name}</option>
+            ))}
           </select>
         </div>
 
@@ -631,29 +456,29 @@ export default function App() {
           <KpiPill
             title="Critical Path (SPI)"
             value="0.98 (-2d)"
-            sub={tasks.find(t => t.critical)?.activity || 'On Track'}
-            status={tasks.some(t => t.variance.includes('-')) ? 'warning' : 'success'}
+            sub={filteredTasks.find(t => t.critical)?.activity || 'On Track'}
+            status={filteredTasks.some(t => t.variance.includes('-')) ? 'warning' : 'success'}
             onClick={() => setActiveTab('calendar')}
           />
           <KpiPill
             title="RE / RTO Inspections"
-            value={`${inspections.filter(i => i.stage === 3).length} Cleared`}
-            sub={`${inspections.filter(i => i.stage < 3).length} Awaiting Sign-off`}
-            status={inspections.some(i => i.stage < 3) ? 'neutral' : 'success'}
+            value={`${filteredInspections.filter(i => i.stage === 3).length} Cleared`}
+            sub={`${filteredInspections.filter(i => i.stage < 3).length} Awaiting Sign-off`}
+            status={filteredInspections.some(i => i.stage < 3) ? 'neutral' : 'success'}
             onClick={() => setActiveTab('inspections')}
           />
           <KpiPill
             title="Active Lifting / PTWs"
-            value={`${lifts.filter(l => l.status === 'ACTIVE').length} Permits`}
+            value={`${filteredLifts.filter(l => l.status === 'ACTIVE').length} Permits`}
             sub="TC-1, TC-2 & 50T Mobile"
-            status={lifts.some(l => l.status !== 'ACTIVE') ? 'warning' : 'success'}
+            status={filteredLifts.some(l => l.status !== 'ACTIVE') ? 'warning' : 'success'}
             onClick={() => setActiveTab('lifting')}
           />
           <KpiPill
             title="Rebar (BBS) & Concrete"
-            value={`${materials.length} Deliveries`}
-            sub={`${materials.filter(m => m.status.includes('Delay')).length} BBS Tags Delayed`}
-            status={materials.some(m => m.status.includes('Delay')) ? 'danger' : 'success'}
+            value={`${filteredMaterials.length} Deliveries`}
+            sub={`${filteredMaterials.filter(m => m.status.includes('Delay')).length} BBS Tags Delayed`}
+            status={filteredMaterials.some(m => m.status.includes('Delay')) ? 'danger' : 'success'}
             onClick={() => setActiveTab('materials')}
           />
           <KpiPill
@@ -670,35 +495,50 @@ export default function App() {
           {activeTab === 'dashboard' && (
             <PMCommandDashboard
               onNavigate={setActiveTab}
-              inspections={inspections}
-              lifts={lifts}
-              materials={materials}
+              inspections={filteredInspections}
+              lifts={filteredLifts}
+              materials={filteredMaterials}
               claims={claims}
             />
           )}
-          {activeTab === 'calendar' && <CalendarView tasks={tasks} />}
+          {activeTab === 'calendar' && <CalendarView tasks={filteredTasks} onAdd={(t) => addRecord('tasks', t)} onUpdate={(id, t) => updateRecord('tasks', id, t)} currentUser={currentUser} zones={zones} />}
           {activeTab === 'inspections' && (
             <InspectionsView
-              inspections={inspections}
+              inspections={filteredInspections}
               onUpdateStage={handleUpdateRfiStage}
+              onAdd={(t) => addRecord('inspections', t)}
+              onUpdate={(id, t) => updateRecord('inspections', id, t)}
+              currentUser={currentUser}
+              zones={zones}
             />
           )}
           {activeTab === 'lifting' && (
             <LiftingView
-              lifts={lifts}
+              lifts={filteredLifts}
               onToggleLift={handleToggleLift}
+              onAdd={(t) => addRecord('lifts', t)}
+              onUpdate={(id, t) => updateRecord('lifts', id, t)}
+              currentUser={currentUser}
+              zones={zones}
             />
           )}
           {activeTab === 'materials' && (
             <MaterialsView
-              materials={materials}
+              materials={filteredMaterials}
               onToggleSopa={handleToggleSopa}
+              onAdd={(t) => addRecord('materials', t)}
+              onUpdate={(id, t) => updateRecord('materials', id, t)}
+              currentUser={currentUser}
+              zones={zones}
             />
           )}
           {activeTab === 'diary' && (
             <SiteDiaryView
-              weatherLogs={weatherLogs}
-              onAddWeatherLog={handleAddWeatherLog}
+              weatherLogs={filteredWeatherLogs}
+              onAddWeatherLog={(l) => addRecord('weatherLogs', l)}
+              onUpdate={(id, t) => updateRecord('weatherLogs', id, t)}
+              currentUser={currentUser}
+              zones={zones}
             />
           )}
           {activeTab === 'reports' && (
@@ -725,11 +565,11 @@ export default function App() {
       {isExecModalOpen && (
         <ExecutiveReportModal
           onClose={() => setIsExecModalOpen(false)}
-          tasks={tasks}
-          inspections={inspections}
+          tasks={filteredTasks}
+          inspections={filteredInspections}
           claims={claims}
-          weatherLogs={weatherLogs}
-          materials={materials}
+          weatherLogs={filteredWeatherLogs}
+          materials={filteredMaterials}
         />
       )}
     </div>

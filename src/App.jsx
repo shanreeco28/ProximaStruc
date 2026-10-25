@@ -13,7 +13,7 @@ import MobileNav from './components/MobileNav';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import LoginView from './components/LoginView';
 import ProjectSelection from './components/ProjectSelection';
 
@@ -105,6 +105,56 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [user]);
+
+  useEffect(() => {
+    const syncUserProfile = async () => {
+      if (!user || !selectedProject) return;
+
+      const syncKey = `synced_${user.uid}_${selectedProject.id}`;
+      if (sessionStorage.getItem(syncKey)) return;
+
+      try {
+        const usersRef = collection(db, `artifacts/${selectedProject.id}/users`);
+        const qUser = query(usersRef, where('email', '==', user.email));
+        const snapshot = await getDocs(qUser);
+
+        if (snapshot.empty) {
+          const tempUserDataStr = localStorage.getItem('temp_user_data');
+          const tempUserData = tempUserDataStr ? JSON.parse(tempUserDataStr) : {};
+
+          const allUsersSnapshot = await getDocs(usersRef);
+          const isFirstUser = allUsersSnapshot.empty;
+          const userRole = isFirstUser ? 'admin' : 'guest';
+
+          const newUserDoc = {
+            name: user.displayName || user.email.split('@')[0],
+            email: user.email,
+            role: tempUserData.designation || 'Site Engineer',
+            organization: 'Main Contractor',
+            category: 'Main Contractor',
+            cdePermission: 'Field Contributor (Level 1)',
+            statutoryReg: '',
+            certExpiry: '2027-12-31',
+            bizSafe: 'Pending Verification',
+            biometricStatus: 'Active (Provisional Gate Pass)',
+            ptwAuthority: ['General Site Access (No PTW)'],
+            systemRole: userRole,
+            createdAt: new Date().toISOString(),
+            birthday: tempUserData.birthday || ''
+          };
+
+          const docRef = doc(usersRef);
+          await setDoc(docRef, newUserDoc);
+        }
+
+        sessionStorage.setItem(syncKey, 'true');
+      } catch (e) {
+        console.error('Error syncing user profile:', e);
+      }
+    };
+
+    syncUserProfile();
+  }, [user, selectedProject]);
 
   useEffect(() => {
     if (!selectedProject || !user) return;

@@ -10,10 +10,14 @@ import ReportView from './components/ReportView';
 import UserManagementView from './components/UserManagementView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
 import MobileNav from './components/MobileNav';
+import MonitoringView from './components/MonitoringView';
+import { observationValue } from './utils/monitoring';
+import useProjectRecords from './hooks/useProjectRecords';
+import { canPlan, canWrite, latestObservation, projectProgress, ROLES } from './utils/siteData';
 
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { onAuthStateChanged, signOut, sendEmailVerification } from 'firebase/auth';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 import LoginView from './components/LoginView';
 import ProjectSelection from './components/ProjectSelection';
 
@@ -25,44 +29,13 @@ import ProjectSelection from './components/ProjectSelection';
 
 
 
-const NAV_GROUPS = [
-  {
-    group: 'Executive & Planning',
-    items: [
-      { id: 'dashboard', label: 'PM Command Center', badge: null },
-      { id: 'calendar', label: 'Master Schedule & Lookahead', badge: '3-Wk' },
-      { id: 'reports', label: 'Progress & SOPA Analytics', badge: null },
-    ],
-  },
-  {
-    group: 'Site Execution & QA/QC',
-    items: [
-      { id: 'inspections', label: 'RE/RTO Inspections (RFI)', badge: '4 Pending', alert: 'warning' },
-      { id: 'materials', label: 'Materials, BBS & DOs', badge: '2 Delayed', alert: 'danger' },
-      { id: 'diary', label: 'Statutory Site Diary', badge: 'Today' },
-    ],
-  },
-  {
-    group: 'WSH & High-Risk Ops (MOM)',
-    items: [
-      { id: 'lifting', label: 'Lifting Plan & PTW Matrix', badge: '6 Active', alert: 'success' },
-    ],
-  },
-  {
-    group: 'System & Access',
-    items: [
-      { id: 'users', label: 'Role & Subcon Matrix', badge: null },
-    ],
-  },
-];
-
 export default function App() {
 
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState(() => {
     const saved = localStorage.getItem('sb-selected-project');
-    return saved ? JSON.parse(saved) : null;
+    try { return saved ? JSON.parse(saved) : null; } catch { return null; }
   });
   const [projects, setProjects] = useState([]);
 
@@ -70,14 +43,17 @@ export default function App() {
   const [isExecModalOpen, setIsExecModalOpen] = useState(false);
   const [selectedZone, setSelectedZone] = useState('All Zones');
 
-  const [inspections, setInspections] = useState([]);
-  const [lifts, setLifts] = useState([]);
-  const [materials, setMaterials] = useState([]);
-  const [claims] = useState([]);
-  const [weatherLogs, setWeatherLogs] = useState([]);
-  const [personnel, setPersonnel] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [zones, setZones] = useState([]);
+  const [operationError, setOperationError] = useState('');
+  const records = useProjectRecords(selectedProject?.id, user?.uid);
+  const inspections = records.inspections.items;
+  const lifts = records.lifts.items;
+  const materials = records.materials.items;
+  const weatherLogs = records.weatherLogs.items;
+  const personnel = records.users.items;
+  const tasks = records.tasks.items;
+  const zones = records.zones.items;
+  const observations = records.monitoring.items;
+  const observation = latestObservation(observations);
 
 
   useEffect(() => {
@@ -106,39 +82,17 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  useEffect(() => {
-    if (!selectedProject || !user) return;
-    const listeners = [];
+  const liveProject = projects.find(p => p.id === selectedProject?.id);
+  const currentUser = liveProject?.ownerId === user?.uid
+    ? { email: user?.email, systemRole: 'admin' }
+    : user?.emailVerified ? (personnel.find(p => p.id === user.email?.toLowerCase()) || personnel.find(p => p.email?.toLowerCase() === user.email?.toLowerCase())) : undefined;
+  const isPrivileged = canPlan(currentUser);
+  const isAdmin = currentUser?.systemRole === 'admin';
 
-    const subscribe = (collectionName, setter) => {
-      const q = collection(db, `artifacts/${selectedProject.id}/${collectionName}`);
-      const unsub = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-        setter(data);
-      });
-      listeners.push(unsub);
-    };
-
-    subscribe('users', setPersonnel);
-    subscribe('tasks', setTasks);
-    subscribe('inspections', setInspections);
-    subscribe('materials', setMaterials);
-    subscribe('weatherLogs', setWeatherLogs);
-    subscribe('lifts', setLifts);
-    subscribe('zones', setZones);
-
-    return () => {
-      listeners.forEach((unsub) => unsub());
-    };
-  }, [selectedProject, user]);
-  
-  const currentUser = personnel.find(p => p.email === user?.email);
-  const isPrivileged = ['admin', 'manager', 'engineer'].includes(currentUser?.systemRole);
-
-  const handleAddZone = () => {
+  const handleAddZone = async () => {
     const newZone = window.prompt("Enter new zone name:");
     if (newZone?.trim()) {
-      addRecord('zones', { name: newZone.trim() });
+      try { await addRecord('zones', { name: newZone.trim() }); } catch (e) { setOperationError(e.message); }
     }
   };
 
@@ -147,32 +101,30 @@ export default function App() {
     return arr.filter(item => item.zone === selectedZone);
   };
 
-  const addRecord = async (collectionName, record) => {
-    if (!selectedProject) return;
-    try {
-      const recordWithMeta = {
-        ...record,
-        createdBy: user.email,
-        createdAt: new Date().toISOString()
-      };
-
-      const docRef = record.id
-        ? doc(db, `artifacts/${selectedProject.id}/${collectionName}`, record.id)
-        : doc(collection(db, `artifacts/${selectedProject.id}/${collectionName}`));
-
-      await setDoc(docRef, recordWithMeta);
-    } catch (e) {
-      console.error(`Error adding to ${collectionName}:`, e);
-    }
+  const assertPermission = (collectionName) => {
+    if (!selectedProject || !user || !canWrite(currentUser, collectionName)) throw new Error('Your project role does not permit this change.');
   };
-
+  const addRecord = async (collectionName, record) => {
+    assertPermission(collectionName);
+    if (record.id && (record.id.includes('/') || !record.id.trim())) throw new Error('Record references must be nonempty and cannot contain a slash.');
+    const recordWithMeta = { ...record, createdBy: user.email, createdAt: new Date().toISOString() };
+    const ref = record.id
+      ? doc(db, `artifacts/${selectedProject.id}/${collectionName}`, record.id)
+      : doc(collection(db, `artifacts/${selectedProject.id}/${collectionName}`));
+    // Creation must never overwrite an existing record with the same reference.
+    await runTransaction(db, async transaction => {
+      const existing = await transaction.get(ref);
+      if (existing.exists()) throw new Error('That reference already exists. Edit the existing record instead.');
+      transaction.set(ref, recordWithMeta);
+    });
+  };
   const updateRecord = async (collectionName, id, updates) => {
-    if (!selectedProject) return;
-    try {
-      await updateDoc(doc(db, `artifacts/${selectedProject.id}/${collectionName}`, id), updates);
-    } catch (e) {
-      console.error(`Error updating in ${collectionName}:`, e);
-    }
+    assertPermission(collectionName);
+    const { id: ignoredId, createdBy: ignoredCreator, createdAt: ignoredDate, ...fields } = updates;
+    void ignoredId; void ignoredCreator; void ignoredDate;
+    await updateDoc(doc(db, `artifacts/${selectedProject.id}/${collectionName}`, id), {
+      ...fields, updatedBy: user.email, updatedAt: new Date().toISOString()
+    });
   };
 
   const filteredTasks = filterByZone(tasks);
@@ -183,78 +135,61 @@ export default function App() {
 
 
   const handleAddPersonnel = async (newUser) => {
-    if (!selectedProject) return;
-    const isFirstUser = personnel.length === 0;
-    const userRole = isFirstUser ? 'admin' : 'guest';
-    
-    const newUserDoc = {
-      ...newUser,
-      bizSafe: 'Pending Verification',
-      biometricStatus: 'Active (Provisional Gate Pass)',
-      ptwAuthority: ['General Site Access (No PTW)'],
-      cdePermission: 'Field Contributor (Level 1)',
-      systemRole: userRole,
-      createdAt: new Date().toISOString()
-    };
-    
-    try {
-      const docRef = doc(collection(db, `artifacts/${selectedProject.id}/users`));
-      await setDoc(docRef, newUserDoc);
-    } catch (e) {
-      console.error('Error adding personnel:', e);
-    }
+    assertPermission('users');
+    const email = newUser.email?.trim().toLowerCase();
+    if (!email || email.includes('/')) throw new Error('Enter a valid sign-in email.');
+    if (personnel.some(p => p.email?.toLowerCase() === email)) throw new Error('That sign-in email is already registered.');
+    await addRecord('users', {
+      ...newUser, email, id: email, bizSafe: newUser.bizSafe || '',
+      biometricStatus: 'Not recorded', ptwAuthority: [], cdePermission: 'Project member', systemRole: 'guest'
+    });
   };
-
   const handleToggleBiometricGate = async (id) => {
-    if (!selectedProject) return;
     const person = personnel.find(p => p.id === id);
     if (!person) return;
-    const isActive = person.biometricStatus.includes('Active');
-    const newStatus = isActive ? 'Suspended (Gate Pass Revoked by PM)' : 'Active (Gate Pass Restored)';
+    try { await updateRecord('users', id, { biometricStatus: person.biometricStatus?.startsWith('Active') ? 'Suspended (manual record)' : 'Active (manual record)' }); }
+    catch (e) { setOperationError(e.message); }
+  };
+  const handleUpdatePersonnelRole = async (id, systemRole) => {
+    if (!ROLES.includes(systemRole)) return;
+    const person = personnel.find(p => p.id === id);
+    if (!person?.email) { setOperationError('This legacy personnel record needs a sign-in email before assigning access.'); return; }
     try {
-      await updateDoc(doc(db, `artifacts/${selectedProject.id}/users`, id), {
-        biometricStatus: newStatus
-      });
-    } catch (e) {
-      console.error('Error updating biometric status:', e);
-    }
+      assertPermission('users');
+      const email = person.email.toLowerCase();
+      if (id === email) {
+        await updateRecord('users', id, { systemRole });
+      } else {
+        const legacyRef = doc(db, `artifacts/${selectedProject.id}/users`, id);
+        const memberRef = doc(db, `artifacts/${selectedProject.id}/users`, email);
+        await runTransaction(db, async transaction => {
+          const legacy = await transaction.get(legacyRef);
+          const existing = await transaction.get(memberRef);
+          if (!legacy.exists()) throw new Error('The legacy record no longer exists. Refresh and retry.');
+          if (existing.exists()) throw new Error('A membership already exists for this email. Review that membership instead of overwriting it.');
+          const { id: ignored, ...data } = legacy.data(); void ignored;
+          if (data.email?.toLowerCase() !== email) throw new Error('The sign-in email changed. Refresh and retry.');
+          transaction.set(memberRef, {
+            ...data, email, systemRole, migratedFrom: id,
+            legacyCreatedBy: data.createdBy || '', legacyCreatedAt: data.createdAt || '',
+            createdBy: user.email, createdAt: new Date().toISOString(),
+            updatedBy: user.email, updatedAt: new Date().toISOString()
+          });
+          transaction.delete(legacyRef);
+        });
+      }
+    } catch (e) { setOperationError(e.message); }
   };
-
-  const handleUpdatePersonnelRole = async (id, newSystemRole) => {
-    if (!selectedProject) return;
-    try {
-      await updateDoc(doc(db, `artifacts/${selectedProject.id}/users`, id), {
-        systemRole: newSystemRole
-      });
-    } catch (e) {
-      console.error('Error updating role:', e);
-    }
+  const handleToggleLift = async (id) => {
+    const lift = lifts.find(p => p.id === id);
+    if (!lift) return;
+    try { await updateRecord('lifts', id, { status: lift.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' }); }
+    catch (e) { setOperationError(e.message); }
   };
-
-  const handleToggleSopa = (id) => {
-    setMaterials((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, sopaClaimable: !m.sopaClaimable } : m))
-    );
-  };
-
-  const handleUpdateRfiStage = (updatedRfi) => {
-    setInspections((prev) =>
-      prev.map((rfi) => (rfi.id === updatedRfi.id ? updatedRfi : rfi))
-    );
-  };
-
-  const handleToggleLift = (id) => {
-    setLifts((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p;
-        const next = p.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-        return { ...p, status: next };
-      })
-    );
-  };
+  const progress = projectProgress(filteredTasks);
 
   const pendingInspections = filteredInspections.filter((i) => i.stage < 3).length;
-  const delayedMaterials = filteredMaterials.filter((m) => m.status.includes('Delay')).length;
+  const delayedMaterials = filteredMaterials.filter((m) => m.status?.includes('Delay')).length;
   const activeLifts = filteredLifts.filter((l) => l.status === 'ACTIVE').length;
 
   const dynamicNavGroups = [
@@ -262,8 +197,8 @@ export default function App() {
       group: 'Executive & Planning',
       items: [
         { id: 'dashboard', label: 'PM Command Center', badge: null },
-        { id: 'calendar', label: 'Master Schedule & Lookahead', badge: '3-Wk' },
-        { id: 'reports', label: 'Progress & SOPA Analytics', badge: null },
+        { id: 'calendar', label: 'Site Planning & Lookahead', badge: null },
+        { id: 'reports', label: 'Site Progress & Analytics', badge: null },
       ],
     },
     {
@@ -271,7 +206,7 @@ export default function App() {
       items: [
         { id: 'inspections', label: 'RE/RTO Inspections (RFI)', badge: pendingInspections > 0 ? `${pendingInspections} Pending` : null, alert: pendingInspections > 0 ? 'warning' : null },
         { id: 'materials', label: 'Materials, BBS & DOs', badge: delayedMaterials > 0 ? `${delayedMaterials} Delayed` : null, alert: delayedMaterials > 0 ? 'danger' : null },
-        { id: 'diary', label: 'Statutory Site Diary', badge: 'Today' },
+        { id: 'diary', label: 'Site Diary', badge: null },
       ],
     },
     {
@@ -284,6 +219,7 @@ export default function App() {
       group: 'System & Access',
       items: [
         { id: 'users', label: 'Role & Subcon Matrix', badge: null },
+        ...(isAdmin ? [{ id: 'monitoring', label: 'Admin Control Panel', badge: null }] : []),
       ],
     },
   ];
@@ -305,16 +241,21 @@ export default function App() {
         onSelect={setSelectedProject}
         onAdd={async (newProject) => {
           try {
-            await setDoc(doc(db, 'projects', newProject.id), newProject);
+            const ref = doc(db, 'projects', newProject.id);
+            await runTransaction(db, async transaction => {
+              if ((await transaction.get(ref)).exists()) throw new Error('That project reference already exists.');
+              transaction.set(ref, { ...newProject, ownerId: user.uid, createdBy: user.email, createdAt: new Date().toISOString() });
+            });
           } catch (e) {
-            console.error('Error adding project:', e);
+            throw new Error(e.message || 'Could not create project.');
           }
         }}
         onDelete={async (id) => {
           try {
+            if (projects.find(p => p.id === id)?.ownerId !== user.uid) throw new Error('Only the project owner can delete the project.');
             await deleteDoc(doc(db, 'projects', id));
           } catch (e) {
-            console.error('Error deleting project:', e);
+            setOperationError(e.message);
           }
         }}
         onLogout={() => signOut(auth)}
@@ -345,7 +286,7 @@ export default function App() {
         <div className="p-4 border-b border-slate-800 bg-slate-950/40">
           <div className="flex items-center justify-between mb-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
-              Active Contract / Zone
+              Active Project / Zone
             </label>
             {isPrivileged && (
               <button onClick={handleAddZone} className="text-xs text-blue-400 hover:text-blue-300">+</button>
@@ -413,12 +354,12 @@ export default function App() {
         {/* PM Regulatory Quick-Footer */}
         <div className="p-4 border-t border-slate-800 bg-slate-950/60 text-xs text-slate-400 space-y-1">
           <div className="flex justify-between">
-            <span>WSH Incident-Free:</span>
-            <span className="font-mono font-bold text-emerald-400">412 Days</span>
+            <span>Incident-free since:</span>
+            <span className="font-mono font-bold text-slate-300">{observationValue(observation, 'incidentFreeSince')}</span>
           </div>
           <div className="flex justify-between">
-            <span>NEA Noise / Dengue:</span>
-            <span className="font-mono text-emerald-400">Compliant (68 dB)</span>
+            <span>Last noise reading:</span>
+            <span className="font-mono text-slate-300">{observationValue(observation, 'noise', 'dB(A)')}</span>
           </div>
         </div>
       </aside>
@@ -432,13 +373,14 @@ export default function App() {
             <h1 className="text-lg font-bold text-slate-900 tracking-tight">
               {dynamicNavGroups.flatMap((g) => g.items).find((i) => i.id === activeTab)?.label}
             </h1>
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              NEA Weather: Fair (31°C) • Lifting Clear
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200">
+              <span className="w-2 h-2 rounded-full bg-slate-400" />
+              Weather: {observationValue(observation, 'weather')}{observation ? ` · ${observation.observedAt.replace('T', ' ')}` : ''}
             </span>
           </div>
 
           <div className="flex items-center gap-3">
+            <button onClick={() => { setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard'); setOperationError(''); }} className="text-xs text-slate-500">Projects</button>
             <button
               onClick={() => setIsExecModalOpen(true)}
               className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm transition"
@@ -454,58 +396,59 @@ export default function App() {
           className="bg-white border-b border-slate-200 px-4 lg:px-8 py-3 grid grid-cols-2 lg:grid-cols-5 gap-3"
         >
           <KpiPill
-            title="Critical Path (SPI)"
-            value="0.98 (-2d)"
-            sub={filteredTasks.find(t => t.critical)?.activity || 'On Track'}
-            status={filteredTasks.some(t => t.variance.includes('-')) ? 'warning' : 'success'}
+            title="Recorded plan progress"
+            value={progress.actual === null ? 'Not recorded' : `${progress.actual.toFixed(1)}%`}
+            sub={`${filteredTasks.length} activities · ${filteredTasks.filter(t => t.status === 'Blocked').length} blocked`}
+            status="neutral"
             onClick={() => setActiveTab('calendar')}
           />
           <KpiPill
             title="RE / RTO Inspections"
             value={`${filteredInspections.filter(i => i.stage === 3).length} Cleared`}
             sub={`${filteredInspections.filter(i => i.stage < 3).length} Awaiting Sign-off`}
-            status={filteredInspections.some(i => i.stage < 3) ? 'neutral' : 'success'}
+            status={filteredInspections.length && filteredInspections.every(i => i.stage === 3) ? 'success' : 'neutral'}
             onClick={() => setActiveTab('inspections')}
           />
           <KpiPill
             title="Active Lifting / PTWs"
             value={`${filteredLifts.filter(l => l.status === 'ACTIVE').length} Permits`}
-            sub="TC-1, TC-2 & 50T Mobile"
-            status={filteredLifts.some(l => l.status !== 'ACTIVE') ? 'warning' : 'success'}
+            sub={`${filteredLifts.length} permits recorded`}
+            status={!filteredLifts.length ? 'neutral' : filteredLifts.some(l => l.status !== 'ACTIVE') ? 'warning' : 'success'}
             onClick={() => setActiveTab('lifting')}
           />
           <KpiPill
             title="Rebar (BBS) & Concrete"
-            value={`${filteredMaterials.length} Deliveries`}
-            sub={`${filteredMaterials.filter(m => m.status.includes('Delay')).length} BBS Tags Delayed`}
-            status={filteredMaterials.some(m => m.status.includes('Delay')) ? 'danger' : 'success'}
+            value={`${filteredMaterials.length} Records`}
+            sub={`${filteredMaterials.filter(m => m.status?.includes('Delay')).length} Material Records Delayed`}
+            status={filteredMaterials.some(m => m.status?.includes('Delay')) ? 'danger' : 'neutral'}
             onClick={() => setActiveTab('materials')}
           />
           <KpiPill
-            title="Site Manpower (Biometric)"
-            value={`${personnel.filter(p => p.biometricStatus.includes('Active')).length} Pax`}
-            sub={`Main: ${personnel.filter(p => p.category === 'Main Contractor').length} | Subcon: ${personnel.filter(p => p.category.includes('Subcontractor')).length}`}
+            title="Site Personnel"
+            value={`${personnel.length} registered`}
+            sub={`Main: ${personnel.filter(p => p.category === 'Main Contractor').length} | Subcon: ${personnel.filter(p => p.category?.includes('Subcontractor')).length}`}
             status="neutral"
             onClick={() => setActiveTab('users')}
           />
         </section>
 
         {/* Active View Container */}
-        <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
+        <main key={selectedProject.id} className="flex-1 p-4 lg:p-8 pb-24 md:pb-8 overflow-y-auto">
+          {(operationError || Object.values(records).some(r => r.error)) && <div role="alert" className="mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">{operationError || Object.values(records).find(r => r.error)?.error}<button onClick={() => setOperationError('')} className="ml-3 underline">Dismiss</button></div>}
+          {user && !user.emailVerified && liveProject?.ownerId !== user.uid && <p className="mb-4 text-sm text-amber-700">Verify your email to use assigned project access. <button className="underline" onClick={async () => { try { await sendEmailVerification(user); setOperationError('Verification email sent. Follow its link, then sign in again.'); } catch (e) { setOperationError(e.message); } }}>Send verification email</button></p>}
+          {!currentUser && <p className="mb-4 text-sm text-slate-500">Project records require an admin-assigned role for your verified sign-in email.</p>}
           {activeTab === 'dashboard' && (
             <PMCommandDashboard
               onNavigate={setActiveTab}
               inspections={filteredInspections}
               lifts={filteredLifts}
               materials={filteredMaterials}
-              claims={claims}
             />
           )}
-          {activeTab === 'calendar' && <CalendarView tasks={filteredTasks} onAdd={(t) => addRecord('tasks', t)} onUpdate={(id, t) => updateRecord('tasks', id, t)} currentUser={currentUser} zones={zones} />}
+          {activeTab === 'calendar' && <CalendarView key={selectedProject.id} tasks={filteredTasks} allTasks={tasks} timeline={{ tasks: filteredTasks, inspections: filteredInspections, materials: filteredMaterials, diary: filteredWeatherLogs, lifts: filteredLifts }} inspections={inspections} materials={materials} diary={filteredWeatherLogs} lifts={filteredLifts} onAdd={(t) => addRecord('tasks', t)} onUpdate={(id, t) => updateRecord('tasks', id, t)} currentUser={currentUser} zones={zones} />}
           {activeTab === 'inspections' && (
             <InspectionsView
               inspections={filteredInspections}
-              onUpdateStage={handleUpdateRfiStage}
               onAdd={(t) => addRecord('inspections', t)}
               onUpdate={(id, t) => updateRecord('inspections', id, t)}
               currentUser={currentUser}
@@ -516,6 +459,7 @@ export default function App() {
             <LiftingView
               lifts={filteredLifts}
               onToggleLift={handleToggleLift}
+              observation={observation}
               onAdd={(t) => addRecord('lifts', t)}
               onUpdate={(id, t) => updateRecord('lifts', id, t)}
               currentUser={currentUser}
@@ -525,7 +469,7 @@ export default function App() {
           {activeTab === 'materials' && (
             <MaterialsView
               materials={filteredMaterials}
-              onToggleSopa={handleToggleSopa}
+              tasks={tasks}
               onAdd={(t) => addRecord('materials', t)}
               onUpdate={(id, t) => updateRecord('materials', id, t)}
               currentUser={currentUser}
@@ -535,6 +479,8 @@ export default function App() {
           {activeTab === 'diary' && (
             <SiteDiaryView
               weatherLogs={filteredWeatherLogs}
+              tasks={tasks}
+              observation={observation}
               onAddWeatherLog={(l) => addRecord('weatherLogs', l)}
               onUpdate={(id, t) => updateRecord('weatherLogs', id, t)}
               currentUser={currentUser}
@@ -542,8 +488,9 @@ export default function App() {
             />
           )}
           {activeTab === 'reports' && (
-            <ReportView claims={claims} />
+            <ReportView tasks={filteredTasks} inspections={filteredInspections} materials={filteredMaterials} diary={filteredWeatherLogs} lifts={filteredLifts} />
           )}
+          {activeTab === 'monitoring' && isAdmin && <MonitoringView key={selectedProject.id} observations={observations} currentUser={currentUser} onAdd={record => addRecord('monitoring', record)} />}
           {activeTab === 'users' && (
             <UserManagementView
               users={personnel}
@@ -557,7 +504,7 @@ export default function App() {
 
         {/* Mobile Bottom Navigation */}
         <div className="md:hidden">
-          <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
+          <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} />
         </div>
       </div>
 
@@ -567,7 +514,8 @@ export default function App() {
           onClose={() => setIsExecModalOpen(false)}
           tasks={filteredTasks}
           inspections={filteredInspections}
-          claims={claims}
+          projectName={liveProject?.name}
+          lifts={filteredLifts}
           weatherLogs={filteredWeatherLogs}
           materials={filteredMaterials}
         />
@@ -598,7 +546,7 @@ function KpiPill({ title, value, sub, status, onClick }) {
   );
 }
 
-function PMCommandDashboard({ onNavigate, inspections, lifts, materials, claims }) {
+function PMCommandDashboard({ onNavigate, inspections, lifts, materials }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -692,11 +640,11 @@ function PMCommandDashboard({ onNavigate, inspections, lifts, materials, claims 
           </div>
         </div>
 
-        {/* Column 3: Commercial / SOPA & Supply Chain Pulse */}
+        {/* Column 3: Site Material & Supply Chain Pulse */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
-              SOPA Progress Claim & BBS Logistics
+              Material Readiness & BBS Logistics
             </h2>
             <button
               onClick={() => onNavigate('materials')}
@@ -706,30 +654,16 @@ function PMCommandDashboard({ onNavigate, inspections, lifts, materials, claims 
             </button>
           </div>
           <div className="space-y-3 text-sm flex-1">
-            {claims[0] && (
-              <>
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-slate-600">Current Claim ({claims[0].claimNo}):</span>
-                  <span className="font-mono font-bold text-slate-900">{claims[0].period.split('–')[1]?.trim() || 'Next Cutoff'}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-slate-600">Verified Structural Cast:</span>
-                  <span className="font-mono font-bold text-emerald-700">
-                    S$ {claims[0].certifiedAmount.toLocaleString()}
-                  </span>
-                </div>
-              </>
-            )}
             <div className="flex justify-between items-center py-2">
               <span className="text-slate-600">Delayed Materials / BBS:</span>
               <span className="font-mono font-bold text-red-600">
-                {materials.filter((m) => m.status.includes('Delay')).length} Item(s)
+                {materials.filter((m) => m.status?.includes('Delay')).length} Item(s)
               </span>
             </div>
             <div className="flex justify-between items-center py-2 border-t border-slate-100 mt-2">
-              <span className="text-slate-600">Total SOPA Claimable in View:</span>
+              <span className="text-slate-600">Received material records:</span>
               <span className="font-mono font-bold text-blue-700">
-                S$ {materials.filter(r => r.sopaClaimable).reduce((acc, r) => acc + r.sopaValue, 0).toLocaleString()}
+                {materials.filter(r => ['Received', 'Installed', 'Poured'].includes(r.status)).length} / {materials.length}
               </span>
             </div>
           </div>

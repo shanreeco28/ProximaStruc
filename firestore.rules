@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function owner(projectId) {
+      return signedIn() && get(/databases/$(database)/documents/projects/$(projectId)).data.get('ownerId', '') == request.auth.uid;
+    }
+    function verifiedEmail() {
+      return signedIn() && request.auth.token.get('email_verified', false) && request.auth.token.get('email', '') != '';
+    }
+    function role(projectId) {
+      return verifiedEmail() && exists(/databases/$(database)/documents/artifacts/$(projectId)/users/$(request.auth.token.email.lower()))
+        ? get(/databases/$(database)/documents/artifacts/$(projectId)/users/$(request.auth.token.email.lower())).data.get('systemRole', 'guest') : '';
+    }
+    function admin(projectId) { return owner(projectId) || role(projectId) == 'admin'; }
+    function planner(projectId) { return owner(projectId) || role(projectId) in ['admin', 'manager', 'engineer']; }
+    function siteRecorder(projectId) { return planner(projectId) || role(projectId) == 'supervisor'; }
+    function member(projectId) { return owner(projectId) || role(projectId) in ['guest', 'supervisor', 'engineer', 'manager', 'admin']; }
+    function auditCreate() {
+      return request.resource.data.createdBy == request.auth.token.email && request.resource.data.createdAt is string;
+    }
+    function auditUpdate() {
+      return request.resource.data.get('createdBy', '') == resource.data.get('createdBy', '')
+        && request.resource.data.get('createdAt', '') == resource.data.get('createdAt', '')
+        && request.resource.data.updatedBy == request.auth.token.email && request.resource.data.updatedAt is string;
+    }
+    function validTask() {
+      let d = request.resource.data;
+      return d.activity is string && d.activity.size() > 0 && d.zone is string && d.owner is string
+        && d.startDate is string && d.endDate is string && d.endDate >= d.startDate
+        && d.progress is number && d.progress >= 0 && d.progress <= 100
+        && d.status in ['Backlog', 'Ready', 'In progress', 'Blocked', 'Done']
+        && (d.status != 'Done' || d.progress == 100);
+    }
+    function validMaterial() {
+      let d = request.resource.data;
+      return d.type in ['BBS', 'Concrete', 'Delivery Order'] && d.reference is string && d.reference.size() > 0
+        && d.quantity is number && d.quantity > 0 && d.unit is string && d.unit.size() > 0
+        && d.status in ['Planned', 'Ordered', 'Dispatched', 'Received', 'Delayed', 'Rejected', 'Installed', 'Poured']
+        && (!(d.status in ['Received', 'Installed', 'Poured']) || (d.doNumber is string && d.doNumber.size() > 0 && d.actualDate is string && d.actualDate.size() > 0));
+    }
+    match /projects/{projectId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && auditCreate();
+      allow update: if owner(projectId) && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if owner(projectId);
+    }
+    match /artifacts/{projectId}/{collectionName}/{recordId} {
+      allow read: if member(projectId);
+      allow delete: if admin(projectId) && collectionName in ['users', 'tasks', 'materials', 'weatherLogs', 'zones', 'inspections', 'lifts'];
+      allow create: if auditCreate() && (
+        (collectionName == 'tasks' && planner(projectId) && validTask()) ||
+        (collectionName == 'materials' && siteRecorder(projectId) && validMaterial()) ||
+        (collectionName == 'weatherLogs' && siteRecorder(projectId) && request.resource.data.details is string) ||
+        (collectionName in ['zones', 'inspections', 'lifts'] && planner(projectId)) ||
+        (collectionName == 'monitoring' && admin(projectId) && request.resource.data.confirmedBy == request.auth.token.email && request.resource.data.confirmedAt is string) ||
+        (collectionName == 'users' && admin(projectId) && recordId == request.resource.data.email.lower()
+          && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'admin'])
+      );
+      allow update: if auditUpdate() && (
+        (collectionName == 'tasks' && planner(projectId) && validTask()) ||
+        (collectionName == 'materials' && siteRecorder(projectId) && validMaterial()) ||
+        (collectionName == 'weatherLogs' && siteRecorder(projectId) && request.resource.data.details is string) ||
+        (collectionName in ['zones', 'inspections', 'lifts'] && planner(projectId)) ||
+        (collectionName == 'users' && admin(projectId) && recordId == request.resource.data.email.lower()
+          && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'admin'])
+      );
+      // Confirmed monitoring observations are append-only; corrections use a new confirmation.
+    }
+  }
+}

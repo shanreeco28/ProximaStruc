@@ -1,13 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { canPlan } from '../utils/siteData';
+import { observationValue } from '../utils/monitoring';
+import { Field, SaveForm, RecordModal } from './RecordForm';
 
-export default function LiftingView({ lifts, onToggleLift }) {
+export default function LiftingView({ lifts, onToggleLift, onAdd, currentUser, zones = [], observation }) {
+  const [form, setForm] = useState(null);
+  const permitted = canPlan(currentUser);
+  const change = key => e => setForm({ ...form, [key]: e.target.value });
   return (
     <div className="space-y-6">
       {/* MOM WSH Statutory Telemetry Banner */}
       <div className="bg-slate-900 text-white p-5 rounded-xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400 block">
-            MOM WSH (Operation of Cranes) Regulations Compliance
+            Recorded lifting conditions
           </span>
           <h2 className="text-base font-bold mt-0.5">
             Active Lifting Permit-to-Work (PTW) & Crane Hook-Time Matrix
@@ -15,14 +21,17 @@ export default function LiftingView({ lifts, onToggleLift }) {
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
           <div className="bg-slate-800 px-3 py-2 rounded-lg border border-slate-700">
-            ANEMOMETER (TC-1): <span className="text-emerald-400 font-bold">14 km/h (SAFE &lt; 36 km/h)</span>
+            LAST WIND READING: <span className="text-emerald-400 font-bold">{observationValue(observation, 'wind', 'km/h')}</span>
           </div>
           <div className="bg-slate-800 px-3 py-2 rounded-lg border border-slate-700">
-            ANTI-COLLISION SYSTEM: <span className="text-emerald-400 font-bold">ONLINE</span>
+            ANTI-COLLISION SYSTEM: <span className="text-emerald-400 font-bold">{observationValue(observation, 'antiCollision')}</span>
           </div>
         </div>
       </div>
 
+      <p className="text-xs text-slate-500">{observation ? `Conditions observed ${observation.observedAt.replace('T', ' ')} · ${observation.source}` : 'No conditions confirmed by admin.'} Recorded conditions do not automatically authorize lifting.</p>
+      {permitted && <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm" onClick={() => setForm({ crane: '', date: '', zone: '', loadDescription: '', radius: '', lmExpiry: '', supervisor: '', rigger: '', signalman: '', status: 'SUSPENDED' })}>+ Record lifting permit</button>}
+      {!lifts.length && <p className="bg-white rounded-xl border p-6 text-sm text-slate-500">No lifting permits recorded.</p>}
       {/* PTW Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {lifts.map((ptw) => {
@@ -44,7 +53,7 @@ export default function LiftingView({ lifts, onToggleLift }) {
                         : 'bg-amber-100 text-amber-900 border border-amber-300'
                     }`}
                   >
-                    {ptw.status === 'ACTIVE' ? '● PTW AUTHORIZED (PM & WSHO)' : '⏳ AWAITING WSHO ENDORSEMENT'}
+                    {ptw.status === 'ACTIVE' ? '● PTW ACTIVE (RECORDED)' : 'PTW SUSPENDED (RECORDED)'}
                   </span>
                 </div>
 
@@ -70,7 +79,7 @@ export default function LiftingView({ lifts, onToggleLift }) {
                 {/* Mandatory MOM Appointed Lifting Team */}
                 <div className="mt-4">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                    Appointed Lifting Crew (Verified Biometric Check-In)
+                    Recorded appointed lifting crew
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                     <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
@@ -92,9 +101,9 @@ export default function LiftingView({ lifts, onToggleLift }) {
               {/* Action Footer */}
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xs text-slate-500">
-                  Daily Re-Validation: <strong className="text-slate-800">07:30 HRS</strong>
+                  Last update: <strong className="text-slate-800">{ptw.updatedAt?.slice(0, 10) || ptw.date || 'Not recorded'}</strong>
                 </span>
-                <button
+                {permitted && <button
                   onClick={() => onToggleLift && onToggleLift(ptw.id)}
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition ${
                     isActive
@@ -102,13 +111,19 @@ export default function LiftingView({ lifts, onToggleLift }) {
                       : 'bg-emerald-600 text-white hover:bg-emerald-700'
                   }`}
                 >
-                  {isActive ? 'Suspend Lift (Stop-Work)' : 'Approve & Activate PTW'}
-                </button>
+                  {isActive ? 'Record suspension' : 'Record PTW activation'}
+                </button>}
               </div>
             </div>
           );
         })}
       </div>
+      {form && permitted && <RecordModal title="Record lifting permit" onClose={() => setForm(null)}><SaveForm submitLabel="Save suspended permit" onSave={async () => { await onAdd(form); setForm(null); }}><div className="grid sm:grid-cols-2 gap-3">
+        <Field label="Crane / permit reference" required value={form.crane} onChange={change('crane')} />
+        <Field label="Permit date" type="date" required value={form.date} onChange={change('date')} />
+        <Field label="Zone" required value={form.zone} onChange={change('zone')}><option value="">Select zone</option>{zones.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}</Field>
+        {[['loadDescription', 'Load description'], ['radius', 'Working radius'], ['lmExpiry', 'Lifting machine certificate expiry'], ['supervisor', 'Lifting supervisor'], ['rigger', 'Rigger'], ['signalman', 'Signalman']].map(([key, label]) => <Field key={key} label={label} type={key === 'lmExpiry' ? 'date' : 'text'} required value={form[key]} onChange={change(key)} />)}
+      </div><p className="text-xs text-slate-500">Record starts suspended. Record activation only after the required site approvals are obtained.</p></SaveForm></RecordModal>}
     </div>
   );
 }

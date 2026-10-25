@@ -4,14 +4,18 @@ import { Briefcase, Plus, LogOut, ArrowRight, Building, CheckCircle2, Trash2 } f
 const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user }) => {
   const [newProjectName, setNewProjectName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const handleAddSubmit = (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
-    const id = newProjectName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    onAdd({ name: newProjectName, id });
-    setNewProjectName('');
-    setIsAdding(false);
+    setError(''); setSaving(true);
+    try {
+      await onAdd({ name: newProjectName.trim(), id: crypto.randomUUID() });
+      setNewProjectName(''); setIsAdding(false);
+    } catch (e) { setError(e.message || 'Could not create project.'); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -27,6 +31,7 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
           <p className="text-slate-500 dark:text-slate-400">Welcome back, {user?.name || 'User'}. Choose a workspace to continue.</p>
         </div>
 
+        {error && <p role="alert" className="text-red-700 text-sm">{error}</p>}
         {/* Project Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((project) => (
@@ -49,7 +54,7 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
 
               {/* Actions (Delete & Active Indicator) */}
               <div className="absolute top-4 right-4 flex gap-2">
-                {user?.role === 'admin' && onDelete && (
+                {project.ownerId === user?.uid && onDelete && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -96,7 +101,7 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
                   </button>
                   <button
                     type="submit"
-                    disabled={!newProjectName.trim()}
+                    disabled={!newProjectName.trim() || saving}
                     className="px-3 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
                   >
                     Create

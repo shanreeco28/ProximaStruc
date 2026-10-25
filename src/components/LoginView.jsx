@@ -1,116 +1,149 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Moon, Sun, Shield, Mail, CheckCircle2 } from 'lucide-react';
-import AppLogo from './AppLogo';
-import { auth } from '../firebase';
+// src/components/LoginView.jsx
+import React, { useState, useEffect } from 'react';
 import {
-  signInWithEmailLink,
-  GoogleAuthProvider,
-  signInWithPopup,
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  sendSignInLinkToEmail,
-  updateProfile
+  createUserWithEmailAndPassword,
 } from 'firebase/auth';
+import { auth, signInWithGoogleSmart, getRedirectResult } from '../firebase';
 
-const LoginView = ({ initialMode = 'login', isDark, toggleTheme }) => {
-  const navigate = useNavigate();
-  const [mode, setMode] = useState(initialMode);
-  const [formData, setFormData] = useState({ email: '', password: '', name: '', birthday: '', designation: '' });
-  const [error, setError] = useState('');
+export default function LoginView({ onLoginSuccess }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [magicSent, setMagicSent] = useState(false);
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  // Catch user returning from signInWithRedirect fallback
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user && onLoginSuccess) {
+          onLoginSuccess(result.user);
+        }
+      })
+      .catch((err) => {
+        setErrorMsg(err.message);
+      });
+  }, [onLoginSuccess]);
 
-  const handleConfirmEmail = async (e) => {
+  // IMPORTANT: Keep signInWithGoogleSmart() as the VERY FIRST async call in onClick
+  const handleGoogleLogin = async () => {
+    setErrorMsg('');
+    try {
+      const user = await signInWithGoogleSmart();
+      if (user && onLoginSuccess) onLoginSuccess(user);
+    } catch (err) {
+      setErrorMsg(`Google Sign-In failed: ${err.code || err.message}`);
+    }
+  };
+
+  const handleEmailAuth = async (e) => {
     e.preventDefault();
-    setLoading(true); setError('');
+    setErrorMsg('');
+    setLoading(true);
     try {
-      await signInWithEmailLink(auth, formData.email, window.location.href);
-      window.localStorage.removeItem('emailForSignIn');
-      navigate('/');
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
+      const userCred = isRegistering
+        ? await createUserWithEmailAndPassword(auth, email, password)
+        : await signInWithEmailAndPassword(auth, email, password);
+      if (onLoginSuccess) onLoginSuccess(userCred.user);
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const handleGoogle = async () => {
-    setLoading(true); setError('');
-    try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-      // Auth only - user profile syncs in App
-      navigate('/');
-    } catch (err) { setError(err.message); } finally { setLoading(false); }
-  };
-  const handleEmailLogin = async (e) => { e.preventDefault(); setLoading(true); setError(''); try { await signInWithEmailAndPassword(auth, formData.email, formData.password); navigate('/'); } catch (err) { setError(err.message); } finally { setLoading(false); } };
-  const handleRegister = async (e) => {
-    e.preventDefault(); setLoading(true); setError('');
-    try {
-      const result = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      await updateProfile(result.user, { displayName: formData.name });
-      // Store temp data to sync later
-      localStorage.setItem('temp_user_data', JSON.stringify({ designation: formData.designation, birthday: formData.birthday }));
-      navigate('/');
-    } catch (err) { setError(err.message); } finally { setLoading(false); }
-  };
-  const handleMagicLink = async (e) => { e.preventDefault(); setLoading(true); setError(''); const actionCodeSettings = { url: window.location.href, handleCodeInApp: true }; try { await sendSignInLinkToEmail(auth, formData.email, actionCodeSettings); window.localStorage.setItem('emailForSignIn', formData.email); setMagicSent(true); } catch (err) { setError(err.message); } finally { setLoading(false); } };
 
   return (
-    <div className="min-h-screen flex w-full">
-      {/* Left Side: Branding */}
-      <div className="hidden lg:flex w-1/2 bg-slate-900 flex-col items-center justify-center p-12">
-        <button onClick={() => navigate('/')} className="hover:opacity-80 transition-opacity flex flex-col items-center">
-          <AppLogo className="w-32 h-32 text-blue-500 mb-8" />
-          <h1 className="text-4xl font-bold text-white tracking-tight">PROXIMA<span className="text-blue-400">STRUC</span></h1>
-          <p className="text-slate-400 mt-4 text-lg">Construction Logistics Management</p>
-        </button>
-      </div>
-
-      {/* Right Side: Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-900 relative">
-        <div className="absolute top-4 right-4 flex gap-2">
-           <button onClick={() => navigate('/')} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-md text-slate-500 hover:text-zinc-500 transition-colors text-sm font-semibold">
-              Back to Home
-           </button>
-           <button onClick={toggleTheme} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-md text-slate-500 hover:text-zinc-500 transition-colors">
-              {isDark ? <Sun size={20} /> : <Moon size={20} />}
-           </button>
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 sm:p-8 shadow-2xl space-y-6">
+        <div>
+          <span className="text-[11px] font-mono uppercase tracking-wider text-blue-600 font-bold">
+            ISO 19650 Common Data Environment
+          </span>
+          <h1 className="text-2xl font-bold text-slate-900 mt-1">
+            PROXIMA<span className="text-blue-600">STRUC</span> Portal
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Sign in with your project credentials or authorized Google account.
+          </p>
         </div>
-        <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 p-8">
-          <div className="lg:hidden bg-slate-900 p-8 text-center -mx-8 -mt-8 mb-8 rounded-t-2xl">
-            <div className="mx-auto bg-zinc-800 w-16 h-16 rounded-xl flex items-center justify-center mb-4 shadow-lg">
-              <AppLogo className="w-10 h-10 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-white mt-4">ProximaStruc</h1>
-            <p className="text-slate-400 mt-2">Construction Logistics Management</p>
+
+        {errorMsg && (
+          <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs font-medium text-red-700">
+            {errorMsg}
+          </div>
+        )}
+
+        <form onSubmit={handleEmailAuth} className="space-y-4 text-sm">
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+              Work Email
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="engineer@company.com.sg"
+              className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
-          <div className="space-y-6">
-          {mode === 'login' && (<><form onSubmit={handleEmailLogin} className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Email</label><input name="email" type="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none" required /></div><div><label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Password</label><input name="password" type="password" value={formData.password} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none" required /></div><button type="submit" disabled={loading} className="w-full bg-zinc-800 hover:bg-zinc-900 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">{loading ? 'Signing In...' : <><Shield size={18} /> Sign In</>}</button></form><div className="flex items-center gap-2 my-2"><div className="h-px bg-slate-200 dark:bg-slate-700 flex-1"></div><span className="text-xs text-slate-400">OR</span><div className="h-px bg-slate-200 dark:bg-slate-700 flex-1"></div></div><button onClick={handleGoogle} className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-white font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="G" /> Sign in with Google</button><button onClick={() => setMode('magic')} className="w-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors"><Mail size={18} /> Sign in via Email Link</button><div className="text-center text-sm text-slate-500 mt-4">Don't have an account? <button onClick={() => setMode('register')} className="text-zinc-600 font-bold hover:underline">Register</button></div></>)}
-          {mode === 'register' && (<form onSubmit={handleRegister} className="space-y-4"><h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Create Account</h3><div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Full Name</label><input name="name" type="text" value={formData.name} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none text-sm" required /></div><div><label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Birthday</label><input name="birthday" type="date" value={formData.birthday} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none text-sm" required /></div></div><div><label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Designation</label><input name="designation" type="text" placeholder="e.g. Site Engineer" value={formData.designation} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none text-sm" required /></div><div><label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Email</label><input name="email" type="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none text-sm" required /></div><div><label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Password</label><input name="password" type="password" value={formData.password} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none text-sm" required /></div><button type="submit" disabled={loading} className="w-full bg-zinc-800 hover:bg-zinc-900 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">{loading ? 'Creating...' : 'Register Now'}</button><button type="button" onClick={() => setMode('login')} className="w-full text-slate-500 dark:text-slate-400 text-sm hover:text-slate-700">Back to Login</button></form>)}
-          {mode === 'magic' && (<div className="space-y-4"><h3 className="text-lg font-bold text-slate-800 dark:text-white">Passwordless Login</h3>{magicSent ? (<div className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm text-center"><CheckCircle2 className="mx-auto mb-2" size={32} />Check your email ({formData.email}) for the sign-in link!</div>) : (<form onSubmit={handleMagicLink} className="space-y-4"><p className="text-sm text-slate-500 dark:text-slate-400">Enter your email and we'll send you a link to sign in instantly.</p><div><label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Email</label><input name="email" type="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none" required /></div><button type="submit" disabled={loading} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">{loading ? 'Sending...' : 'Send Magic Link'}</button></form>)}<button type="button" onClick={() => setMode('login')} className="w-full text-slate-500 dark:text-slate-400 text-sm hover:text-slate-700">Back to Login</button></div>)}
-          {mode === 'confirm-email' && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Confirm Email</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Please confirm your email address to complete sign-in.</p>
-              <form onSubmit={handleConfirmEmail} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Email</label>
-                  <input name="email" type="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg outline-none" required />
-                </div>
-                <button type="submit" disabled={loading} className="w-full bg-zinc-800 hover:bg-zinc-900 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">
-                  {loading ? 'Verifying...' : 'Complete Sign In'}
-                </button>
-              </form>
-              <button type="button" onClick={() => setMode('login')} className="w-full text-slate-500 dark:text-slate-400 text-sm hover:text-slate-700">Back to Login</button>
-            </div>
-          )}
-          {error && <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg">{error}</div>}
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg transition"
+          >
+            {loading
+              ? 'Authenticating...'
+              : isRegistering
+              ? 'Create CDE Account'
+              : 'Sign In with Email'}
+          </button>
+        </form>
+
+        <div className="relative flex py-1 items-center">
+          <div className="flex-grow border-t border-slate-200" />
+          <span className="flex-shrink mx-3 text-xs text-slate-400 uppercase font-semibold">
+            Or
+          </span>
+          <div className="flex-grow border-t border-slate-200" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          className="w-full border border-slate-300 hover:bg-slate-50 text-slate-800 font-semibold text-sm py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+        >
+          <span>Continue with Google SSO</span>
+        </button>
+
+        <div className="text-center pt-2">
+          <button
+            type="button"
+            onClick={() => setIsRegistering(!isRegistering)}
+            className="text-xs font-semibold text-blue-600 hover:underline"
+          >
+            {isRegistering
+              ? 'Already registered? Sign in instead'
+              : 'Need a project account? Register here'}
+          </button>
         </div>
       </div>
     </div>
   );
-};
-
-export default LoginView;
+}

@@ -1,56 +1,48 @@
 import React, { useState } from 'react';
 
-const DEFAULT_RFIS = [
-  {
-    id: 'RFI-STR-104',
-    zone: 'Zone A • L6 Core & Slab',
-    discipline: 'Structural',
-    element: 'Post-Tension Tendon & Bottom Rebar',
-    rtoName: 'RTO Lim K.H.',
-    reName: 'RE Tan W.M.',
-    targetCast: '2026-10-20 16:30',
-    stage: 2, // 0: Draft, 1: Internal QC, 2: Awaiting RTO, 3: Approved to Cast
-    conquasScore: 'Pending',
-    bbsLinked: 'BBS-L6-042 (Verified)',
-  },
-  {
-    id: 'RFI-MEP-089',
-    zone: 'Zone A • L6 Core & Slab',
-    discipline: 'M&E Sleeve / Conduit',
-    element: 'Cast-in Sanitary & Electrical Sleeves',
-    rtoName: 'RTO Rajendran',
-    reName: 'RE Tan W.M.',
-    targetCast: '2026-10-20 16:30',
-    stage: 3,
-    conquasScore: 'Pass (First-Time)',
-    bbsLinked: 'N/A',
-  },
-  {
-    id: 'RFI-STR-103',
-    zone: 'Zone B • Podium L3',
-    discipline: 'Structural',
-    element: 'Core Wall CW2 Pre-Close Formwork',
-    rtoName: 'RTO Lim K.H.',
-    reName: 'RE Tan W.M.',
-    targetCast: '2026-10-21 10:00',
-    stage: 3,
-    conquasScore: '96.5% (CONQUAS)',
-    bbsLinked: 'BBS-CW2-019 (Verified)',
-  },
-];
 
 const STAGES = ['Draft', 'MainCon QC Pass', 'Submitted to RTO', 'Cleared to Cast'];
 
-export default function InspectionsView({ inspections, onUpdateStage }) {
+export default function InspectionsView({ inspections, onUpdateStage, onAdd, onUpdate, currentUser, zones }) {
   const [filterDiscipline, setFilterDiscipline] = useState('All');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRfi, setEditingRfi] = useState(null);
+  const [formData, setFormData] = useState({
+    id: '', zone: '', discipline: 'Structural', element: '', rtoName: '', reName: '', targetCast: '', stage: 0, conquasScore: 'Pending', bbsLinked: ''
+  });
+
+  const isPrivileged = ['admin', 'manager', 'engineer'].includes(currentUser?.systemRole);
 
   const handleAdvance = (id) => {
     const item = inspections.find((i) => i.id === id);
     if (item && item.stage < 3) {
       const updated = { ...item, stage: item.stage + 1 };
       if (onUpdateStage) onUpdateStage(updated);
+      if (onUpdate) onUpdate(item.id, { stage: item.stage + 1 });
     }
   };
+
+  const handleOpenModal = (rfi = null) => {
+    if (rfi) {
+      setEditingRfi(rfi);
+      setFormData(rfi);
+    } else {
+      setEditingRfi(null);
+      setFormData({ id: '', zone: zones[0]?.name || '', discipline: 'Structural', element: '', rtoName: '', reName: '', targetCast: '', stage: 0, conquasScore: 'Pending', bbsLinked: '' });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (editingRfi) {
+      onUpdate(editingRfi.id, formData);
+    } else {
+      onAdd(formData);
+    }
+    setIsModalOpen(false);
+  };
+
 
   const filtered = filterDiscipline === 'All'
     ? inspections
@@ -69,20 +61,30 @@ export default function InspectionsView({ inspections, onUpdateStage }) {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {['All', 'Structural', 'M&E Sleeve / Conduit'].map((disc) => (
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {['All', 'Structural', 'M&E Sleeve / Conduit'].map((disc) => (
+              <button
+                key={disc}
+                onClick={() => setFilterDiscipline(disc)}
+                className={`px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                  filterDiscipline === disc
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {disc}
+              </button>
+            ))}
+          </div>
+          {isPrivileged && (
             <button
-              key={disc}
-              onClick={() => setFilterDiscipline(disc)}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                filterDiscipline === disc
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
+              onClick={() => handleOpenModal()}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg px-4 py-2 transition"
             >
-              {disc}
+              + Add RFI
             </button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -132,6 +134,14 @@ export default function InspectionsView({ inspections, onUpdateStage }) {
                       ✓ CAST PERMITTED
                     </span>
                   )}
+                  {(currentUser?.systemRole === 'admin' || (isPrivileged && rfi.createdBy === currentUser?.email)) && (
+                    <button
+                      onClick={() => handleOpenModal(rfi)}
+                      className="ml-2 px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -165,6 +175,68 @@ export default function InspectionsView({ inspections, onUpdateStage }) {
           );
         })}
       </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-xl">
+            <h3 className="text-lg font-bold mb-4">{editingRfi ? 'Edit RFI' : 'Add RFI'}</h3>
+            <form onSubmit={handleSubmit} className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">RFI ID</label>
+                  <input required type="text" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Zone</label>
+                  <select required value={formData.zone} onChange={e => setFormData({...formData, zone: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2">
+                    <option value="" disabled>Select Zone</option>
+                    {zones.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Discipline</label>
+                  <select required value={formData.discipline} onChange={e => setFormData({...formData, discipline: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2">
+                    <option value="Structural">Structural</option>
+                    <option value="M&E Sleeve / Conduit">M&E Sleeve / Conduit</option>
+                    <option value="Architectural">Architectural</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Element</label>
+                  <input required type="text" value={formData.element} onChange={e => setFormData({...formData, element: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Assigned RTO</label>
+                  <input type="text" value={formData.rtoName} onChange={e => setFormData({...formData, rtoName: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Assigned RE</label>
+                  <input type="text" value={formData.reName} onChange={e => setFormData({...formData, reName: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Target Cast</label>
+                  <input required type="text" value={formData.targetCast} onChange={e => setFormData({...formData, targetCast: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Linked BBS</label>
+                  <input type="text" value={formData.bbsLinked} onChange={e => setFormData({...formData, bbsLinked: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold text-slate-700">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-blue-600 rounded-lg text-xs font-bold text-white">Save RFI</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,4 @@
-import React, { useState } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
-import { LogIn } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 // Existing Component Imports from your repository structure
 import AppLogo from './components/AppLogo';
 import CalendarView from './components/CalendarView';
@@ -12,7 +10,6 @@ import ReportView from './components/ReportView';
 import UserManagementView from './components/UserManagementView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
 import MobileNav from './components/MobileNav';
-import LoginView from './components/LoginView';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -313,9 +310,20 @@ const NAV_GROUPS = [
   },
 ];
 
-function MainApp() {
+export default function App() {
+
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [selectedProject, setSelectedProject] = useState(() => {
+    const saved = localStorage.getItem('sb-selected-project');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [projects, setProjects] = useState(() => {
+    const saved = localStorage.getItem('sb-projects');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [activeTab, setActiveTab] = useState('dashboard');
-  const navigate = useNavigate();
   const [isExecModalOpen, setIsExecModalOpen] = useState(false);
   const [selectedZone, setSelectedZone] = useState('All Zones');
 
@@ -357,7 +365,7 @@ function MainApp() {
     });
     return () => unsubscribe();
   }, [selectedProject, user]);
-
+  
   const currentUser = personnel.find(p => p.email === user?.email);
 
 
@@ -370,7 +378,7 @@ function MainApp() {
     if (!selectedProject) return;
     const isFirstUser = personnel.length === 0;
     const userRole = isFirstUser ? 'admin' : 'guest';
-
+    
     const newUserDoc = {
       ...newUser,
       bizSafe: 'Pending Verification',
@@ -380,7 +388,7 @@ function MainApp() {
       systemRole: userRole,
       createdAt: new Date().toISOString()
     };
-
+    
     try {
       const docRef = doc(collection(db, `artifacts/${selectedProject.id}/users`));
       await setDoc(docRef, newUserDoc);
@@ -607,14 +615,6 @@ function MainApp() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/login')}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm transition"
-            >
-              <LogIn size={16} />
-              <span className="hidden sm:inline">Log In / Sign Up</span>
-              <span className="sm:hidden">Log In</span>
-            </button>
-            <button
               onClick={() => setIsExecModalOpen(true)}
               className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm transition"
             >
@@ -733,15 +733,6 @@ function MainApp() {
         />
       )}
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <Routes>
-      <Route path="/*" element={<MainApp />} />
-      <Route path="/login" element={<LoginView />} />
-    </Routes>
   );
 }
 

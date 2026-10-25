@@ -13,7 +13,7 @@ import MobileNav from './components/MobileNav';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where, limit } from 'firebase/firestore';
 import LoginView from './components/LoginView';
 import ProjectSelection from './components/ProjectSelection';
 
@@ -30,8 +30,7 @@ const NAV_GROUPS = [
     group: 'Executive & Planning',
     items: [
       { id: 'dashboard', label: 'PM Command Center', badge: null },
-      { id: 'calendar', label: 'Master Schedule & Lookahead', badge: '3-Wk' },
-      { id: 'reports', label: 'Progress & SOPA Analytics', badge: null },
+      { id: 'calendar', label: 'Site Planning', badge: '3-Wk' },
     ],
   },
   {
@@ -107,6 +106,57 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    const syncUserProfile = async () => {
+      if (!user || !selectedProject) return;
+
+      const syncKey = `synced_${user.uid}_${selectedProject.id}`;
+      if (sessionStorage.getItem(syncKey)) return;
+
+      try {
+        const usersRef = collection(db, `artifacts/${selectedProject.id}/users`);
+        const qUser = query(usersRef, where('email', '==', user.email));
+        const snapshot = await getDocs(qUser);
+
+        if (snapshot.empty) {
+          const tempUserDataStr = localStorage.getItem('temp_user_data');
+          const tempUserData = tempUserDataStr ? JSON.parse(tempUserDataStr) : {};
+
+          const limitQuery = query(usersRef, limit(1));
+          const allUsersSnapshot = await getDocs(limitQuery);
+          const isFirstUser = allUsersSnapshot.empty;
+          const userRole = isFirstUser ? 'admin' : 'guest';
+
+          const newUserDoc = {
+            name: user.displayName || user.email.split('@')[0],
+            email: user.email,
+            role: tempUserData.designation || 'Site Engineer',
+            organization: 'Main Contractor',
+            category: 'Main Contractor',
+            cdePermission: 'Field Contributor (Level 1)',
+            statutoryReg: '',
+            certExpiry: '2027-12-31',
+            bizSafe: 'Pending Verification',
+            biometricStatus: 'Active (Provisional Gate Pass)',
+            ptwAuthority: ['General Site Access (No PTW)'],
+            systemRole: userRole,
+            createdAt: new Date().toISOString(),
+            birthday: tempUserData.birthday || ''
+          };
+
+          const docRef = doc(usersRef);
+          await setDoc(docRef, newUserDoc);
+        }
+
+        sessionStorage.setItem(syncKey, 'true');
+      } catch (e) {
+        console.error('Error syncing user profile:', e);
+      }
+    };
+
+    syncUserProfile();
+  }, [user, selectedProject]);
+
+  useEffect(() => {
     if (!selectedProject || !user) return;
     const listeners = [];
 
@@ -133,7 +183,7 @@ export default function App() {
   }, [selectedProject, user]);
   
   const currentUser = personnel.find(p => p.email === user?.email);
-  const isPrivileged = ['admin', 'manager', 'engineer'].includes(currentUser?.systemRole);
+  const isPrivileged = ['admin', 'manager', 'engineer', 'supervisor'].includes(currentUser?.systemRole);
 
   const handleAddZone = () => {
     const newZone = window.prompt("Enter new zone name:");
@@ -172,6 +222,16 @@ export default function App() {
       await updateDoc(doc(db, `artifacts/${selectedProject.id}/${collectionName}`, id), updates);
     } catch (e) {
       console.error(`Error updating in ${collectionName}:`, e);
+    }
+  };
+
+  const deleteRecord = async (collectionName, id) => {
+    if (!selectedProject) return;
+    try {
+      const docRef = doc(db, `artifacts/${selectedProject.id}/${collectionName}`, id);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.error(`Error deleting ${collectionName}:`, e);
     }
   };
 
@@ -262,8 +322,7 @@ export default function App() {
       group: 'Executive & Planning',
       items: [
         { id: 'dashboard', label: 'PM Command Center', badge: null },
-        { id: 'calendar', label: 'Master Schedule & Lookahead', badge: '3-Wk' },
-        { id: 'reports', label: 'Progress & SOPA Analytics', badge: null },
+        { id: 'calendar', label: 'Site Planning', badge: '3-Wk' },
       ],
     },
     {
@@ -508,6 +567,7 @@ export default function App() {
               onUpdateStage={handleUpdateRfiStage}
               onAdd={(t) => addRecord('inspections', t)}
               onUpdate={(id, t) => updateRecord('inspections', id, t)}
+              onDelete={(id) => deleteRecord('inspections', id)}
               currentUser={currentUser}
               zones={zones}
             />
@@ -541,15 +601,13 @@ export default function App() {
               zones={zones}
             />
           )}
-          {activeTab === 'reports' && (
-            <ReportView claims={claims} />
-          )}
           {activeTab === 'users' && (
             <UserManagementView
               users={personnel}
               onAddPersonnel={handleAddPersonnel}
               onToggleBiometricGate={handleToggleBiometricGate}
               onUpdatePersonnelRole={handleUpdatePersonnelRole}
+              onUpdatePersonnelOrganization={(id, newOrg) => updateRecord('users', id, { organization: newOrg })}
               currentUser={currentUser}
             />
           )}

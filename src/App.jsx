@@ -225,6 +225,16 @@ export default function App() {
     }
   };
 
+  const deleteRecord = async (collectionName, id) => {
+    if (!selectedProject) return;
+    try {
+      const docRef = doc(db, `artifacts/${selectedProject.id}/${collectionName}`, id);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.error(`Error deleting ${collectionName}:`, e);
+    }
+  };
+
   const filteredTasks = filterByZone(tasks);
   const filteredInspections = filterByZone(inspections);
   const filteredMaterials = filterByZone(materials);
@@ -558,6 +568,7 @@ export default function App() {
               onUpdateStage={handleUpdateRfiStage}
               onAdd={(t) => addRecord('inspections', t)}
               onUpdate={(id, t) => updateRecord('inspections', id, t)}
+              onDelete={(id) => deleteRecord('inspections', id)}
               currentUser={currentUser}
               zones={zones}
             />
@@ -600,6 +611,7 @@ export default function App() {
               onAddPersonnel={handleAddPersonnel}
               onToggleBiometricGate={handleToggleBiometricGate}
               onUpdatePersonnelRole={handleUpdatePersonnelRole}
+              onUpdatePersonnelOrganization={(id, newOrg) => updateRecord('users', id, { organization: newOrg })}
               currentUser={currentUser}
             />
           )}

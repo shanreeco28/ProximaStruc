@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 
 const CATEGORIES = ['All', 'Main Contractor', 'Consultant / RE / RTO', 'Specialist Subcontractor'];
 
-export default function UserManagementView({ users, onAddPersonnel, onToggleBiometricGate, onUpdatePersonnelRole, currentUser }) {
+export default function UserManagementView({ users, onAddPersonnel, onToggleBiometricGate, onUpdatePersonnelRole, onUpdatePersonnelOrganization, currentUser }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -59,6 +59,16 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
     return matchesCategory && matchesSearch;
   });
 
+  const activeReRtoCount = users.filter(u => u.systemRole === 'RE' || u.systemRole === 'RTO').length;
+  const certAlerts = users.reduce((acc, u) => {
+    const status = getCertStatus(u.certExpiry);
+    if (status.label.includes('EXPIRED')) acc.expired++;
+    if (status.label.includes('EXPIRING')) acc.expiring++;
+    return acc;
+  }, { expired: 0, expiring: 0 });
+  const bizSafeCompliantCount = users.filter(u => u.bizSafe && u.bizSafe !== 'Pending Verification').length;
+  const bizSafePercentage = users.length > 0 ? ((bizSafeCompliantCount / users.length) * 100).toFixed(0) : 0;
+
   return (
     <div className="space-y-6">
       {/* 1. Statutory & Access Control Summary KPIs */}
@@ -78,7 +88,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
             Accredited RE / RTO (BCA)
           </span>
           <div className="text-2xl font-bold font-mono text-blue-700 mt-1">
-            2 Active
+            {activeReRtoCount} Active
           </div>
           <span className="text-xs text-slate-500">IES / ACES Registry Verified</span>
         </div>
@@ -88,7 +98,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
             MOM WSH & CSOC Alerts
           </span>
           <div className="text-2xl font-bold font-mono text-amber-600 mt-1">
-            1 Expiring • 1 Expired
+            {certAlerts.expiring} Expiring • {certAlerts.expired} Expired
           </div>
           <span className="text-xs text-red-600 font-semibold">Auto-Gate Lockout Enabled</span>
         </div>
@@ -98,7 +108,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
             Subcon bizSAFE Compliance
           </span>
           <div className="text-2xl font-bold font-mono text-emerald-700 mt-1">
-            100% (&ge; Lvl 3)
+            {bizSafePercentage}% (&ge; Lvl 3)
           </div>
           <span className="text-xs text-slate-500">MOM WSH Council Requirement</span>
         </div>
@@ -149,8 +159,6 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                 <th className="py-3.5 px-4">Organization & bizSAFE</th>
                 <th className="py-3.5 px-4">ISO 19650 CDE Authority & Sign-Off</th>
                 <th className="py-3.5 px-4">MOM / BCA Statutory Cert</th>
-                <th className="py-3.5 px-4">Biometric Turnstile Access</th>
-                <th className="py-3.5 px-4 text-right">PM Gate Control</th>
                 {currentUser?.systemRole === 'admin' && <th className="py-3.5 px-4 text-right">System Role</th>}
               </tr>
             </thead>
@@ -172,7 +180,20 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                     </td>
 
                     <td className="py-4 px-4">
-                      <div className="font-semibold text-slate-800">{person.organization}</div>
+                      {['admin', 'manager'].includes(currentUser?.systemRole) ? (
+                        <input
+                          type="text"
+                          defaultValue={person.organization}
+                          onBlur={(e) => {
+                            if (e.target.value !== person.organization && onUpdatePersonnelOrganization) {
+                              onUpdatePersonnelOrganization(person.id, e.target.value);
+                            }
+                          }}
+                          className="font-semibold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none w-full"
+                        />
+                      ) : (
+                        <div className="font-semibold text-slate-800">{person.organization}</div>
+                      )}
                       <span className="inline-block mt-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
                         {person.bizSafe}
                       </span>
@@ -206,36 +227,6 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                           Exp: {person.certExpiry}
                         </span>
                       </div>
-                    </td>
-
-                    <td className="py-4 px-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
-                          isGateActive
-                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                            : 'bg-red-100 text-red-900 border border-red-300'
-                        }`}
-                      >
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            isGateActive ? 'bg-emerald-600' : 'bg-red-600'
-                          }`}
-                        />
-                        {person.biometricStatus}
-                      </span>
-                    </td>
-
-                    <td className="py-4 px-4 text-right">
-                      <button
-                        onClick={() => onToggleBiometricGate && onToggleBiometricGate(person.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                          isGateActive
-                            ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                        }`}
-                      >
-                        {isGateActive ? 'Revoke Gate Pass' : 'Restore Gate Pass'}
-                      </button>
                     </td>
                     {currentUser?.systemRole === 'admin' && (
                       <td className="py-4 px-4 text-right">

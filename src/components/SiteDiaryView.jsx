@@ -21,30 +21,6 @@ export default function SiteDiaryView({ weatherLogs, onAddWeatherLog }) {
 
   return (
     <div className="space-y-6">
-      {/* NEA & MOM Statutory Environmental Telemetry */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200">
-          <span className="text-[11px] font-bold uppercase text-slate-400">NEA Boundary Noise (1hr Leq)</span>
-          <div className="text-xl font-bold font-mono text-emerald-700 mt-1">68.4 dB(A)</div>
-          <span className="text-xs text-slate-500">Limit: 75 dB(A) (07:00–19:00)</span>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200">
-          <span className="text-[11px] font-bold uppercase text-slate-400">PUB / NEA ECM Silt Trap TSS</span>
-          <div className="text-xl font-bold font-mono text-emerald-700 mt-1">32 mg/L</div>
-          <span className="text-xs text-slate-500">Legal Discharge Limit: &lt; 50 mg/L</span>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200">
-          <span className="text-[11px] font-bold uppercase text-slate-400">NEA Dengue & Fogging Cycle</span>
-          <div className="text-xl font-bold font-mono text-slate-900 mt-1">Cleared (ECO)</div>
-          <span className="text-xs text-slate-500">Weekly Vector Audit Signed Off</span>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200">
-          <span className="text-[11px] font-bold uppercase text-slate-400">Biometric Turnstile Headcount</span>
-          <div className="text-xl font-bold font-mono text-blue-700 mt-1">318 Pax</div>
-          <span className="text-xs text-slate-500">MainCon: 42 • Subcon: 276</span>
-        </div>
-      </div>
-
       {/* Contractual Weather & EOT Substantiation Logger */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
         <div className="flex items-center justify-between">

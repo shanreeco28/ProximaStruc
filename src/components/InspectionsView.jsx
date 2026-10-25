@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 
 
-const STAGES = ['Created', 'Under RE Review', 'Site Inspection', 'Applying for Closure', 'Closed'];
+const STAGES = ['Created (Creator)', 'Under RE Review (RE)', 'Site Inspection (Creator)', 'Applying for Closure (RE)', 'Closed'];
 
-export default function InspectionsView({ inspections, onUpdateStage, onAdd, onUpdate, currentUser, zones }) {
+export default function InspectionsView({ inspections, onUpdateStage, onAdd, onUpdate, onDelete, currentUser, zones }) {
   const [filterDiscipline, setFilterDiscipline] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRfi, setEditingRfi] = useState(null);
@@ -324,9 +324,25 @@ export default function InspectionsView({ inspections, onUpdateStage, onAdd, onU
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold text-slate-700">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 rounded-lg text-xs font-bold text-white">Save RFI</button>
+              <div className="flex justify-between items-center pt-4 border-t border-slate-200">
+                {editingRfi && currentUser?.systemRole === 'admin' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Are you sure you want to delete this RFI?")) {
+                        onDelete(editingRfi.id);
+                        setIsModalOpen(false);
+                      }
+                    }}
+                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition"
+                  >
+                    Delete RFI
+                  </button>
+                ) : <div />}
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold text-slate-700">Cancel</button>
+                  <button type="submit" className="px-4 py-2 bg-blue-600 rounded-lg text-xs font-bold text-white">Save RFI</button>
+                </div>
               </div>
             </form>
           </div>

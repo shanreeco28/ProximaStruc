@@ -6,14 +6,14 @@ export default function CalendarView({ tasks }) {
       <div className="p-5 border-b border-slate-200 flex items-center justify-between">
         <div>
           <h2 className="text-base font-bold text-slate-900">
-            Master Programme & 3-Week Rolling Lookahead (CPM)
+            Micro Schedule and Lookahead
           </h2>
           <p className="text-xs text-slate-500">
-            Critical Path Method (CPM) tracking synced with RE/RTO Hold Points and BBS Deliveries.
+            Lean-agile project management dashboard for scheduling works.
           </p>
         </div>
         <span className="text-xs font-mono font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200">
-          ● Critical Path Filter Active
+          ● Sprint / Lookahead Active
         </span>
       </div>
 
@@ -37,7 +37,7 @@ export default function CalendarView({ tasks }) {
                   <div className="font-semibold text-slate-900 flex items-center gap-2">
                     {t.critical && (
                       <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-600 text-white rounded">
-                        CPM
+                        SPRINT
                       </span>
                     )}
                     {t.activity}

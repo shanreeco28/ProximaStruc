@@ -183,7 +183,7 @@ export default function App() {
   }, [selectedProject, user]);
   
   const currentUser = personnel.find(p => p.email === user?.email);
-  const isPrivileged = ['admin', 'manager', 'engineer'].includes(currentUser?.systemRole);
+  const isPrivileged = ['admin', 'manager', 'engineer', 'supervisor'].includes(currentUser?.systemRole);
 
   const handleAddZone = () => {
     const newZone = window.prompt("Enter new zone name:");

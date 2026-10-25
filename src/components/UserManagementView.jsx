@@ -247,6 +247,10 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                           <option value="guest">Guest</option>
                           <option value="admin">Admin</option>
                           <option value="manager">Manager</option>
+                          <option value="RE">RE</option>
+                          <option value="RTO">RTO</option>
+                          <option value="engineer">Engineer</option>
+                          <option value="supervisor">Supervisor</option>
                         </select>
                       </td>
                     )}

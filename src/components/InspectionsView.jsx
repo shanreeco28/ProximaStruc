@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 
-const STAGES = ['Draft', 'MainCon QC Pass', 'Submitted to RTO', 'Cleared to Cast'];
+const STAGES = ['Created', 'Under RE Review', 'Site Inspection', 'Applying for Closure', 'Closed'];
 
 export default function InspectionsView({ inspections, onUpdateStage, onAdd, onUpdate, currentUser, zones }) {
   const [filterDiscipline, setFilterDiscipline] = useState('All');
@@ -11,15 +11,63 @@ export default function InspectionsView({ inspections, onUpdateStage, onAdd, onU
     id: '', zone: '', discipline: 'Structural', element: '', rtoName: '', reName: '', targetCast: '', stage: 0, conquasScore: 'Pending', bbsLinked: ''
   });
 
-  const isPrivileged = ['admin', 'manager', 'engineer'].includes(currentUser?.systemRole);
+  const [commentInputs, setCommentInputs] = useState({});
+  const [expandedRfi, setExpandedRfi] = useState(null);
+
+  const isPrivileged = ['admin', 'manager', 'engineer', 'supervisor'].includes(currentUser?.systemRole);
 
   const handleAdvance = (id) => {
     const item = inspections.find((i) => i.id === id);
-    if (item && item.stage < 3) {
-      const updated = { ...item, stage: item.stage + 1 };
-      if (onUpdateStage) onUpdateStage(updated);
-      if (onUpdate) onUpdate(item.id, { stage: item.stage + 1 });
+    if (!item) return;
+
+    let canAdvance = false;
+    if (item.stage === 0) { // Created -> Under RE Review
+      canAdvance = isPrivileged || item.createdBy === currentUser?.email;
+    } else if (item.stage === 1) { // Under RE Review -> Site Inspection
+      canAdvance = currentUser?.systemRole === 'RE' || currentUser?.systemRole === 'admin';
+    } else if (item.stage === 2) { // Site Inspection -> Applying for Closure
+      canAdvance = isPrivileged || item.createdBy === currentUser?.email;
+    } else if (item.stage === 3) { // Applying for Closure -> Closed
+      canAdvance = currentUser?.systemRole === 'RE' || currentUser?.systemRole === 'admin';
     }
+
+    if (canAdvance && item.stage < 4) {
+      const historyEntry = {
+        action: `Advanced to ${STAGES[item.stage + 1]}`,
+        user: currentUser?.name || 'Unknown',
+        role: currentUser?.systemRole || 'guest',
+        timestamp: new Date().toISOString()
+      };
+      const updated = {
+        ...item,
+        stage: item.stage + 1,
+        history: [...(item.history || []), historyEntry]
+      };
+      if (onUpdateStage) onUpdateStage(updated);
+      if (onUpdate) onUpdate(item.id, { stage: item.stage + 1, history: updated.history });
+    } else {
+      alert("You do not have permission to advance this RFI at this stage.");
+    }
+  };
+
+  const handleAddComment = (id) => {
+    const text = commentInputs[id]?.trim();
+    if (!text) return;
+
+    const item = inspections.find((i) => i.id === id);
+    if (!item) return;
+
+    const newComment = {
+      user: currentUser?.name || 'Unknown',
+      role: currentUser?.systemRole || 'guest',
+      text,
+      timestamp: new Date().toISOString()
+    };
+
+    const updatedComments = [...(item.comments || []), newComment];
+    if (onUpdate) onUpdate(item.id, { comments: updatedComments });
+
+    setCommentInputs(prev => ({ ...prev, [id]: '' }));
   };
 
   const handleOpenModal = (rfi = null) => {
@@ -57,7 +105,7 @@ export default function InspectionsView({ inspections, onUpdateStage, onAdd, onU
             BCA Statutory & RE/RTO Inspection Matrix (RFI)
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Structural pours remain locked until Structural, M&E, and Archi RFIs reach Stage 4 (Cleared to Cast).
+            Structural pours remain locked until Structural, M&E, and Archi RFIs reach Stage 5 (Closed).
           </p>
         </div>
 
@@ -91,7 +139,7 @@ export default function InspectionsView({ inspections, onUpdateStage, onAdd, onU
       {/* Inspection Cards */}
       <div className="space-y-4">
         {filtered.map((rfi) => {
-          const isCleared = rfi.stage === 3;
+          const isCleared = rfi.stage === 4;
           return (
             <div
               key={rfi.id}
@@ -122,7 +170,7 @@ export default function InspectionsView({ inspections, onUpdateStage, onAdd, onU
                     <span className="text-slate-400 block uppercase text-[10px] font-semibold">Target Concrete Pour</span>
                     <span className="font-mono font-bold text-slate-900">{rfi.targetCast}</span>
                   </div>
-                  {rfi.stage < 3 ? (
+                  {rfi.stage < 4 ? (
                     <button
                       onClick={() => handleAdvance(rfi.id)}
                       className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-xs transition"
@@ -146,7 +194,7 @@ export default function InspectionsView({ inspections, onUpdateStage, onAdd, onU
               </div>
 
               {/* 4-Stage ISO 19650 / BCA Stepper */}
-              <div className="mt-4 grid grid-cols-4 gap-2">
+              <div className="mt-4 grid grid-cols-5 gap-2">
                 {STAGES.map((label, idx) => {
                   const completed = idx <= rfi.stage;
                   const current = idx === rfi.stage;
@@ -171,6 +219,53 @@ export default function InspectionsView({ inspections, onUpdateStage, onAdd, onU
                   );
                 })}
               </div>
+
+              {/* Comments & History Section */}
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <button
+                  onClick={() => setExpandedRfi(expandedRfi === rfi.id ? null : rfi.id)}
+                  className="text-xs font-bold text-blue-600 hover:underline mb-2"
+                >
+                  {expandedRfi === rfi.id ? 'Hide Comments & History' : `Show Comments & History (${(rfi.comments?.length || 0) + (rfi.history?.length || 0)})`}
+                </button>
+
+                {expandedRfi === rfi.id && (
+                  <div className="space-y-4 mt-3">
+                    <div className="max-h-60 overflow-y-auto space-y-3 pr-2">
+                      {[...(rfi.history || []).map(h => ({ ...h, type: 'history' })), ...(rfi.comments || []).map(c => ({ ...c, type: 'comment' }))]
+                        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                        .map((item, idx) => (
+                          <div key={idx} className={`p-3 rounded-lg text-xs ${item.type === 'history' ? 'bg-slate-50 border border-slate-200 text-slate-500' : 'bg-blue-50 border border-blue-100 text-slate-800'}`}>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-bold">{item.user} <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-slate-200 ml-1">{item.role}</span></span>
+                              <span className="text-[10px] opacity-70">{new Date(item.timestamp).toLocaleString()}</span>
+                            </div>
+                            <div>{item.type === 'history' ? <span className="italic">{item.action}</span> : item.text}</div>
+                          </div>
+                      ))}
+                      {(!rfi.history?.length && !rfi.comments?.length) && <div className="text-xs text-slate-400 italic">No comments or history yet.</div>}
+                    </div>
+
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        placeholder="Add a comment..."
+                        value={commentInputs[rfi.id] || ''}
+                        onChange={(e) => setCommentInputs(prev => ({ ...prev, [rfi.id]: e.target.value }))}
+                        className="flex-1 text-xs border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
+                        onKeyDown={(e) => { if(e.key === 'Enter') handleAddComment(rfi.id); }}
+                      />
+                      <button
+                        onClick={() => handleAddComment(rfi.id)}
+                        className="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
             </div>
           );
         })}

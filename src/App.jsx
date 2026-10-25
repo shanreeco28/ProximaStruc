@@ -76,7 +76,7 @@ export default function App() {
   const [claims] = useState([]);
   const [weatherLogs, setWeatherLogs] = useState([]);
   const [personnel, setPersonnel] = useState([]);
-  const [tasks] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [zones, setZones] = useState([]);
 
 

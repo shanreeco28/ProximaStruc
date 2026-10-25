@@ -83,7 +83,7 @@ const DEFAULT_PERSONNEL = [
 
 const CATEGORIES = ['All', 'Main Contractor', 'Consultant / RE / RTO', 'Specialist Subcontractor'];
 
-export default function UserManagementView({ users, onAddPersonnel, onToggleBiometricGate }) {
+export default function UserManagementView({ users, onAddPersonnel, onToggleBiometricGate, onUpdatePersonnelRole, currentUser }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -231,6 +231,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                 <th className="py-3.5 px-4">MOM / BCA Statutory Cert</th>
                 <th className="py-3.5 px-4">Biometric Turnstile Access</th>
                 <th className="py-3.5 px-4 text-right">PM Gate Control</th>
+                {currentUser?.systemRole === 'admin' && <th className="py-3.5 px-4 text-right">System Role</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -316,6 +317,19 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                         {isGateActive ? 'Revoke Gate Pass' : 'Restore Gate Pass'}
                       </button>
                     </td>
+                    {currentUser?.systemRole === 'admin' && (
+                      <td className="py-4 px-4 text-right">
+                        <select
+                          value={person.systemRole || 'guest'}
+                          onChange={(e) => onUpdatePersonnelRole && onUpdatePersonnelRole(person.id, e.target.value)}
+                          className="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="guest">Guest</option>
+                          <option value="admin">Admin</option>
+                          <option value="manager">Manager</option>
+                        </select>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

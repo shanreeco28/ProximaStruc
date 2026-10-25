@@ -1,6 +1,4 @@
-import React, { useState } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
-import { LogIn } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 // Existing Component Imports from your repository structure
 import AppLogo from './components/AppLogo';
 import CalendarView from './components/CalendarView';
@@ -12,7 +10,13 @@ import ReportView from './components/ReportView';
 import UserManagementView from './components/UserManagementView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
 import MobileNav from './components/MobileNav';
+
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { collection, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firestore';
 import LoginView from './components/LoginView';
+import ProjectSelection from './components/ProjectSelection';
+
 
 const DEFAULT_RFIS = [
   {
@@ -306,9 +310,20 @@ const NAV_GROUPS = [
   },
 ];
 
-function MainApp() {
+export default function App() {
+
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [selectedProject, setSelectedProject] = useState(() => {
+    const saved = localStorage.getItem('sb-selected-project');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [projects, setProjects] = useState(() => {
+    const saved = localStorage.getItem('sb-projects');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [activeTab, setActiveTab] = useState('dashboard');
-  const navigate = useNavigate();
   const [isExecModalOpen, setIsExecModalOpen] = useState(false);
   const [selectedZone, setSelectedZone] = useState('All Zones');
 
@@ -317,38 +332,95 @@ function MainApp() {
   const [materials, setMaterials] = useState(DEFAULT_MATERIALS);
   const [claims] = useState(DEFAULT_CLAIMS);
   const [weatherLogs, setWeatherLogs] = useState(DEFAULT_WEATHER_LOGS);
-  const [personnel, setPersonnel] = useState(DEFAULT_PERSONNEL);
+  const [personnel, setPersonnel] = useState([]);
   const [tasks] = useState(LOOKAHEAD_TASKS);
+
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (selectedProject) {
+      localStorage.setItem('sb-selected-project', JSON.stringify(selectedProject));
+    } else {
+      localStorage.removeItem('sb-selected-project');
+    }
+  }, [selectedProject]);
+
+  useEffect(() => {
+    localStorage.setItem('sb-projects', JSON.stringify(projects));
+  }, [projects]);
+
+  useEffect(() => {
+    if (!selectedProject || !user) return;
+    const q = collection(db, `artifacts/${selectedProject.id}/users`);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const usersData = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      setPersonnel(usersData);
+    });
+    return () => unsubscribe();
+  }, [selectedProject, user]);
+  
+  const currentUser = personnel.find(p => p.email === user?.email);
+
 
   const handleAddWeatherLog = (newLog) => {
     setWeatherLogs((prev) => [...prev, { ...newLog, id: Date.now() }]);
   };
 
-  const handleAddPersonnel = (newUser) => {
-    setPersonnel((prev) => [
-      ...prev,
-      {
-        ...newUser,
-        id: `USR-${String(prev.length + 1).padStart(3, '0')}`,
-        bizSafe: 'Pending Verification',
-        biometricStatus: 'Active (Provisional Gate Pass)',
-        ptwAuthority: ['General Site Access (No PTW)'],
-        cdePermission: 'Field Contributor (Level 1)',
-      },
-    ]);
+
+  const handleAddPersonnel = async (newUser) => {
+    if (!selectedProject) return;
+    const isFirstUser = personnel.length === 0;
+    const userRole = isFirstUser ? 'admin' : 'guest';
+    
+    const newUserDoc = {
+      ...newUser,
+      bizSafe: 'Pending Verification',
+      biometricStatus: 'Active (Provisional Gate Pass)',
+      ptwAuthority: ['General Site Access (No PTW)'],
+      cdePermission: 'Field Contributor (Level 1)',
+      systemRole: userRole,
+      createdAt: new Date().toISOString()
+    };
+    
+    try {
+      const docRef = doc(collection(db, `artifacts/${selectedProject.id}/users`));
+      await setDoc(docRef, newUserDoc);
+    } catch (e) {
+      console.error('Error adding personnel:', e);
+    }
   };
 
-  const handleToggleBiometricGate = (id) => {
-    setPersonnel((prev) =>
-      prev.map((person) => {
-        if (person.id !== id) return person;
-        const isActive = person.biometricStatus.includes('Active');
-        return {
-          ...person,
-          biometricStatus: isActive ? 'Suspended (Gate Pass Revoked by PM)' : 'Active (Gate Pass Restored)',
-        };
-      })
-    );
+  const handleToggleBiometricGate = async (id) => {
+    if (!selectedProject) return;
+    const person = personnel.find(p => p.id === id);
+    if (!person) return;
+    const isActive = person.biometricStatus.includes('Active');
+    const newStatus = isActive ? 'Suspended (Gate Pass Revoked by PM)' : 'Active (Gate Pass Restored)';
+    try {
+      await updateDoc(doc(db, `artifacts/${selectedProject.id}/users`, id), {
+        biometricStatus: newStatus
+      });
+    } catch (e) {
+      console.error('Error updating biometric status:', e);
+    }
+  };
+
+  const handleUpdatePersonnelRole = async (id, newSystemRole) => {
+    if (!selectedProject) return;
+    try {
+      await updateDoc(doc(db, `artifacts/${selectedProject.id}/users`, id), {
+        systemRole: newSystemRole
+      });
+    } catch (e) {
+      console.error('Error updating role:', e);
+    }
   };
 
   const handleToggleSopa = (id) => {
@@ -407,6 +479,28 @@ function MainApp() {
       ],
     },
   ];
+
+
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full"></div></div>;
+  }
+
+  if (!user) {
+    return <LoginView initialMode="login" />;
+  }
+
+  if (!selectedProject) {
+    return (
+      <ProjectSelection
+        projects={projects}
+        user={user}
+        onSelect={setSelectedProject}
+        onAdd={(newProject) => setProjects(prev => [...prev, newProject])}
+        onDelete={(id) => setProjects(prev => prev.filter(p => p.id !== id))}
+        onLogout={() => signOut(auth)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col md:flex-row font-sans antialiased selection:bg-blue-600 selection:text-white">
@@ -521,14 +615,6 @@ function MainApp() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/login')}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm transition"
-            >
-              <LogIn size={16} />
-              <span className="hidden sm:inline">Log In / Sign Up</span>
-              <span className="sm:hidden">Log In</span>
-            </button>
-            <button
               onClick={() => setIsExecModalOpen(true)}
               className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm transition"
             >
@@ -623,6 +709,8 @@ function MainApp() {
               users={personnel}
               onAddPersonnel={handleAddPersonnel}
               onToggleBiometricGate={handleToggleBiometricGate}
+              onUpdatePersonnelRole={handleUpdatePersonnelRole}
+              currentUser={currentUser}
             />
           )}
         </main>
@@ -645,15 +733,6 @@ function MainApp() {
         />
       )}
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <Routes>
-      <Route path="/*" element={<MainApp />} />
-      <Route path="/login" element={<LoginView />} />
-    </Routes>
   );
 }
 

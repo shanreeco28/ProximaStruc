@@ -1,6 +1,12 @@
 // src/firebase.js
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+} from 'firebase/auth';
 import {
   initializeFirestore,
   getFirestore,
@@ -18,26 +24,8 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// 1. Diagnostic check to catch missing .env variables immediately
-const missingKeys = Object.entries(firebaseConfig)
-  .filter(([, value]) => !value || value.includes('YourActualApiKeyHere'))
-  .map(([key]) => key);
-
-export const isFirebaseConfigured = missingKeys.length === 0;
-
-if (!isFirebaseConfigured) {
-  console.warn(
-    `[ProximaStruc Firebase Warning] Missing or placeholder .env keys detected: ${missingKeys.join(
-      ', '
-    )}. Check your .env file and restart 'npm run dev'.`
-  );
-}
-
-// 2. Singleton App Initialization (Prevents Vite HMR duplicate-app crashes)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// 3. Initialize Firestore with Auto-Long-Polling & Multi-Tab Offline Persistence
-// Fixes "WebChannelConnection RPC 'Listen' stream transport errored" on site networks
 let db;
 try {
   db = initializeFirestore(app, {
@@ -47,14 +35,36 @@ try {
     }),
   });
 } catch {
-  // Fallback if Firestore was already initialized during Vite hot-reload
   db = getFirestore(app);
 }
 
-// 4. Initialize Auth & Storage
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 const storage = getStorage(app);
 
-export { app, db, auth, googleProvider, storage };
+/**
+ * Smart Google Sign-In:
+ * 1. Immediately triggers signInWithPopup on the synchronous click event.
+ * 2. Automatically falls back to signInWithRedirect if the popup is blocked or closed on mobile.
+ */
+export async function signInWithGoogleSmart() {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
+  } catch (error) {
+    if (
+      error.code === 'auth/popup-blocked' ||
+      error.code === 'auth/operation-not-supported-in-this-environment' ||
+      error.code === 'auth/cancelled-popup-request'
+    ) {
+      console.warn('[Auth] Popup blocked by browser. Falling back to full-page redirect...');
+      await signInWithRedirect(auth, googleProvider);
+      return null;
+    }
+    throw error;
+  }
+}
+
+export { app, db, auth, googleProvider, storage, getRedirectResult };
 export default app;

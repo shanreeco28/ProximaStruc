@@ -13,7 +13,7 @@ import MobileNav from './components/MobileNav';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where, limit } from 'firebase/firestore';
 import LoginView from './components/LoginView';
 import ProjectSelection from './components/ProjectSelection';
 
@@ -30,7 +30,7 @@ const NAV_GROUPS = [
     group: 'Executive & Planning',
     items: [
       { id: 'dashboard', label: 'PM Command Center', badge: null },
-      { id: 'calendar', label: 'Master Schedule & Lookahead', badge: '3-Wk' },
+      { id: 'calendar', label: 'Micro-schedule and Look Ahead', badge: '3-Wk' },
       { id: 'reports', label: 'Progress & SOPA Analytics', badge: null },
     ],
   },
@@ -122,7 +122,8 @@ export default function App() {
           const tempUserDataStr = localStorage.getItem('temp_user_data');
           const tempUserData = tempUserDataStr ? JSON.parse(tempUserDataStr) : {};
 
-          const allUsersSnapshot = await getDocs(usersRef);
+          const limitQuery = query(usersRef, limit(1));
+          const allUsersSnapshot = await getDocs(limitQuery);
           const isFirstUser = allUsersSnapshot.empty;
           const userRole = isFirstUser ? 'admin' : 'guest';
 
@@ -322,7 +323,7 @@ export default function App() {
       group: 'Executive & Planning',
       items: [
         { id: 'dashboard', label: 'PM Command Center', badge: null },
-        { id: 'calendar', label: 'Master Schedule & Lookahead', badge: '3-Wk' },
+        { id: 'calendar', label: 'Micro-schedule and Look Ahead', badge: '3-Wk' },
         { id: 'reports', label: 'Progress & SOPA Analytics', badge: null },
       ],
     },

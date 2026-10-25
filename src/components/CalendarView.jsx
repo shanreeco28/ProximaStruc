@@ -19,7 +19,7 @@ export default function CalendarView({ tasks, onUpdate, currentUser }) {
       <div className="p-5 border-b border-slate-200 flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-base font-bold text-slate-900">
-            Micro-schedule and Look Ahead
+            Site Planning
           </h2>
           <p className="text-xs text-slate-500">
             Lean-agile project management dashboard for scheduling works.

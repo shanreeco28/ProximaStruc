@@ -30,8 +30,7 @@ const NAV_GROUPS = [
     group: 'Executive & Planning',
     items: [
       { id: 'dashboard', label: 'PM Command Center', badge: null },
-      { id: 'calendar', label: 'Micro-schedule and Look Ahead', badge: '3-Wk' },
-      { id: 'reports', label: 'Progress & SOPA Analytics', badge: null },
+      { id: 'calendar', label: 'Site Planning', badge: '3-Wk' },
     ],
   },
   {
@@ -323,8 +322,7 @@ export default function App() {
       group: 'Executive & Planning',
       items: [
         { id: 'dashboard', label: 'PM Command Center', badge: null },
-        { id: 'calendar', label: 'Micro-schedule and Look Ahead', badge: '3-Wk' },
-        { id: 'reports', label: 'Progress & SOPA Analytics', badge: null },
+        { id: 'calendar', label: 'Site Planning', badge: '3-Wk' },
       ],
     },
     {
@@ -602,9 +600,6 @@ export default function App() {
               currentUser={currentUser}
               zones={zones}
             />
-          )}
-          {activeTab === 'reports' && (
-            <ReportView claims={claims} />
           )}
           {activeTab === 'users' && (
             <UserManagementView

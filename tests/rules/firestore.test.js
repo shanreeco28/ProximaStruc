@@ -1,9 +1,11 @@
 import { before, after, test } from 'node:test';
+import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
 import { doc, setDoc, updateDoc, getDoc, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { createMemberProfile, INSPECTION_STAGES, canAdvanceInspection } from '../../src/utils/siteData.js';
 import { synchronizeProjectMembership } from '../../src/services/projectMembership.js';
+import { saveOwnProjectProfile } from '../../src/services/personalProfile.js';
 let env;
 const project='demo-proximastruc';
 const audit = email => ({createdBy:email,createdAt:'2026-01-01T00:00:00Z'});
@@ -127,4 +129,21 @@ test('inspection metadata edits cannot overwrite discussion or bypass stage perm
   await assertFails(updateDoc(doc(client('RE'),path),{element:'Reviewer edit',...changed('RE')}));
   await assertFails(deleteDoc(doc(client('supervisor'),path)));
   await assertSucceeds(deleteDoc(doc(client('admin'),path)));
+});
+
+test('every project role can save their own personal fields without changing assigned access',async()=>{
+  for(const role of ['admin','manager','engineer','supervisor','guest','RE','RTO']) {
+    const db=client(role), email=`${role}@example.test`;
+    await assertSucceeds(saveOwnProjectProfile(db,{email},'p',{name:`Updated ${role}`,role:'Job title',phone:'+65 6123 4567',birthday:'1990-01-01',systemRole:'admin'}));
+    const saved=(await getDoc(doc(db,`artifacts/p/users/${email.toLowerCase()}`))).data();
+    assert.equal(saved.name,`Updated ${role}`);assert.equal(saved.role,'Job title');assert.equal(saved.systemRole,role);
+  }
+});
+test('self profile edits cannot alter identities, permissions, organisation, certificates or another member',async()=>{
+  const db=client('guest'),ref=doc(db,'artifacts/p/users/guest@example.test');
+  for(const fields of [{systemRole:'admin'},{email:'other@example.test'},{organization:'Changed company'},{certExpiry:'2029-01-01'},{cdePermission:'Admin'},{ptwAuthority:['Approve PTW']},{createdBy:'guest@example.test'}]) {
+    await assertFails(updateDoc(ref,{...fields,...changed('guest')}));
+  }
+  await assertFails(updateDoc(doc(db,'artifacts/p/users/engineer@example.test'),{name:'Changed by someone else',...changed('guest')}));
+  await assertFails(updateDoc(doc(client('guest',false),'artifacts/p/users/guest@example.test'),{name:'Unverified change',...changed('guest')}));
 });

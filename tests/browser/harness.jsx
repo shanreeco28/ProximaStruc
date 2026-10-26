@@ -8,12 +8,15 @@ import MonitoringView from '../../src/components/MonitoringView';
 import InspectionsView from '../../src/components/InspectionsView';
 import UserManagementView from '../../src/components/UserManagementView';
 import MobileNav from '../../src/components/MobileNav';
+import AccountControls from '../../src/components/AccountControls';
 import '../../src/index.css';
 
 export default function Harness() {
   const query = new URLSearchParams(window.location.search);
   const role = query.get('role') || 'admin';
   const [view, setView] = useState(query.get('view') || 'calendar');
+  const [accountProfile, setAccountProfile] = useState({ name: 'Test person', role: 'Site engineer', phone: '', birthday: '' });
+  const [accountAction, setAccountAction] = useState('');
   const [data, setData] = useState(() => ({
     tasks: query.get('legacy') ? [{ id: 'legacy', activity: 'Existing sprint task', status: 'in_progress', zone: 'East' }] : [],
     materials: [], diary: [], observations: [],
@@ -31,6 +34,13 @@ export default function Harness() {
   };
   const common = { currentUser, zones:[{id:'east',name:'East'}], tasks:data.tasks };
   return <main className="p-5 pb-24 bg-slate-50 min-h-screen">
+    {view === 'account' && <><header className="h-16 bg-white border-b px-4 flex items-center justify-between gap-3"><h1 className="text-lg font-bold truncate min-w-0">RE/RTO Inspections (RFI)</h1>
+      <AccountControls user={{uid:'fixture',email:'fixture@example.test',displayName:accountProfile.name,emailVerified:true}} profile={accountProfile} projectName="Test project"
+        onProjects={()=>setAccountAction('Project selection opened')} onExecutiveBrief={()=>setAccountAction('Executive brief opened')}
+        onLogout={async()=>{ if(query.get('fail'))throw new Error('Test logout rejected');setAccountAction('Logged out'); }}
+        onSaveProfile={async updates=>{ if(query.get('fail'))throw new Error('Test write rejected');setAccountProfile(prev=>({...prev,...updates})); }} />
+    </header>{accountAction && <p role="status">{accountAction}</p>}</>}
+
     {view === 'calendar' && <CalendarView {...common} onAdd={add('tasks')} onUpdate={update('tasks')} materials={data.materials} diary={data.diary} inspections={data.inspections} />}
     {view === 'materials' && <MaterialsView {...common} materials={data.materials} onAdd={add('materials')} onUpdate={update('materials')} />}
     {view === 'diary' && <SiteDiaryView {...common} weatherLogs={data.diary} onAddWeatherLog={add('diary')} onUpdate={update('diary')} />}

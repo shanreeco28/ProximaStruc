@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 // Existing Component Imports from your repository structure
 import AppLogo from './components/AppLogo';
+import AccountControls from './components/AccountControls';
+import { saveOwnProjectProfile } from './services/personalProfile';
 import CalendarView from './components/CalendarView';
 import InspectionsView from './components/InspectionsView';
 import LiftingView from './components/LiftingView';
@@ -16,7 +18,7 @@ import useSelfRegistration from './hooks/useSelfRegistration';
 import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canAdvanceInspection, canEditInspection, canCommentInspection, isInspectionClosed, INSPECTION_STAGES, taskStatus } from './utils/siteData';
 
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signOut, sendEmailVerification } from 'firebase/auth';
+import { onAuthStateChanged, signOut, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, runTransaction, arrayUnion } from 'firebase/firestore';
 import LoginView from './components/LoginView';
 import ProjectSelection from './components/ProjectSelection';
@@ -84,11 +86,25 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
+  const ownProfile = personnel.find(p => p.id === user?.email?.toLowerCase());
   const currentUser = liveProject?.ownerId === user?.uid
-    ? { email: user?.email, name: user?.displayName || user?.email, systemRole: 'admin' }
+    ? { email: user?.email, name: ownProfile?.name || user?.displayName || user?.email, systemRole: 'admin' }
     : user?.emailVerified ? (personnel.find(p => p.id === user.email?.toLowerCase()) || personnel.find(p => p.email?.toLowerCase() === user.email?.toLowerCase())) : undefined;
   const isPrivileged = canPlan(currentUser);
   const isAdmin = currentUser?.systemRole === 'admin';
+
+  const handleSaveProfile = async values => {
+    const updates = await saveOwnProjectProfile(db, user, selectedProject.id, values);
+    try { await updateProfile(user, { displayName: updates.name }); }
+    catch { throw new Error('Your project profile was saved, but your account name could not be updated. Retry to finish saving.'); }
+  };
+  const handleLogout = async () => {
+    await signOut(auth);
+    setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard');
+    setIsExecModalOpen(false); setOperationError('');
+    localStorage.removeItem('sb-selected-project');
+    localStorage.removeItem('temp_user_data');
+  };
 
   const handleAddZone = async () => {
     const newZone = window.prompt("Enter new zone name:");
@@ -288,7 +304,7 @@ export default function App() {
             setOperationError(e.message);
           }
         }}
-        onLogout={() => signOut(auth)}
+        onLogout={handleLogout}
       />
     );
   }
@@ -398,26 +414,21 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0">
         
         {/* Top Statutory & Telemetry Bar */}
-        <header className="h-16 bg-white border-b border-slate-200 px-4 lg:px-8 flex items-center justify-between sticky top-0 z-20">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+        <header className="h-16 bg-white border-b border-slate-200 px-4 lg:px-8 flex items-center justify-between gap-3 sticky top-0 z-20">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight truncate">
               {dynamicNavGroups.flatMap((g) => g.items).find((i) => i.id === activeTab)?.label}
             </h1>
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200">
+            <span className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200 max-w-xs shrink-0 truncate">
               <span className="w-2 h-2 rounded-full bg-slate-400" />
               Weather: {observationValue(observation, 'weather')}{observation ? ` · ${observation.observedAt.replace('T', ' ')}` : ''}
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button onClick={() => { setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard'); setOperationError(''); }} className="text-xs text-slate-500">Projects</button>
-            <button
-              onClick={() => setIsExecModalOpen(true)}
-              className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm transition"
-            >
-              <span>Generate Executive Brief</span>
-            </button>
-          </div>
+          <AccountControls user={user} profile={ownProfile} projectName={liveProject?.name}
+            onSaveProfile={handleSaveProfile} onLogout={handleLogout}
+            onProjects={() => { setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard'); setOperationError(''); setIsExecModalOpen(false); }}
+            onExecutiveBrief={() => setIsExecModalOpen(true)} />
         </header>
 
         {/* Persistent PM KPI Ribbon (ISO Progressive Disclosure) */}

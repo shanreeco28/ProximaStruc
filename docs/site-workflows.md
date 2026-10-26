@@ -2,6 +2,12 @@
 
 The sidebar, top bar, KPI ribbon, four-column Site Planning board and existing card/table structure remain in place. The separate analytics navigation tab stays removed; physical progress and the Gantt are available within Site Planning and the executive brief. Project requirements are recorded in AGENTS.md. The application has no payment, valuation, cashflow or monetary claim workflows. Legacy monetary fields are not displayed or used; existing records are not deleted automatically.
 
+## Header account controls
+
+The top-right header has **Edit profile** and **Log out** buttons. **Actions** contains **Projects** and **Generate Executive Brief**. The dropdown supports keyboard navigation, Escape and outside-click dismissal, and the controls fit mobile screens.
+
+Profile editing is available to every assigned project role and changes only the signed-in person's name, job title, contact phone and birthday. Email stays read-only; system roles, organisation, certificates and access authorities cannot be changed through personal editing. Personal details save to the current project membership, and the display name also updates the Firebase Auth account. If the account-name update fails after the project save, the form explains the partial result and permits retrying. Logging out signs out Firebase Auth and clears the selected project and unfinished registration data; a failed sign-out preserves the session and shows an error.
+
 ## Observations and site data
 
 The **Admin Control Panel** is visible only to project admins (including the project owner). It records confirmed observations with observation time, source/reference, confirmer and confirmation time. Weather, temperature, noise, site-specific noise limits, TSS, site-specific TSS limits, vector findings, actual headcount, wind, anti-collision checks and the incident-free start date are blank until entered. No weather service, biometric turnstile or crane sensor is connected. Readings are manual records and never imply statutory compliance or authorization to lift.
@@ -62,8 +68,8 @@ No live data migrations, account creation or production deployments are performe
 ## Validation
 
 - `npm test`: date helpers and domain logic (permissions, progress math, Gantt data, dependencies, validation).
-- `npm run test:browser`: isolated workflow component fixtures, including role visibility, the existing board layout/statuses, save/edit, failed saves, diary, BBS receipt, observation confirmation, five-stage RFI review/comment/delete permissions, manager organisation edits and mobile navigation. Uses `/usr/bin/chromium` by default; set `CHROMIUM_PATH` to a compatible local browser elsewhere. Fixtures have no Firebase connection and are not part of the production build.
+- `npm run test:browser`: isolated workflow component fixtures, including role visibility, the existing board layout/statuses, save/edit, failed saves, diary, BBS receipt, observation confirmation, header dropdown/profile/logout controls, five-stage RFI review/comment/delete permissions, manager organisation edits and mobile navigation. Uses `/usr/bin/chromium` by default; set `CHROMIUM_PATH` to a compatible local browser elsewhere. Fixtures have no Firebase connection and are not part of the production build.
 - `npm run test:rules`: starts the Firestore emulator for `demo-proximastruc`, then checks direct reads/writes, role escalation, registration synchronization, manager-only organisation updates and five-stage RFI transitions/discussion integrity. Requires Java and access to `storage.googleapis.com` for the official emulator download. Local runtime state goes under `/workspace/.config` and `/workspace/.cache/firebase/emulators`; no production credentials are needed.
 - `npm run lint` and `npm run build`.
 
-Current verification after integrating main: lint and the production build pass, along with 24 unit tests, 12 browser workflow tests and 32 Firestore emulator tests. The official emulator download is now accessible and backend permission tests complete successfully. Production rules remain undeployed; authenticated production operations and legacy data migration have not been performed.
+Current verification: lint and the production build pass, along with 26 unit tests, 16 browser workflow tests and 34 Firestore emulator tests. The official emulator download is now accessible and backend permission tests complete successfully. Production rules remain undeployed; authenticated production operations and legacy data migration have not been performed.

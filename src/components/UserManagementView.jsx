@@ -4,7 +4,7 @@ import { today } from '../utils/siteData';
 
 const CATEGORIES = ['All', 'Main Contractor', 'Consultant / RE / RTO', 'Specialist Subcontractor'];
 
-export default function UserManagementView({ users, onAddPersonnel, onToggleBiometricGate, onUpdatePersonnelRole, currentUser }) {
+export default function UserManagementView({ users, onAddPersonnel, onUpdatePersonnelRole, onUpdatePersonnelOrganization, currentUser }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -12,6 +12,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
   const isAdmin = currentUser?.systemRole === 'admin';
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [organizationSaving, setOrganizationSaving] = useState(null);
 
   // New user form state
   const [newUser, setNewUser] = useState({
@@ -61,6 +62,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
 
   return (
     <div className="space-y-6">
+      {error && !isAddModalOpen && <p role="alert" className="text-red-700 text-sm">{error}</p>}
       {/* 1. Statutory & Access Control Summary KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
@@ -75,12 +77,12 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Consultant Certificates
+            Assigned RE / RTO
           </span>
           <div className="text-2xl font-bold font-mono text-blue-700 mt-1">
-            {users.filter(p => p.category === 'Consultant / RE / RTO' && p.statutoryReg && getCertStatus(p.certExpiry).label === 'VALID').length} with current certs
+            {users.filter(p => ['RE', 'RTO'].includes(p.systemRole)).length} assigned
           </div>
-          <span className="text-xs text-slate-500">Based on recorded certificate details</span>
+          <span className="text-xs text-slate-500">Based on admin-assigned project roles</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
@@ -149,15 +151,12 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                 <th className="py-3.5 px-4">Organization & bizSAFE</th>
                 <th className="py-3.5 px-4">ISO 19650 CDE Authority & Sign-Off</th>
                 <th className="py-3.5 px-4">Recorded Certificate</th>
-                <th className="py-3.5 px-4">Manual Access Record</th>
-                <th className="py-3.5 px-4 text-right">Admin Access Record</th>
                 {currentUser?.systemRole === 'admin' && <th className="py-3.5 px-4 text-right">System Role</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {filteredPersonnel.map((person) => {
                 const certBadge = getCertStatus(person.certExpiry);
-                const isGateActive = person.biometricStatus?.startsWith('Active');
 
                 return (
                   <tr key={person.id} className="hover:bg-slate-50/80 transition">
@@ -172,7 +171,19 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                     </td>
 
                     <td className="py-4 px-4">
-                      <div className="font-semibold text-slate-800">{person.organization}</div>
+                      {['admin', 'manager'].includes(currentUser?.systemRole) ? <input
+                        key={`${person.id}-${person.organization || ''}`} aria-label={`Organisation for ${person.name || person.email}`}
+                        defaultValue={person.organization || ''} disabled={organizationSaving === person.id}
+                        onBlur={async e => {
+                          const input = e.currentTarget;
+                          const value = input.value.trim();
+                          if (value === (person.organization || '')) return;
+                          setOrganizationSaving(person.id); setError('');
+                          try { await onUpdatePersonnelOrganization(person.id, value); }
+                          catch (e) { input.value = person.organization || ''; setError(e.message || 'Could not update organisation.'); }
+                          finally { setOrganizationSaving(null); }
+                        }} className="font-semibold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none w-full" />
+                        : <div className="font-semibold text-slate-800">{person.organization || 'Not recorded'}</div>}
                       <span className="inline-block mt-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
                         {person.bizSafe}
                       </span>
@@ -208,35 +219,6 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                       </div>
                     </td>
 
-                    <td className="py-4 px-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
-                          isGateActive
-                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                            : 'bg-red-100 text-red-900 border border-red-300'
-                        }`}
-                      >
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            isGateActive ? 'bg-emerald-600' : 'bg-red-600'
-                          }`}
-                        />
-                        {person.biometricStatus}
-                      </span>
-                    </td>
-
-                    <td className="py-4 px-4 text-right">
-                      {isAdmin && <button
-                        onClick={() => onToggleBiometricGate && onToggleBiometricGate(person.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                          isGateActive
-                            ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                        }`}
-                      >
-                        {isGateActive ? 'Mark Suspended' : 'Mark Active'}
-                      </button>}
-                    </td>
                     {currentUser?.systemRole === 'admin' && (
                       <td className="py-4 px-4 text-right">
                         <select
@@ -247,6 +229,8 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                           <option value="guest">Guest</option>
                           <option value="admin">Admin</option>
                           <option value="manager">Manager</option>
+                          <option value="RE">RE</option>
+                          <option value="RTO">RTO</option>
                           <option value="engineer">Engineer</option>
                           <option value="supervisor">Supervisor</option>
                         </select>

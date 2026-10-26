@@ -1,49 +1,56 @@
 import React, { useState } from 'react';
 
 
-const STAGES = ['Draft', 'MainCon QC Pass', 'Submitted to RTO', 'Cleared to Cast'];
+import { INSPECTION_STAGES as STAGES, canRecordSite, canAdvanceInspection, canEditInspection, canCommentInspection, isInspectionClosed } from '../utils/siteData';
 
-export default function InspectionsView({ inspections, onAdd, onUpdate, currentUser, zones }) {
+const emptyForm = () => ({ id: '', zone: '', discipline: '', element: '', rtoName: '', reName: '', targetCast: '', bbsLinked: '' });
+
+export default function InspectionsView({ inspections, onAdd, onUpdate, onDelete, onAdvance, onComment, currentUser, zones }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [filterDiscipline, setFilterDiscipline] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRfi, setEditingRfi] = useState(null);
-  const [formData, setFormData] = useState({
-    id: '', zone: '', discipline: 'Structural', element: '', rtoName: '', reName: '', targetCast: '', stage: 0, conquasScore: 'Pending', bbsLinked: ''
-  });
+  const [formData, setFormData] = useState(emptyForm());
 
-  const isPrivileged = ['admin', 'manager', 'engineer'].includes(currentUser?.systemRole);
+  const [commentInputs, setCommentInputs] = useState({});
+  const [expandedRfi, setExpandedRfi] = useState(null);
+
+  const isPrivileged = canRecordSite(currentUser);
 
   const handleAdvance = async (id) => {
-    if (!isPrivileged || saving) return;
-    const item = inspections.find((i) => i.id === id);
-    if (item && item.stage < 3) {
-      setSaving(true); setError('');
-      try { await onUpdate(item.id, { stage: item.stage + 1 }); } catch (e) { setError(e.message); } finally { setSaving(false); }
-    }
+    const item = inspections.find(i => i.id === id);
+    if (!canAdvanceInspection(currentUser, item) || saving) return;
+    setSaving(true); setError('');
+    try { await onAdvance(id, item.stage); } catch (e) { setError(e.message); } finally { setSaving(false); }
+  };
+  const handleAddComment = async id => {
+    const text = commentInputs[id]?.trim();
+    if (!text || saving || !canCommentInspection(currentUser)) return;
+    setSaving(true); setError('');
+    try { await onComment(id, text); setCommentInputs(prev => ({ ...prev, [id]: '' })); }
+    catch (e) { setError(e.message); } finally { setSaving(false); }
   };
 
   const handleOpenModal = (rfi = null) => {
     if (rfi) {
       setEditingRfi(rfi);
-      setFormData(rfi);
+      setFormData(Object.fromEntries(Object.keys(emptyForm()).map(key => [key, rfi[key] || ''])));
     } else {
       setEditingRfi(null);
-      setFormData({ id: '', zone: '', discipline: 'Structural', element: '', rtoName: '', reName: '', targetCast: '', stage: 0, conquasScore: 'Pending', bbsLinked: '' });
+      setFormData(emptyForm());
     }
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault(); if (!isPrivileged) return;
-    setError(''); setSaving(true);
+  const handleSubmit = async e => {
+    e.preventDefault(); if (!isPrivileged || editingRfi && !canEditInspection(currentUser, editingRfi)) return;
+    setSaving(true); setError('');
     try {
       if (editingRfi) await onUpdate(editingRfi.id, formData);
-      else await onAdd(formData);
+      else await onAdd({ ...formData, stage: 0, history: [], comments: [] });
       setIsModalOpen(false);
-    } catch (e) { setError(e.message || 'Could not save inspection.'); }
-    finally { setSaving(false); }
+    } catch (e) { setError(e.message); } finally { setSaving(false); }
   };
 
 
@@ -61,7 +68,7 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, currentU
             BCA Statutory & RE/RTO Inspection Matrix (RFI)
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Track inspection clearance and link hold points to site planning activities.
+            Track five-stage RFI review and closure. Linked planning hold points remain unresolved until the inspection is Closed.
           </p>
         </div>
 
@@ -95,7 +102,7 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, currentU
       {/* Inspection Cards */}
       <div className="space-y-4">
         {filtered.map((rfi) => {
-          const isCleared = rfi.stage === 3;
+          const isCleared = isInspectionClosed(rfi);
           return (
             <div
               key={rfi.id}
@@ -126,19 +133,19 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, currentU
                     <span className="text-slate-400 block uppercase text-[10px] font-semibold">Target Concrete Pour</span>
                     <span className="font-mono font-bold text-slate-900">{rfi.targetCast}</span>
                   </div>
-                  {rfi.stage < 3 && isPrivileged ? (
+                  {!isCleared && canAdvanceInspection(currentUser, rfi) ? (
                     <button
                       disabled={saving} onClick={() => handleAdvance(rfi.id)}
                       className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-xs transition"
                     >
                       Advance Sign-Off →
                     </button>
-                  ) : (
+                  ) : isCleared ? (
                     <span className="px-3.5 py-2 rounded-lg font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                      {rfi.stage === 3 ? '✓ Inspection cleared' : 'Awaiting sign-off'}
+                      ✓ Inspection closed
                     </span>
-                  )}
-                  {(currentUser?.systemRole === 'admin' || (isPrivileged && rfi.createdBy === currentUser?.email)) && (
+                  ) : <span className="text-xs text-slate-500">Awaiting authorised stage review</span>}
+                  {canEditInspection(currentUser, rfi) && (
                     <button
                       onClick={() => handleOpenModal(rfi)}
                       className="ml-2 px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
@@ -149,8 +156,8 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, currentU
                 </div>
               </div>
 
-              {/* 4-Stage ISO 19650 / BCA Stepper */}
-              <div className="mt-4 grid grid-cols-4 gap-2">
+              {/* 5-Stage ISO 19650 / BCA Stepper */}
+              <div className="mt-4 grid grid-cols-5 gap-2">
                 {STAGES.map((label, idx) => {
                   const completed = idx <= rfi.stage;
                   const current = idx === rfi.stage;
@@ -175,6 +182,53 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, currentU
                   );
                 })}
               </div>
+
+              {/* Comments & History Section */}
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <button
+                  onClick={() => setExpandedRfi(expandedRfi === rfi.id ? null : rfi.id)}
+                  className="text-xs font-bold text-blue-600 hover:underline mb-2"
+                >
+                  {expandedRfi === rfi.id ? 'Hide Comments & History' : `Show Comments & History (${(rfi.comments?.length || 0) + (rfi.history?.length || 0)})`}
+                </button>
+
+                {expandedRfi === rfi.id && (
+                  <div className="space-y-4 mt-3">
+                    <div className="max-h-60 overflow-y-auto space-y-3 pr-2">
+                      {[...(rfi.history || []).map(h => ({ ...h, type: 'history' })), ...(rfi.comments || []).map(c => ({ ...c, type: 'comment' }))]
+                        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                        .map((item, idx) => (
+                          <div key={idx} className={`p-3 rounded-lg text-xs ${item.type === 'history' ? 'bg-slate-50 border border-slate-200 text-slate-500' : 'bg-blue-50 border border-blue-100 text-slate-800'}`}>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-bold">{item.user} <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-slate-200 ml-1">{item.role}</span></span>
+                              <span className="text-[10px] opacity-70">{new Date(item.timestamp).toLocaleString()}</span>
+                            </div>
+                            <div>{item.type === 'history' ? <span className="italic">{item.action}</span> : item.text}</div>
+                          </div>
+                      ))}
+                      {(!rfi.history?.length && !rfi.comments?.length) && <div className="text-xs text-slate-400 italic">No comments or history yet.</div>}
+                    </div>
+
+                    {canCommentInspection(currentUser) && <div className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        aria-label={`Comment on ${rfi.id}`} placeholder="Add a comment..."
+                        value={commentInputs[rfi.id] || ''}
+                        onChange={(e) => setCommentInputs(prev => ({ ...prev, [rfi.id]: e.target.value }))}
+                        className="flex-1 text-xs border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
+                        onKeyDown={(e) => { if(e.key === 'Enter') handleAddComment(rfi.id); }}
+                      />
+                      <button
+                        disabled={saving} onClick={() => handleAddComment(rfi.id)}
+                        className="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition"
+                      >
+                        Send
+                      </button>
+                    </div>}
+                  </div>
+                )}
+              </div>
+
             </div>
           );
         })}
@@ -182,18 +236,18 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, currentU
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-xl">
+          <div role="dialog" aria-modal="true" aria-label={editingRfi ? 'Edit RFI' : 'Add RFI'} className="bg-white rounded-2xl p-6 w-full max-w-xl max-h-[90vh] overflow-auto shadow-xl">
             <h3 className="text-lg font-bold mb-4">{editingRfi ? 'Edit RFI' : 'Add RFI'}</h3>
             <form onSubmit={handleSubmit} className="space-y-4 text-sm">
               {error && <p role="alert" className="text-red-700">{error}</p>}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">RFI ID</label>
-                  <input required disabled={!!editingRfi} type="text" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                  <input aria-label="RFI ID" required disabled={!!editingRfi} type="text" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Zone</label>
-                  <select required value={formData.zone} onChange={e => setFormData({...formData, zone: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2">
+                  <select aria-label="Zone" required value={formData.zone} onChange={e => setFormData({...formData, zone: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2">
                     <option value="" disabled>Select Zone</option>
                     {zones.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}
                   </select>
@@ -202,7 +256,8 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, currentU
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Discipline</label>
-                  <select required value={formData.discipline} onChange={e => setFormData({...formData, discipline: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2">
+                  <select aria-label="Discipline" required value={formData.discipline} onChange={e => setFormData({...formData, discipline: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2">
+                    <option value="">Select discipline</option>
                     <option value="Structural">Structural</option>
                     <option value="M&E Sleeve / Conduit">M&E Sleeve / Conduit</option>
                     <option value="Architectural">Architectural</option>
@@ -210,7 +265,7 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, currentU
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Element</label>
-                  <input required type="text" value={formData.element} onChange={e => setFormData({...formData, element: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                  <input aria-label="Element" required type="text" value={formData.element} onChange={e => setFormData({...formData, element: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -226,7 +281,7 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, currentU
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Target Cast</label>
-                  <input required type="date" value={formData.targetCast} onChange={e => setFormData({...formData, targetCast: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                  <input aria-label="Target cast" required type="date" value={formData.targetCast} onChange={e => setFormData({...formData, targetCast: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Linked BBS</label>
@@ -234,9 +289,25 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, currentU
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold text-slate-700">Cancel</button>
-                <button disabled={saving} type="submit" className="px-4 py-2 bg-blue-600 rounded-lg text-xs font-bold text-white">Save RFI</button>
+              <div className="flex justify-between items-center pt-4 border-t border-slate-200">
+                {editingRfi && currentUser?.systemRole === 'admin' ? (
+                  <button
+                    type="button"
+                    disabled={saving} onClick={async () => {
+                      if (window.confirm("Are you sure you want to delete this RFI?")) {
+                        setSaving(true); setError('');
+                        try { await onDelete(editingRfi.id); setIsModalOpen(false); } catch (e) { setError(e.message); } finally { setSaving(false); }
+                      }
+                    }}
+                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition"
+                  >
+                    Delete RFI
+                  </button>
+                ) : <div />}
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold text-slate-700">Cancel</button>
+                  <button disabled={saving} type="submit" className="px-4 py-2 bg-blue-600 rounded-lg text-xs font-bold text-white">Save RFI</button>
+                </div>
               </div>
             </form>
           </div>

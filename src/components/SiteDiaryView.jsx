@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { canRecordSite, today } from '../utils/siteData';
 import { Field, SaveForm, RecordModal } from './RecordForm';
-import { observationValue } from '../utils/monitoring';
 
 const CATEGORIES = ['Work progress', 'Manpower', 'Plant & equipment', 'Delivery', 'Inspection', 'Safety', 'Environment', 'Weather', 'Instruction', 'Visitor', 'Delay', 'Other'];
 const blankEntry = () => ({ date: '', time: '', category: '', title: '', details: '', zone: '', taskId: '', action: '' });
-export default function SiteDiaryView({ weatherLogs = [], onAddWeatherLog, onUpdate, currentUser, zones = [], tasks = [], observation }) {
+export default function SiteDiaryView({ weatherLogs = [], onAddWeatherLog, onUpdate, currentUser, zones = [], tasks = [] }) {
   const [form, setForm] = useState(null);
   const [editing, setEditing] = useState(null);
   const [category, setCategory] = useState('All');
@@ -14,7 +13,6 @@ export default function SiteDiaryView({ weatherLogs = [], onAddWeatherLog, onUpd
   const change = key => e => setForm({ ...form, [key]: e.target.value });
   const entries = [...weatherLogs].filter(e => (category === 'All' || e.category === category) && (!date || e.date === date)).sort((a,b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
   return <div className="space-y-6">
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">{[['Boundary noise', 'noise', 'dB(A)'], ['Silt trap TSS', 'tss', 'mg/L'], ['Dengue / vector finding', 'dengue', ''], ['Observed site headcount', 'headcount', 'people']].map(([label, key, unit]) => <div key={key} className="bg-white p-4 rounded-xl border border-slate-200"><span className="text-[11px] font-bold uppercase text-slate-400">{label}</span><div className="text-xl font-bold mt-1">{observationValue(observation, key, unit)}</div><span className="text-xs text-slate-500">{observation ? `Observed ${observation.observedAt.replace('T', ' ')} · ${observation.source}` : 'Awaiting admin confirmation'}</span></div>)}</div>
     <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
       <div className="flex justify-between items-center gap-3"><div><h2 className="text-base font-bold">Daily site diary</h2><p className="text-xs text-slate-500">Work, people, plant, deliveries, inspections, instructions, safety and delays. Supervisors, engineers, managers and admins may add records.</p></div>{permitted && <button className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm shrink-0" onClick={() => { setEditing(null); setForm(blankEntry()); }}>+ Add site entry</button>}</div>
       <div className="flex flex-wrap gap-3"><Field label="Category" value={category} onChange={e => setCategory(e.target.value)}>{['All', ...CATEGORIES].map(c => <option key={c}>{c}</option>)}</Field><Field label="Date filter" type="date" value={date} onChange={e => setDate(e.target.value)} />{date && <button className="text-sm text-blue-700" onClick={() => setDate('')}>Clear date</button>}</div>

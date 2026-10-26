@@ -15,7 +15,7 @@ export default function MobileNav({ activeTab, setActiveTab, isAdmin }) {
       aria-label="Mobile Field Navigation"
       className="fixed bottom-0 inset-x-0 z-30 bg-slate-900 text-white border-t border-slate-800 flex overflow-x-auto pb-safe"
     >
-      {[...MOBILE_TABS, { id: 'calendar', label: 'Planning', short: 'PLAN' }, { id: 'reports', label: 'Progress', short: 'RPT' }, ...(isAdmin ? [{ id: 'monitoring', label: 'Admin', short: 'ADM' }] : [])].map((tab) => {
+      {[...MOBILE_TABS, { id: 'calendar', label: 'Planning', short: 'PLAN' }, ...(isAdmin ? [{ id: 'monitoring', label: 'Admin', short: 'ADM' }] : [])].map((tab) => {
         const isActive = activeTab === tab.id;
         return (
           <button

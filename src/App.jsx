@@ -6,18 +6,18 @@ import InspectionsView from './components/InspectionsView';
 import LiftingView from './components/LiftingView';
 import MaterialsView from './components/MaterialsView';
 import SiteDiaryView from './components/SiteDiaryView';
-import ReportView from './components/ReportView';
 import UserManagementView from './components/UserManagementView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
 import MobileNav from './components/MobileNav';
 import MonitoringView from './components/MonitoringView';
 import { observationValue } from './utils/monitoring';
 import useProjectRecords from './hooks/useProjectRecords';
-import { canPlan, canWrite, latestObservation, projectProgress, ROLES } from './utils/siteData';
+import useSelfRegistration from './hooks/useSelfRegistration';
+import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canAdvanceInspection, canEditInspection, canCommentInspection, isInspectionClosed, INSPECTION_STAGES, taskStatus } from './utils/siteData';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, sendEmailVerification } from 'firebase/auth';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, runTransaction } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, runTransaction, arrayUnion } from 'firebase/firestore';
 import LoginView from './components/LoginView';
 import ProjectSelection from './components/ProjectSelection';
 
@@ -44,7 +44,9 @@ export default function App() {
   const [selectedZone, setSelectedZone] = useState('All Zones');
 
   const [operationError, setOperationError] = useState('');
-  const records = useProjectRecords(selectedProject?.id, user?.uid);
+  const liveProject = projects.find(p => p.id === selectedProject?.id);
+  const registration = useSelfRegistration(user, liveProject?.id, liveProject?.ownerId);
+  const records = useProjectRecords(registration.ready ? selectedProject?.id : null, user?.uid);
   const inspections = records.inspections.items;
   const lifts = records.lifts.items;
   const materials = records.materials.items;
@@ -82,9 +84,8 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  const liveProject = projects.find(p => p.id === selectedProject?.id);
   const currentUser = liveProject?.ownerId === user?.uid
-    ? { email: user?.email, systemRole: 'admin' }
+    ? { email: user?.email, name: user?.displayName || user?.email, systemRole: 'admin' }
     : user?.emailVerified ? (personnel.find(p => p.id === user.email?.toLowerCase()) || personnel.find(p => p.email?.toLowerCase() === user.email?.toLowerCase())) : undefined;
   const isPrivileged = canPlan(currentUser);
   const isAdmin = currentUser?.systemRole === 'admin';
@@ -120,6 +121,8 @@ export default function App() {
   };
   const updateRecord = async (collectionName, id, updates) => {
     assertPermission(collectionName);
+    if (collectionName === 'inspections' && !canEditInspection(currentUser, inspections.find(r => r.id === id))) throw new Error('Only the creator or an admin can edit this inspection.');
+    if (collectionName === 'inspections' && ['stage', 'comments', 'history'].some(key => key in updates)) throw new Error('Use the inspection workflow to change its stage or discussion.');
     const { id: ignoredId, createdBy: ignoredCreator, createdAt: ignoredDate, ...fields } = updates;
     void ignoredId; void ignoredCreator; void ignoredDate;
     await updateDoc(doc(db, `artifacts/${selectedProject.id}/${collectionName}`, id), {
@@ -143,12 +146,6 @@ export default function App() {
       ...newUser, email, id: email, bizSafe: newUser.bizSafe || '',
       biometricStatus: 'Not recorded', ptwAuthority: [], cdePermission: 'Project member', systemRole: 'guest'
     });
-  };
-  const handleToggleBiometricGate = async (id) => {
-    const person = personnel.find(p => p.id === id);
-    if (!person) return;
-    try { await updateRecord('users', id, { biometricStatus: person.biometricStatus?.startsWith('Active') ? 'Suspended (manual record)' : 'Active (manual record)' }); }
-    catch (e) { setOperationError(e.message); }
   };
   const handleUpdatePersonnelRole = async (id, systemRole) => {
     if (!ROLES.includes(systemRole)) return;
@@ -180,6 +177,40 @@ export default function App() {
       }
     } catch (e) { setOperationError(e.message); }
   };
+  const handleUpdatePersonnelOrganization = async (id, organization) => {
+    if (!['admin', 'manager'].includes(currentUser?.systemRole)) throw new Error('Only admins and managers can edit organisations.');
+    await updateDoc(doc(db, `artifacts/${selectedProject.id}/users`, id), {
+      organization: organization.trim(), updatedBy: user.email, updatedAt: new Date().toISOString()
+    });
+  };
+  const handleAdvanceInspection = async (id, expectedStage) => {
+    const ref = doc(db, `artifacts/${selectedProject.id}/inspections`, id);
+    await runTransaction(db, async transaction => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists()) throw new Error('This inspection no longer exists.');
+      const inspection = snapshot.data();
+      if (inspection.stage !== expectedStage) throw new Error('The inspection changed. Review its current stage and retry.');
+      if (!canAdvanceInspection(currentUser, inspection)) throw new Error('Your role cannot advance this inspection stage.');
+      const timestamp = new Date().toISOString();
+      transaction.update(ref, {
+        stage: inspection.stage + 1,
+        history: [...(inspection.history || []), { action: `Advanced to ${INSPECTION_STAGES[inspection.stage + 1]}`, user: currentUser.name || user.email, email: user.email, role: currentUser.systemRole, timestamp }],
+        updatedBy: user.email, updatedAt: timestamp
+      });
+    });
+  };
+  const handleCommentInspection = async (id, text) => {
+    if (!canCommentInspection(currentUser) || !text.trim()) throw new Error('Enter a comment using an assigned project account.');
+    const timestamp = new Date().toISOString();
+    await updateDoc(doc(db, `artifacts/${selectedProject.id}/inspections`, id), {
+      comments: arrayUnion({ user: currentUser.name || user.email, email: user.email, role: currentUser.systemRole, text: text.trim(), timestamp }),
+      updatedBy: user.email, updatedAt: timestamp
+    });
+  };
+  const handleDeleteInspection = async id => {
+    if (!isAdmin) throw new Error('Only admins can delete inspections.');
+    await deleteDoc(doc(db, `artifacts/${selectedProject.id}/inspections`, id));
+  };
   const handleToggleLift = async (id) => {
     const lift = lifts.find(p => p.id === id);
     if (!lift) return;
@@ -188,7 +219,7 @@ export default function App() {
   };
   const progress = projectProgress(filteredTasks);
 
-  const pendingInspections = filteredInspections.filter((i) => i.stage < 3).length;
+  const pendingInspections = filteredInspections.filter(i => !isInspectionClosed(i)).length;
   const delayedMaterials = filteredMaterials.filter((m) => m.status?.includes('Delay')).length;
   const activeLifts = filteredLifts.filter((l) => l.status === 'ACTIVE').length;
 
@@ -197,8 +228,7 @@ export default function App() {
       group: 'Executive & Planning',
       items: [
         { id: 'dashboard', label: 'PM Command Center', badge: null },
-        { id: 'calendar', label: 'Site Planning & Lookahead', badge: null },
-        { id: 'reports', label: 'Site Progress & Analytics', badge: null },
+        { id: 'calendar', label: 'Site Planning', badge: null },
       ],
     },
     {
@@ -398,15 +428,15 @@ export default function App() {
           <KpiPill
             title="Recorded plan progress"
             value={progress.actual === null ? 'Not recorded' : `${progress.actual.toFixed(1)}%`}
-            sub={`${filteredTasks.length} activities · ${filteredTasks.filter(t => t.status === 'Blocked').length} blocked`}
+            sub={`${filteredTasks.length} activities · ${filteredTasks.filter(t => taskStatus(t) === 'blocked').length} blocked`}
             status="neutral"
             onClick={() => setActiveTab('calendar')}
           />
           <KpiPill
             title="RE / RTO Inspections"
-            value={`${filteredInspections.filter(i => i.stage === 3).length} Cleared`}
-            sub={`${filteredInspections.filter(i => i.stage < 3).length} Awaiting Sign-off`}
-            status={filteredInspections.length && filteredInspections.every(i => i.stage === 3) ? 'success' : 'neutral'}
+            value={`${filteredInspections.filter(i => isInspectionClosed(i)).length} Cleared`}
+            sub={`${filteredInspections.filter(i => !isInspectionClosed(i)).length} Awaiting Sign-off`}
+            status={filteredInspections.length && filteredInspections.every(i => isInspectionClosed(i)) ? 'success' : 'neutral'}
             onClick={() => setActiveTab('inspections')}
           />
           <KpiPill
@@ -434,7 +464,7 @@ export default function App() {
 
         {/* Active View Container */}
         <main key={selectedProject.id} className="flex-1 p-4 lg:p-8 pb-24 md:pb-8 overflow-y-auto">
-          {(operationError || Object.values(records).some(r => r.error)) && <div role="alert" className="mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">{operationError || Object.values(records).find(r => r.error)?.error}<button onClick={() => setOperationError('')} className="ml-3 underline">Dismiss</button></div>}
+          {(operationError || registration.error || Object.values(records).some(r => r.error)) && <div role="alert" className="mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">{operationError || registration.error || Object.values(records).find(r => r.error)?.error}<button onClick={() => setOperationError('')} className="ml-3 underline">Dismiss</button></div>}
           {user && !user.emailVerified && liveProject?.ownerId !== user.uid && <p className="mb-4 text-sm text-amber-700">Verify your email to use assigned project access. <button className="underline" onClick={async () => { try { await sendEmailVerification(user); setOperationError('Verification email sent. Follow its link, then sign in again.'); } catch (e) { setOperationError(e.message); } }}>Send verification email</button></p>}
           {!currentUser && <p className="mb-4 text-sm text-slate-500">Project records require an admin-assigned role for your verified sign-in email.</p>}
           {activeTab === 'dashboard' && (
@@ -449,6 +479,9 @@ export default function App() {
           {activeTab === 'inspections' && (
             <InspectionsView
               inspections={filteredInspections}
+              onAdvance={handleAdvanceInspection}
+              onComment={handleCommentInspection}
+              onDelete={handleDeleteInspection}
               onAdd={(t) => addRecord('inspections', t)}
               onUpdate={(id, t) => updateRecord('inspections', id, t)}
               currentUser={currentUser}
@@ -487,16 +520,13 @@ export default function App() {
               zones={zones}
             />
           )}
-          {activeTab === 'reports' && (
-            <ReportView tasks={filteredTasks} inspections={filteredInspections} materials={filteredMaterials} diary={filteredWeatherLogs} lifts={filteredLifts} />
-          )}
           {activeTab === 'monitoring' && isAdmin && <MonitoringView key={selectedProject.id} observations={observations} currentUser={currentUser} onAdd={record => addRecord('monitoring', record)} />}
           {activeTab === 'users' && (
             <UserManagementView
               users={personnel}
               onAddPersonnel={handleAddPersonnel}
-              onToggleBiometricGate={handleToggleBiometricGate}
               onUpdatePersonnelRole={handleUpdatePersonnelRole}
+              onUpdatePersonnelOrganization={handleUpdatePersonnelOrganization}
               currentUser={currentUser}
             />
           )}
@@ -568,7 +598,7 @@ function PMCommandDashboard({ onNavigate, inspections, lifts, materials }) {
               <div
                 key={rfi.id}
                 className={`p-3 rounded-lg border flex justify-between items-center ${
-                  rfi.stage === 3
+                  isInspectionClosed(rfi)
                     ? 'bg-emerald-50 border-emerald-200'
                     : 'bg-amber-50 border-amber-200'
                 }`}
@@ -579,12 +609,12 @@ function PMCommandDashboard({ onNavigate, inspections, lifts, materials }) {
                 </div>
                 <span
                   className={`px-2.5 py-1 rounded-md text-xs font-bold ${
-                    rfi.stage === 3
+                    isInspectionClosed(rfi)
                       ? 'bg-emerald-200 text-emerald-900'
                       : 'bg-amber-200 text-amber-900'
                   }`}
                 >
-                  {rfi.stage === 3 ? 'APPROVED' : 'AWAITING RTO'}
+                  {isInspectionClosed(rfi) ? 'APPROVED' : 'AWAITING CLOSURE'}
                 </span>
               </div>
             ))}

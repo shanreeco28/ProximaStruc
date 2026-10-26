@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+const errorsByPage = new WeakMap();
+test.beforeEach(async ({page}) => { const errors=[]; errorsByPage.set(page,errors); page.on('pageerror',error=>errors.push(error.message)); });
+test.afterEach(async ({page}) => { expect(errorsByPage.get(page)).toEqual([]); });
 const open = (page, view='calendar', role='admin', suffix='') => page.goto(`/tests/browser/harness.html?view=${view}&role=${role}${suffix}`);
 const fillActivity = async page => {
   await page.getByRole('button',{name:'+ Add activity'}).click();
@@ -9,7 +12,7 @@ const fillActivity = async page => {
   await page.getByLabel('Planned finish').fill('2026-10-03');
 };
 test('planning role matrix and admin-only control panel', async ({page}) => {
-  for (const role of ['guest','supervisor','engineer','manager','admin']) {
+  for (const role of ['guest','supervisor','engineer','manager','admin','RE','RTO']) {
     await open(page,'calendar',role);
     await expect(page.getByRole('heading',{name:/Site Planning/})).toBeVisible();
     await expect(page.getByRole('button',{name:'+ Add activity'})).toHaveCount(['engineer','manager','admin'].includes(role)?1:0);
@@ -22,15 +25,17 @@ test('activity save, edit and Gantt refresh from recorded data', async ({page}) 
   await open(page); await fillActivity(page);
   await page.getByRole('button',{name:'Save activity',exact:true}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('cell',{name:'Install formwork East'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Install formwork'})).toBeVisible();
+  await expect(page.getByRole('region',{name:'Lookahead (Backlog)',exact:true}).getByRole('heading',{name:'Install formwork'})).toBeVisible();
   await expect(page.locator('[title="2026-10-01 → 2026-10-03 · 0% complete"]')).toBeVisible();
   await page.getByRole('button',{name:'Edit',exact:true}).click();
-  await page.getByLabel('Workflow status').selectOption('In progress');
+  await page.getByLabel('Workflow status').selectOption('in_progress');
   await page.getByLabel('Measured completion (%)').fill('40');
   await page.getByRole('button',{name:'Save activity',exact:true}).click();
   await expect(page.locator('[title="2026-10-01 → 2026-10-03 · 40% complete"]')).toBeVisible();
-  await page.getByRole('button',{name:'RPT Progress'}).click();
+  await expect(page.getByRole('region',{name:'In Progress (Sprint)',exact:true}).getByRole('heading',{name:'Install formwork'})).toBeVisible();
   await expect(page.getByText('40.0%',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'RPT Progress'})).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText(/SOPA|S\$|cashflow/i);
 });
 test('failed write retains form and does not add a phantom activity', async ({page}) => {
@@ -94,10 +99,67 @@ test('admin confirms observations without pre-filled readings', async ({page}) =
   await expect(page.getByText('65.2 dB(A)',{exact:true})).toBeVisible();
   await expect(page.getByText('Not recorded',{exact:true})).toHaveCount(10);
 });
-test('mobile navigation reaches planning and progress without overflowing the page', async ({page}) => {
+test('mobile navigation reaches planning without restoring the removed analytics tab', async ({page}) => {
   await page.setViewportSize({width:390,height:844});
   await open(page,'diary','engineer');
   await page.getByRole('button',{name:'PLAN Planning'}).click();
   await expect(page.getByRole('heading',{name:/Site Planning/})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('existing main-branch sprint statuses stay visible on the planning board', async ({page}) => {
+  await open(page, 'calendar', 'supervisor', '&legacy=1');
+  await expect(page.getByRole('region',{name:'In Progress (Sprint)',exact:true}).getByRole('heading',{name:'Existing sprint task'})).toBeVisible();
+  await expect(page.getByRole('combobox',{name:'Move Existing sprint task'})).toHaveCount(0);
+});
+test('five-stage inspections keep creator and RE permissions distinct', async ({page}) => {
+  for (const [role,stage,allowed] of [['supervisor',0,true],['engineer',1,false],['RE',1,true],['RTO',1,false],['supervisor',2,true],['manager',3,false],['RE',3,true],['admin',3,true],['guest',0,false]]) {
+    await open(page,'inspections',role,`&stage=${stage}`);
+    await expect(page.getByRole('button',{name:'Advance Sign-Off →'})).toHaveCount(allowed?1:0);
+    if (role === 'RE' && stage === 3) {
+      await page.getByRole('button',{name:'Advance Sign-Off →'}).click();
+      await expect(page.getByText('✓ Inspection closed')).toBeVisible();
+      await page.getByRole('button',{name:/Show Comments & History/}).click();
+      await expect(page.getByText('Advanced inspection')).toBeVisible();
+    }
+  }
+});
+test('RTO comments persist and rejected comments retain the input', async ({page}) => {
+  await open(page,'inspections','RTO');
+  await page.getByRole('button',{name:/Show Comments & History/}).click();
+  await page.getByLabel('Comment on TEST-RFI').fill('Site inspection observation');
+  await page.getByRole('button',{name:'Send',exact:true}).click();
+  await expect(page.getByText('Site inspection observation',{exact:true})).toBeVisible();
+  await expect(page.getByLabel('Comment on TEST-RFI')).toHaveValue('');
+  await open(page,'inspections','RTO','&fail=1');
+  await page.getByRole('button',{name:/Show Comments & History/}).click();
+  await page.getByLabel('Comment on TEST-RFI').fill('Keep this comment');
+  await page.getByRole('button',{name:'Send',exact:true}).click();
+  await expect(page.getByRole('alert')).toHaveText('Test write rejected');
+  await expect(page.getByLabel('Comment on TEST-RFI')).toHaveValue('Keep this comment');
+});
+test('only admins can delete RFIs, and a failed delete preserves the inspection', async ({page}) => {
+  await open(page,'inspections','admin','&fail=1');
+  await page.getByRole('button',{name:'Edit',exact:true}).click();
+  page.once('dialog', dialog=>dialog.accept());
+  await page.getByRole('button',{name:'Delete RFI'}).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Test write rejected');
+  await open(page,'inspections','supervisor');
+  await page.getByRole('button',{name:'Edit',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Delete RFI'})).toHaveCount(0);
+});
+test('organisation editing preserves upstream manager access and removes gate controls', async ({page}) => {
+  await open(page,'users','manager');
+  await page.getByLabel('Organisation for Test member').fill('Updated organisation');
+  await page.getByLabel('Organisation for Test member').blur();
+  await expect(page.getByLabel('Organisation for Test member')).toHaveValue('Updated organisation');
+  await expect(page.getByRole('columnheader',{name:/Access Record/})).toHaveCount(0);
+  await open(page,'users','manager','&fail=1');
+  await page.getByLabel('Organisation for Test member').fill('Failed organisation');
+  await page.getByLabel('Organisation for Test member').blur();
+  await expect(page.getByRole('alert')).toHaveText('Test write rejected');
+  await expect(page.getByLabel('Organisation for Test member')).toHaveValue('Original organisation');
+  await open(page,'users','engineer');
+  await expect(page.getByLabel('Organisation for Test member')).toHaveCount(0);
 });

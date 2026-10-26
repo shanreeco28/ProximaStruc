@@ -15,7 +15,7 @@ service cloud.firestore {
     function admin(projectId) { return owner(projectId) || role(projectId) == 'admin'; }
     function planner(projectId) { return owner(projectId) || role(projectId) in ['admin', 'manager', 'engineer']; }
     function siteRecorder(projectId) { return planner(projectId) || role(projectId) == 'supervisor'; }
-    function member(projectId) { return owner(projectId) || role(projectId) in ['guest', 'supervisor', 'engineer', 'manager', 'admin']; }
+    function member(projectId) { return owner(projectId) || role(projectId) in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin']; }
     function auditCreate() {
       return request.resource.data.createdBy == request.auth.token.email && request.resource.data.createdAt is string;
     }
@@ -29,8 +29,8 @@ service cloud.firestore {
       return d.activity is string && d.activity.size() > 0 && d.zone is string && d.owner is string
         && d.startDate is string && d.endDate is string && d.endDate >= d.startDate
         && d.progress is number && d.progress >= 0 && d.progress <= 100
-        && d.status in ['Backlog', 'Ready', 'In progress', 'Blocked', 'Done']
-        && (d.status != 'Done' || d.progress == 100);
+        && d.status in ['lookahead', 'make_ready', 'in_progress', 'blocked', 'done', 'Backlog', 'Ready', 'In progress', 'Blocked', 'Done']
+        && (!(d.status in ['done', 'Done']) || d.progress == 100);
     }
     function validMaterial() {
       let d = request.resource.data;
@@ -39,6 +39,50 @@ service cloud.firestore {
         && d.status in ['Planned', 'Ordered', 'Dispatched', 'Received', 'Delayed', 'Rejected', 'Installed', 'Poured']
         && (!(d.status in ['Received', 'Installed', 'Poured']) || (d.doNumber is string && d.doNumber.size() > 0 && d.actualDate is string && d.actualDate.size() > 0));
     }
+    function selfProfile(projectId, recordId) {
+      let d = request.resource.data;
+      return verifiedEmail() && recordId == request.auth.token.email.lower() && d.email == recordId
+        && d.systemRole == 'guest'
+        && d.keys().hasOnly(['name', 'email', 'role', 'birthday', 'organization', 'category', 'statutoryReg', 'certExpiry', 'bizSafe', 'cdePermission', 'ptwAuthority', 'systemRole', 'createdBy', 'createdAt'])
+        && d.organization == '' && d.category == '' && d.statutoryReg == '' && d.certExpiry == '' && d.bizSafe == ''
+        && d.cdePermission == 'Project member' && d.ptwAuthority == []
+        && exists(/databases/$(database)/documents/projects/$(projectId));
+    }
+    function appendOnly(field) {
+      let before = resource.data.get(field, []);
+      let after = request.resource.data[field];
+      return after is list && after.size() == before.size() + 1 && after.hasAll(before);
+    }
+    function validDiscussionAuthor(projectId, entry) {
+      return entry.email == request.auth.token.email && entry.timestamp is string
+        && entry.role == (owner(projectId) ? 'admin' : role(projectId));
+    }
+    function inspectionComment(projectId) {
+      let changes = request.resource.data.diff(resource.data).affectedKeys();
+      let comments = request.resource.data.get('comments', []);
+      return member(projectId) && changes.hasOnly(['comments', 'updatedBy', 'updatedAt'])
+        && appendOnly('comments') && validDiscussionAuthor(projectId, comments[comments.size() - 1])
+        && comments[comments.size() - 1].text is string && comments[comments.size() - 1].text.size() > 0;
+    }
+    function inspectionAdvance(projectId) {
+      let d = request.resource.data;
+      let stage = resource.data.get('stage', -1);
+      let history = d.get('history', []);
+      let labels = ['Created (Creator)', 'Under RE Review (RE)', 'Site Inspection (Creator)', 'Applying for Closure (RE)', 'Closed'];
+      return stage is int && stage >= 0 && stage < 4 && d.stage == stage + 1
+        && d.diff(resource.data).affectedKeys().hasOnly(['stage', 'history', 'updatedBy', 'updatedAt'])
+        && (stage in [0, 2] ? siteRecorder(projectId) : admin(projectId) || role(projectId) == 'RE')
+        && appendOnly('history') && validDiscussionAuthor(projectId, history[history.size() - 1])
+        && history[history.size() - 1].action == 'Advanced to ' + labels[d.stage];
+    }
+    function inspectionDetails(projectId) {
+      return (admin(projectId) || siteRecorder(projectId) && resource.data.createdBy == request.auth.token.email)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['zone', 'discipline', 'element', 'rtoName', 'reName', 'targetCast', 'bbsLinked', 'updatedBy', 'updatedAt']);
+    }
+    function organizationUpdate(projectId) {
+      return (admin(projectId) || role(projectId) == 'manager') && request.resource.data.organization is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['organization', 'updatedBy', 'updatedAt']);
+    }
     match /projects/{projectId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && auditCreate();
@@ -46,24 +90,27 @@ service cloud.firestore {
       allow delete: if owner(projectId);
     }
     match /artifacts/{projectId}/{collectionName}/{recordId} {
-      allow read: if member(projectId);
+      allow read: if member(projectId) || collectionName == 'users' && verifiedEmail() && recordId == request.auth.token.email.lower();
       allow delete: if admin(projectId) && collectionName in ['users', 'tasks', 'materials', 'weatherLogs', 'zones', 'inspections', 'lifts'];
       allow create: if auditCreate() && (
         (collectionName == 'tasks' && planner(projectId) && validTask()) ||
         (collectionName == 'materials' && siteRecorder(projectId) && validMaterial()) ||
         (collectionName == 'weatherLogs' && siteRecorder(projectId) && request.resource.data.details is string) ||
-        (collectionName in ['zones', 'inspections', 'lifts'] && planner(projectId)) ||
+        (collectionName in ['zones', 'lifts'] && planner(projectId)) ||
+        (collectionName == 'inspections' && siteRecorder(projectId) && request.resource.data.stage == 0 && request.resource.data.get('history', []) == [] && request.resource.data.get('comments', []) == []) ||
         (collectionName == 'monitoring' && admin(projectId) && request.resource.data.confirmedBy == request.auth.token.email && request.resource.data.confirmedAt is string) ||
-        (collectionName == 'users' && admin(projectId) && recordId == request.resource.data.email.lower()
-          && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'admin'])
+        (collectionName == 'users' && (selfProfile(projectId, recordId) || admin(projectId)) && recordId == request.resource.data.email.lower()
+          && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin'])
       );
       allow update: if auditUpdate() && (
         (collectionName == 'tasks' && planner(projectId) && validTask()) ||
         (collectionName == 'materials' && siteRecorder(projectId) && validMaterial()) ||
         (collectionName == 'weatherLogs' && siteRecorder(projectId) && request.resource.data.details is string) ||
-        (collectionName in ['zones', 'inspections', 'lifts'] && planner(projectId)) ||
+        (collectionName in ['zones', 'lifts'] && planner(projectId)) ||
+        (collectionName == 'inspections' && (inspectionComment(projectId) || inspectionAdvance(projectId) || inspectionDetails(projectId))) ||
+        (collectionName == 'users' && organizationUpdate(projectId)) ||
         (collectionName == 'users' && admin(projectId) && recordId == request.resource.data.email.lower()
-          && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'admin'])
+          && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin'])
       );
       // Confirmed monitoring observations are append-only; corrections use a new confirmation.
     }

@@ -1,12 +1,12 @@
 export const PLANNING_ROLES = ['admin', 'manager', 'engineer'];
 export const SITE_ROLES = [...PLANNING_ROLES, 'supervisor'];
-export const ROLES = ['guest', 'supervisor', 'engineer', 'manager', 'admin'];
+export const ROLES = ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin'];
 export const canPlan = user => PLANNING_ROLES.includes(user?.systemRole);
 export const canRecordSite = user => SITE_ROLES.includes(user?.systemRole);
 export const canWrite = (user, collection) => collection === 'monitoring' || collection === 'users'
   ? user?.systemRole === 'admin'
   : collection === 'weatherLogs' || collection === 'materials'
-    ? canRecordSite(user) : ['tasks', 'zones', 'inspections', 'lifts'].includes(collection) && canPlan(user);
+    ? canRecordSite(user) : collection === 'inspections' ? canRecordSite(user) : ['tasks', 'zones', 'lifts'].includes(collection) && canPlan(user);
 export const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 export const dayNumber = value => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
@@ -19,7 +19,7 @@ export function latestObservation(observations) {
   return [...observations].filter(o => o.confirmedAt && o.observedAt).sort((a, b) => b.observedAt.localeCompare(a.observedAt) || b.confirmedAt.localeCompare(a.confirmedAt))[0] || null;
 }
 export function taskProgress(task) {
-  return task.status === 'Done' ? 100 : percent(task.progress);
+  return taskStatus(task) === 'done' ? 100 : percent(task.progress);
 }
 export function projectProgress(tasks, at = today()) {
   const dated = tasks.filter(t => dayNumber(t.startDate) !== null && dayNumber(t.endDate) !== null && t.endDate >= t.startDate);
@@ -40,7 +40,7 @@ export function taskConstraints(task, { inspections = [], materials = [], tasks 
   }
   if (task.inspectionId) {
     const rfi = inspections.find(i => i.id === task.inspectionId);
-    if (!rfi || rfi.stage !== 3) issues.push('Inspection not cleared');
+    if (!isInspectionClosed(rfi)) issues.push('Inspection not cleared');
   }
   if (task.materialId) {
     const m = materials.find(m => m.id === task.materialId);
@@ -52,7 +52,7 @@ export function taskConstraints(task, { inspections = [], materials = [], tasks 
 export function scheduleRows({ tasks = [], inspections = [], materials = [], diary = [], lifts = [] }) {
   return [
     ...tasks.map(t => ({ id: `task-${t.id}`, label: t.activity || t.wbs || t.id, start: t.startDate, end: t.endDate, progress: taskProgress(t), kind: 'Activity', detail: `${t.zone || 'No zone'} · ${t.status || 'Not recorded'}` })),
-    ...inspections.map(i => ({ id: `rfi-${i.id}`, label: i.element || i.id, start: i.targetCast?.slice(0, 10), kind: 'Inspection', detail: i.stage === 3 ? 'Cleared' : 'Pending' })),
+    ...inspections.map(i => ({ id: `rfi-${i.id}`, label: i.element || i.id, start: i.targetCast?.slice(0, 10), kind: 'Inspection', detail: isInspectionClosed(i) ? 'Closed' : 'Pending' })),
     ...materials.flatMap(m => [
       ...(m.deliveryDate ? [{ id: `material-target-${m.id}`, label: m.reference || m.id, start: m.deliveryDate, kind: `${m.type || 'Material'} delivery target`, detail: m.status || 'Not recorded' }] : []),
       ...(m.actualDate ? [{ id: `material-receipt-${m.id}`, label: m.reference || m.id, start: m.actualDate, kind: `${m.type || 'Material'} receipt`, detail: m.status || 'Not recorded' }] : []),
@@ -87,4 +87,35 @@ export function validateMaterial(item) {
   if (item.type === 'Concrete' && ['Received', 'Poured'].includes(item.status) && !item.batchTicket?.trim()) return 'Received concrete needs a batch ticket for traceability.';
   if (item.type === 'Delivery Order' && !item.doNumber?.trim()) return 'Enter the delivery order reference.';
   return '';
+}
+
+// Read both the existing board statuses and records created by the monitoring branch.
+export const TASK_STATUSES = [
+  ['lookahead', 'Lookahead (Backlog)'], ['make_ready', 'Make-Ready'],
+  ['in_progress', 'In Progress (Sprint)'], ['blocked', 'Blocked'], ['done', 'Done'],
+];
+export function taskStatus(task) {
+  const legacy = { Backlog: 'lookahead', Ready: 'make_ready', 'In progress': 'in_progress', Blocked: 'blocked', Done: 'done' };
+  return legacy[task.status] || (TASK_STATUSES.some(([id]) => id === task.status) ? task.status : 'lookahead');
+}
+export const INSPECTION_STAGES = ['Created (Creator)', 'Under RE Review (RE)', 'Site Inspection (Creator)', 'Applying for Closure (RE)', 'Closed'];
+export const isInspectionClosed = inspection => inspection?.stage === 4;
+export function canAdvanceInspection(user, inspection) {
+  if (!inspection || !Number.isInteger(inspection.stage) || inspection.stage < 0 || inspection.stage >= 4) return false;
+  if (user?.systemRole === 'admin') return true;
+  if ([1, 3].includes(inspection.stage)) return user?.systemRole === 'RE';
+  return canRecordSite(user);
+}
+export const canEditInspection = (user, inspection) => user?.systemRole === 'admin'
+  || canRecordSite(user) && inspection?.createdBy === user?.email;
+export const canCommentInspection = user => ROLES.includes(user?.systemRole);
+export function createMemberProfile(user, details = {}, isOwner = false, timestamp = new Date().toISOString()) {
+  return {
+    name: user.displayName || user.email, email: user.email.toLowerCase(),
+    role: typeof details.designation === 'string' ? details.designation : '',
+    birthday: typeof details.birthday === 'string' ? details.birthday : '',
+    organization: '', category: '', statutoryReg: '', certExpiry: '', bizSafe: '',
+    cdePermission: 'Project member', ptwAuthority: [], systemRole: isOwner ? 'admin' : 'guest',
+    createdBy: user.email, createdAt: timestamp,
+  };
 }

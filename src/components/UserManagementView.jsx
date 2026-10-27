@@ -1,96 +1,90 @@
 import React, { useState } from 'react';
+import { RecordModal } from './RecordForm';
+import DeleteRecordAction from './DeleteRecordAction';
+import { today } from '../utils/siteData';
 
 
 const CATEGORIES = ['All', 'Main Contractor', 'Consultant / RE / RTO', 'Specialist Subcontractor'];
 
-export default function UserManagementView({ users, onAddPersonnel, onToggleBiometricGate, onUpdatePersonnelRole, onUpdatePersonnelOrganization, currentUser }) {
+export default function UserManagementView({ users, onAddPersonnel, onUpdatePersonnelRole, onUpdatePersonnelOrganization, currentUser }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
+  const isAdmin = currentUser?.systemRole === 'admin';
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [organizationSaving, setOrganizationSaving] = useState(null);
+
   // New user form state
   const [newUser, setNewUser] = useState({
     name: '',
-    role: 'Site Engineer',
+    email: '',
+    role: '',
     organization: '',
     category: 'Main Contractor',
     cdePermission: 'Field Contributor (Level 2 - Internal QC)',
     statutoryReg: '',
-    certExpiry: '2027-12-31',
-    bizSafe: 'bizSAFE Star',
+    certExpiry: '',
+    bizSafe: '',
   });
 
   // Check if cert is expired or expiring within 30 days
   const getCertStatus = (expiryDateStr) => {
-    const today = new Date('2026-10-20');
+    const currentDate = new Date(`${today()}T00:00:00Z`);
+    if (!expiryDateStr || !Number.isFinite(Date.parse(expiryDateStr))) return { label: 'NOT RECORDED', style: 'bg-slate-100 text-slate-600' };
     const exp = new Date(expiryDateStr);
-    const diffDays = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.ceil((exp - currentDate) / (1000 * 60 * 60 * 24));
     if (diffDays < 0) return { label: 'EXPIRED', style: 'bg-red-100 text-red-900 border-red-300' };
     if (diffDays <= 30) return { label: `EXPIRING (${diffDays}d)`, style: 'bg-amber-100 text-amber-900 border-amber-300' };
     return { label: 'VALID', style: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
-    if (!newUser.name || !newUser.organization) return;
-
-    if (onAddPersonnel) onAddPersonnel(newUser);
-
-    setIsAddModalOpen(false);
-    setNewUser({
-      name: '',
-      role: 'Site Engineer',
-      organization: '',
-      category: 'Main Contractor',
-      cdePermission: 'Field Contributor (Level 2 - Internal QC)',
-      statutoryReg: '',
-      certExpiry: '2027-12-31',
-      bizSafe: 'bizSAFE Star',
-    });
+    if (!isAdmin) return;
+    setError(''); setSaving(true);
+    try {
+      await onAddPersonnel(newUser);
+      setIsAddModalOpen(false);
+      setNewUser({ name: '', email: '', role: '', organization: '', category: 'Main Contractor', statutoryReg: '', certExpiry: '', bizSafe: '' });
+    } catch (e) { setError(e.message || 'Could not register personnel.'); }
+    finally { setSaving(false); }
   };
 
   const filteredPersonnel = users.filter((p) => {
     const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
     const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.organization.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.statutoryReg.toLowerCase().includes(searchQuery.toLowerCase());
+      (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.role || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.organization || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.statutoryReg || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
-  const activeReRtoCount = users.filter(u => u.systemRole === 'RE' || u.systemRole === 'RTO').length;
-  const certAlerts = users.reduce((acc, u) => {
-    const status = getCertStatus(u.certExpiry);
-    if (status.label.includes('EXPIRED')) acc.expired++;
-    if (status.label.includes('EXPIRING')) acc.expiring++;
-    return acc;
-  }, { expired: 0, expiring: 0 });
-  const bizSafeCompliantCount = users.filter(u => u.bizSafe && u.bizSafe !== 'Pending Verification').length;
-  const bizSafePercentage = users.length > 0 ? ((bizSafeCompliantCount / users.length) * 100).toFixed(0) : 0;
-
   return (
     <div className="space-y-6">
+      {error && !isAddModalOpen && <p role="alert" className="text-red-700 text-sm">{error}</p>}
       {/* 1. Statutory & Access Control Summary KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Authorized CDE Users
+            Registered Personnel
           </span>
           <div className="text-2xl font-bold font-mono text-slate-900 mt-1">
             {users.length} Personnel
           </div>
-          <span className="text-xs text-slate-500">ISO 19650 Role-Based Matrix</span>
+          <span className="text-xs text-slate-500">Project membership records</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Accredited RE / RTO (BCA)
+            Assigned RE / RTO
           </span>
           <div className="text-2xl font-bold font-mono text-blue-700 mt-1">
-            {activeReRtoCount} Active
+            {users.filter(p => ['RE', 'RTO'].includes(p.systemRole)).length} assigned
           </div>
-          <span className="text-xs text-slate-500">IES / ACES Registry Verified</span>
+          <span className="text-xs text-slate-500">Based on admin-assigned project roles</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
@@ -98,19 +92,19 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
             MOM WSH & CSOC Alerts
           </span>
           <div className="text-2xl font-bold font-mono text-amber-600 mt-1">
-            {certAlerts.expiring} Expiring • {certAlerts.expired} Expired
+            {users.filter(p => getCertStatus(p.certExpiry).label.startsWith('EXPIRING')).length} Expiring · {users.filter(p => getCertStatus(p.certExpiry).label === 'EXPIRED').length} Expired
           </div>
-          <span className="text-xs text-red-600 font-semibold">Auto-Gate Lockout Enabled</span>
+          <span className="text-xs text-red-600 font-semibold">Recorded certificate alerts</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Subcon bizSAFE Compliance
+            Subcontractor bizSAFE Records
           </span>
           <div className="text-2xl font-bold font-mono text-emerald-700 mt-1">
-            {bizSafePercentage}% (&ge; Lvl 3)
+            {users.filter(p => p.category === 'Specialist Subcontractor' && p.bizSafe).length} recorded
           </div>
-          <span className="text-xs text-slate-500">MOM WSH Council Requirement</span>
+          <span className="text-xs text-slate-500">Subcontractors with bizSAFE details</span>
         </div>
       </div>
 
@@ -140,32 +134,31 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
             onChange={(e) => setSearchQuery(e.target.value)}
             className="border border-slate-300 rounded-lg px-3.5 py-2 text-xs sm:text-sm min-w-[240px] focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button
-            onClick={() => setIsAddModalOpen(true)}
+          {isAdmin && <button
+            onClick={() => { setError(''); setIsAddModalOpen(true); }}
             className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-lg shadow-xs transition shrink-0"
           >
             + Register Site Personnel / Subcon
-          </button>
+          </button>}
         </div>
       </div>
 
       {/* 3. Enterprise RBAC & Statutory Matrix Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" role="region" aria-label="UserManagement records" tabIndex={0}>
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500">
-                <th className="py-3.5 px-4">Personnel & Role</th>
-                <th className="py-3.5 px-4">Organization & bizSAFE</th>
-                <th className="py-3.5 px-4">ISO 19650 CDE Authority & Sign-Off</th>
-                <th className="py-3.5 px-4">MOM / BCA Statutory Cert</th>
-                {currentUser?.systemRole === 'admin' && <th className="py-3.5 px-4 text-right">System Role</th>}
+                <th scope="col" className="py-3.5 px-4">Personnel & Role</th>
+                <th scope="col" className="py-3.5 px-4">Organization & bizSAFE</th>
+                <th scope="col" className="py-3.5 px-4">ISO 19650 CDE Authority & Sign-Off</th>
+                <th scope="col" className="py-3.5 px-4">Recorded Certificate</th><th scope="col" className="py-3.5 px-4">Record action</th>
+                {currentUser?.systemRole === 'admin' && <th scope="col" className="py-3.5 px-4 text-right">System Role</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {filteredPersonnel.map((person) => {
                 const certBadge = getCertStatus(person.certExpiry);
-                const isGateActive = person.biometricStatus.includes('Active');
 
                 return (
                   <tr key={person.id} className="hover:bg-slate-50/80 transition">
@@ -176,24 +169,23 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                         </span>
                         <span className="font-bold text-slate-900">{person.name}</span>
                       </div>
-                      <div className="text-xs font-semibold text-blue-700 mt-1">{person.role}</div>
+                      <div className="text-xs font-semibold text-blue-700 mt-1">{person.role}</div><div className="text-xs text-slate-500">{person.email || 'No sign-in email recorded'}</div>
                     </td>
 
                     <td className="py-4 px-4">
-                      {['admin', 'manager'].includes(currentUser?.systemRole) ? (
-                        <input
-                          type="text"
-                          defaultValue={person.organization}
-                          onBlur={(e) => {
-                            if (e.target.value !== person.organization && onUpdatePersonnelOrganization) {
-                              onUpdatePersonnelOrganization(person.id, e.target.value);
-                            }
-                          }}
-                          className="font-semibold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none w-full"
-                        />
-                      ) : (
-                        <div className="font-semibold text-slate-800">{person.organization}</div>
-                      )}
+                      {['admin', 'manager'].includes(currentUser?.systemRole) ? <input
+                        key={`${person.id}-${person.organization || ''}`} aria-label={`Organisation for ${person.name || person.email}`}
+                        defaultValue={person.organization || ''} disabled={organizationSaving === person.id}
+                        onBlur={async e => {
+                          const input = e.currentTarget;
+                          const value = input.value.trim();
+                          if (value === (person.organization || '')) return;
+                          setOrganizationSaving(person.id); setError('');
+                          try { await onUpdatePersonnelOrganization(person.id, value); }
+                          catch (e) { input.value = person.organization || ''; setError(e.message || 'Could not update organisation.'); }
+                          finally { setOrganizationSaving(null); }
+                        }} className="font-semibold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none w-full" />
+                        : <div className="font-semibold text-slate-800">{person.organization || 'Not recorded'}</div>}
                       <span className="inline-block mt-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
                         {person.bizSafe}
                       </span>
@@ -202,7 +194,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                     <td className="py-4 px-4">
                       <div className="text-xs font-bold text-slate-900">{person.cdePermission}</div>
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        {person.ptwAuthority.map((auth) => (
+                        {(person.ptwAuthority || []).map((auth) => (
                           <span
                             key={auth}
                             className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200"
@@ -228,9 +220,12 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                         </span>
                       </div>
                     </td>
+
+                    <td className="py-4 px-4"><DeleteRecordAction collection="users" record={person} /></td>
                     {currentUser?.systemRole === 'admin' && (
                       <td className="py-4 px-4 text-right">
                         <select
+                          aria-label={`System role for ${person.name || person.email}`}
                           value={person.systemRole || 'guest'}
                           onChange={(e) => onUpdatePersonnelRole && onUpdatePersonnelRole(person.id, e.target.value)}
                           className="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
@@ -243,6 +238,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                           <option value="engineer">Engineer</option>
                           <option value="supervisor">Supervisor</option>
                         </select>
+                        {person.email && person.id !== person.email.toLowerCase() && <button className="block mt-1 text-blue-700 text-xs" onClick={() => onUpdatePersonnelRole(person.id, person.systemRole || 'guest')}>Confirm legacy access</button>}
                       </td>
                     )}
                   </tr>
@@ -254,31 +250,16 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
       </div>
 
       {/* 4. Modal to Register New Personnel / Subcontractor */}
-      {isAddModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="text-base font-bold text-slate-900">
-                Register Site Personnel / Appointed Subcontractor
-              </h3>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
+      {isAddModalOpen && isAdmin && <RecordModal title="Register Site Personnel / Appointed Subcontractor" onClose={() => { if (!saving) setIsAddModalOpen(false); }}>
             <form onSubmit={handleFormSubmit} className="space-y-4 text-sm">
+              {error && <p role="alert" className="text-red-700">{error}</p>}
+              <label className="block text-xs font-semibold">Sign-in email<input type="email" required value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} className="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2" /></label>
+              <label className="block text-xs font-semibold">bizSAFE details (if recorded)<input value={newUser.bizSafe} onChange={e => setNewUser({ ...newUser, bizSafe: e.target.value })} className="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2" /></label>
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                   Full Name (As per FIN / NRIC)
                 </label>
-                <input
+                <input aria-label="Full Name (As per FIN / NRIC)"
                   type="text"
                   required
                   value={newUser.name}
@@ -293,7 +274,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                     Project Role
                   </label>
-                  <input
+                  <input aria-label="Project Role"
                     type="text"
                     required
                     value={newUser.role}
@@ -306,7 +287,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                     Category
                   </label>
-                  <select
+                  <select aria-label="Category"
                     value={newUser.category}
                     onChange={(e) => setNewUser({ ...newUser, category: e.target.value })}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2"
@@ -322,7 +303,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                 <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                   Company / Subcontractor Name
                 </label>
-                <input
+                <input aria-label="Company / Subcontractor Name"
                   type="text"
                   required
                   value={newUser.organization}
@@ -337,7 +318,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                     MOM / BCA / WSQ Cert No.
                   </label>
-                  <input
+                  <input aria-label="MOM / BCA / WSQ Cert No."
                     type="text"
                     required
                     value={newUser.statutoryReg}
@@ -350,7 +331,7 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                     CSOC / Cert Expiry Date
                   </label>
-                  <input
+                  <input aria-label="CSOC / Cert Expiry Date"
                     type="date"
                     required
                     value={newUser.certExpiry}
@@ -369,16 +350,14 @@ export default function UserManagementView({ users, onAddPersonnel, onToggleBiom
                   Cancel
                 </button>
                 <button
-                  type="submit"
+                  type="submit" disabled={saving}
                   className="px-4 py-2 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700"
                 >
-                  Authorize & Sync Turnstile
+                  {saving ? 'Saving…' : 'Register personnel'}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </RecordModal>}
     </div>
   );
 }

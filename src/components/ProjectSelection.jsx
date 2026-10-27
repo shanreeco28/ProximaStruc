@@ -1,21 +1,27 @@
 import React, { useState } from 'react';
-import { Briefcase, Plus, LogOut, ArrowRight, Building, CheckCircle2, Trash2 } from 'lucide-react';
+import DeleteRecordAction from './DeleteRecordAction';
+import { RecordDeletionContext } from '../contexts/RecordDeletionContext';
+import { Briefcase, Plus, LogOut, ArrowRight, Building, CheckCircle2 } from 'lucide-react';
 
 const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user }) => {
   const [newProjectName, setNewProjectName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const handleAddSubmit = (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
-    const id = newProjectName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    onAdd({ name: newProjectName, id });
-    setNewProjectName('');
-    setIsAdding(false);
+    setError(''); setSaving(true);
+    try {
+      await onAdd({ name: newProjectName.trim(), id: crypto.randomUUID() });
+      setNewProjectName(''); setIsAdding(false);
+    } catch (e) { setError(e.message || 'Could not create project.'); }
+    finally { setSaving(false); }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4 transition-colors duration-300">
+    <main tabIndex={-1} className="project-selection min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4 transition-colors duration-300">
       <div className="w-full max-w-4xl space-y-8 animate-in fade-in zoom-in-95 duration-500">
 
         {/* Header */}
@@ -27,47 +33,40 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
           <p className="text-slate-500 dark:text-slate-400">Welcome back, {user?.name || 'User'}. Choose a workspace to continue.</p>
         </div>
 
+        {error && <p role="alert" className="text-red-700 text-sm">{error}</p>}
         {/* Project Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((project) => (
-            <button
+            <article
               key={project.id}
-              onClick={() => onSelect(project)}
               className="group relative flex flex-col items-start p-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border-2 border-transparent hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-300 hover:shadow-xl text-left w-full"
             >
+              <button type="button" onClick={() => onSelect(project)} className="text-left w-full flex-1">
               <div className="w-12 h-12 rounded-lg bg-blue-50 dark:bg-slate-700 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                 <Briefcase size={24} />
               </div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+              <h2 className="text-lg font-bold break-words text-slate-800 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                 {project.name}
-              </h3>
-              <p className="text-xs text-slate-400 font-mono mb-4">ID: {project.id}</p>
+              </h2>
+              <p className="text-xs text-slate-400 font-mono mb-4 break-all">ID: {project.id}</p>
 
               <div className="mt-auto flex items-center text-sm font-medium text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                 Open Workspace <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
               </div>
 
+              </button>
               {/* Actions (Delete & Active Indicator) */}
-              <div className="absolute top-4 right-4 flex gap-2">
-                {user?.role === 'admin' && onDelete && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (window.confirm(`Are you sure you want to delete project "${project.name}"?`)) {
-                        onDelete(project.id);
-                      }
-                    }}
-                    className="text-slate-400 hover:text-red-500 transition-colors"
-                    title="Delete Project"
-                  >
-                    <Trash2 size={20} />
-                  </button>
+              <div className="mt-3 flex justify-end gap-2 w-full">
+                {project.ownerId === user?.uid && onDelete && (
+                  <RecordDeletionContext.Provider value={{ user: { email: user.email, uid: user.uid, systemRole: 'admin' }, requests: [], submit: (collection, id, reason) => onDelete(id, reason) }}>
+                    <DeleteRecordAction collection="projects" record={project} />
+                  </RecordDeletionContext.Provider>
                 )}
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500">
                   <CheckCircle2 size={20} />
                 </div>
               </div>
-            </button>
+            </article>
           ))}
 
           {/* Add Project Card */}
@@ -77,7 +76,7 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
               <form onSubmit={handleAddSubmit} className="space-y-4 flex-1 flex flex-col">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Project Name</label>
-                  <input
+                  <input aria-label="Project Name"
                     autoFocus
                     type="text"
                     value={newProjectName}
@@ -96,7 +95,7 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
                   </button>
                   <button
                     type="submit"
-                    disabled={!newProjectName.trim()}
+                    disabled={!newProjectName.trim() || saving}
                     className="px-3 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
                   >
                     Create
@@ -129,7 +128,7 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
         </div>
 
       </div>
-    </div>
+    </main>
   );
 };
 

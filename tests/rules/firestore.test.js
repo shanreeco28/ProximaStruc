@@ -2,9 +2,10 @@ import { before, after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, getDoc, deleteDoc, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getDoc, deleteDoc, arrayUnion, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { createMemberProfile, INSPECTION_STAGES, canAdvanceInspection } from '../../src/utils/siteData.js';
 import { synchronizeProjectMembership } from '../../src/services/projectMembership.js';
+import { submitRecordDeletion, reviewRecordDeletion } from '../../src/services/recordDeletion.js';
 import { saveOwnProjectProfile } from '../../src/services/personalProfile.js';
 let env;
 const project='demo-proximastruc';
@@ -146,4 +147,87 @@ test('self profile edits cannot alter identities, permissions, organisation, cer
   }
   await assertFails(updateDoc(doc(db,'artifacts/p/users/engineer@example.test'),{name:'Changed by someone else',...changed('guest')}));
   await assertFails(updateDoc(doc(client('guest',false),'artifacts/p/users/guest@example.test'),{name:'Unverified change',...changed('guest')}));
+});
+
+const actor = role => ({uid:role,email:`${role}@example.test`,systemRole:role});
+test('creators request deletion, independent managers verify it, and history survives',async()=>{
+  const path='artifacts/p/materials/verified-do';
+  await seed(path,{reference:'DO-verified',createdBy:'engineer@example.test',createdAt:'2026-10-27'});
+  const db=client('engineer');
+  await assertFails(deleteDoc(doc(db,path)));
+  await assertSucceeds(submitRecordDeletion(db,'p',actor('engineer'),'materials','verified-do','Duplicate delivery order'));
+  assert.equal((await getDoc(doc(db,path))).exists(),true);
+  await assertFails(deleteDoc(doc(client('manager'),path)));
+  await assertSucceeds(reviewRecordDeletion(client('manager'),'p',actor('manager'),'materials:verified-do',true,'Checked duplicate against site log'));
+  assert.equal((await getDoc(doc(client('admin'),path))).exists(),false);
+  const request=(await getDoc(doc(client('admin'),'artifacts/p/deletionRequests/materials:verified-do'))).data();
+  assert.equal(request.status,'approved');assert.equal(request.requestedByUid,'engineer');assert.equal(request.reviewedByUid,'manager');assert.equal(request.history.length,2);
+  await assertFails(deleteDoc(doc(client('admin'),'artifacts/p/deletionRequests/materials:verified-do')));
+});
+test('manager creators cannot approve themselves or directly delete their own records',async()=>{
+  await seed('artifacts/p/tasks/manager-own',{activity:'Manager activity',createdBy:'manager@example.test'});
+  await assertSucceeds(submitRecordDeletion(client('manager'),'p',actor('manager'),'tasks','manager-own','Duplicate activity'));
+  await assertFails(deleteDoc(doc(client('manager'),'artifacts/p/tasks/manager-own')));
+  await assert.rejects(reviewRecordDeletion(client('manager'),'p',actor('manager'),'tasks:manager-own',true,'Self approval'));
+  await assertSucceeds(reviewRecordDeletion(client('admin'),'p',actor('admin'),'tasks:manager-own',true,'Verified by admin'));
+});
+test('rejection preserves records and resubmission preserves prior decision history',async()=>{
+  await seed('artifacts/p/lifts/rejected-ptw',{crane:'Crane test',createdBy:'supervisor@example.test'});
+  await submitRecordDeletion(client('supervisor'),'p',actor('supervisor'),'lifts','rejected-ptw','Wrong permit');
+  await reviewRecordDeletion(client('manager'),'p',actor('manager'),'lifts:rejected-ptw',false,'Still required for site record');
+  assert.equal((await getDoc(doc(client('admin'),'artifacts/p/lifts/rejected-ptw'))).exists(),true);
+  await submitRecordDeletion(client('supervisor'),'p',actor('supervisor'),'lifts','rejected-ptw','Confirmed duplicate after review');
+  const request=(await getDoc(doc(client('admin'),'artifacts/p/deletionRequests/lifts:rejected-ptw'))).data();
+  assert.equal(request.status,'pending');assert.equal(request.history.length,3);assert.equal(request.history[1].status,'rejected');
+});
+test('edited records cannot be deleted using a stale approved snapshot',async()=>{
+  const path='artifacts/p/materials/changed-do';
+  await seed(path,{reference:'Original DO',createdBy:'engineer@example.test'});
+  await submitRecordDeletion(client('engineer'),'p',actor('engineer'),'materials','changed-do','Duplicate');
+  await seed(path,{reference:'Corrected DO',createdBy:'engineer@example.test'});
+  await assert.rejects(reviewRecordDeletion(client('manager'),'p',actor('manager'),'materials:changed-do',true,'Verified'),/changed/);
+  assert.equal((await getDoc(doc(client('admin'),path))).data().reference,'Corrected DO');
+  await reviewRecordDeletion(client('manager'),'p',actor('manager'),'materials:changed-do',false,'Record changed; request again');
+});
+test('non-creators cannot request deletion or bypass review through forged requests',async()=>{
+  const path='artifacts/p/tasks/not-own';
+  await seed(path,{activity:'Other person activity',createdBy:'engineer@example.test'});
+  await assert.rejects(submitRecordDeletion(client('guest'),'p',actor('guest'),'tasks','not-own','Remove'),/only/);
+  await submitRecordDeletion(client('engineer'),'p',actor('engineer'),'tasks','not-own','Duplicate');
+  const ref=doc(client('engineer'),'artifacts/p/deletionRequests/tasks:not-own');
+  await assertFails(updateDoc(ref,{status:'approved',reviewedByUid:'engineer'}));
+  await assertFails(updateDoc(ref,{targetId:'existing'}));
+  await assertFails(updateDoc(ref,{history:[]}));
+  await assertFails(deleteDoc(doc(client('guest'),path)));
+  await assertFails(updateDoc(doc(client('manager'),'artifacts/p/deletionRequests/tasks:not-own'),{status:'approved'}));
+});
+test('admins can directly delete all operational record types, with confirmation history',async()=>{
+  for(const collection of ['tasks','materials','lifts','inspections','weatherLogs','users','zones','monitoring']) {
+    await seed(`artifacts/p/${collection}/admin-delete`,{name:`${collection} record`,createdBy:'engineer@example.test'});
+    await assertSucceeds(submitRecordDeletion(client('admin'),'p',actor('admin'),collection,'admin-delete','Admin verified duplicate'));
+    assert.equal((await getDoc(doc(client('admin'),`artifacts/p/${collection}/admin-delete`))).exists(),false);
+    assert.equal((await getDoc(doc(client('admin'),`artifacts/p/deletionRequests/${collection}:admin-delete`))).data().status,'deleted');
+  }
+});
+
+test('forged admin actors and correctly shaped approvals without deletion cannot bypass verification',async()=>{
+  const path='artifacts/p/tasks/forged-approval';
+  await seed(path,{activity:'Verified target',createdBy:'engineer@example.test'});
+  await assert.rejects(submitRecordDeletion(client('manager'),'p',{...actor('manager'),systemRole:'admin'},'tasks','forged-approval','Forged direct delete'));
+  await submitRecordDeletion(client('engineer'),'p',actor('engineer'),'tasks','forged-approval','Duplicate');
+  const ref=doc(client('manager'),'artifacts/p/deletionRequests/tasks:forged-approval');
+  const request=(await getDoc(ref)).data();
+  await assertFails(updateDoc(ref,{status:'approved',reviewedBy:'manager@example.test',reviewedByUid:'manager',reviewedAt:serverTimestamp(),reviewReason:'No deletion in this transaction',history:[...request.history,{status:'approved',by:'manager@example.test',byUid:'manager',at:Timestamp.now(),reason:'No deletion in this transaction'}]}));
+  assert.equal((await getDoc(doc(client('admin'),path))).exists(),true);
+});
+test('project admin deletion retains linked site data and verification history',async()=>{
+  await seed('projects/project-delete',{name:'Project',ownerId:'admin',createdBy:'admin@example.test'});
+  await seed('artifacts/project-delete/tasks/retained',{activity:'Retained site record',createdBy:'engineer@example.test'});
+  await assertSucceeds(submitRecordDeletion(client('admin'),'project-delete',actor('admin'),'projects','project-delete','Close duplicate workspace entry'));
+  await env.withSecurityRulesDisabled(async context=>{
+    const db=context.firestore();
+    assert.equal((await getDoc(doc(db,'projects/project-delete'))).exists(),false);
+    assert.equal((await getDoc(doc(db,'artifacts/project-delete/tasks/retained'))).exists(),true);
+    assert.equal((await getDoc(doc(db,'artifacts/project-delete/deletionRequests/projects:project-delete'))).data().status,'deleted');
+  });
 });

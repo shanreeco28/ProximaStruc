@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DeleteRecordAction from './DeleteRecordAction';
 import { Field, SaveForm } from './RecordForm';
 import { latestObservation, recorded } from '../utils/siteData';
 import { MONITOR_FIELDS, observationValue } from '../utils/monitoring';
@@ -27,6 +28,6 @@ export default function MonitoringView({ currentUser, observations, onAdd }) {
       </SaveForm>{saved && <p role="status" className="mt-3 text-sm text-emerald-700">Observations confirmed.</p>}
     </div>
     <div className="bg-white p-5 rounded-xl border border-slate-200"><h3 className="font-bold mb-2">Latest confirmed observation</h3>{latest ? <><p className="text-xs text-slate-500 mb-3">{latest.observedAt.replace('T', ' ')} · {latest.source} · Confirmed by {latest.confirmedBy}</p><dl className="grid sm:grid-cols-2 gap-3 text-sm">{MONITOR_FIELDS.map(([key, label, , unit]) => <div key={key}><dt className="text-slate-500">{label}</dt><dd>{observationValue(latest, key, unit)}</dd></div>)}</dl></> : <p className="text-slate-500 text-sm">No observations confirmed yet.</p>}</div>
-    <div className="bg-white p-5 rounded-xl border border-slate-200"><h3 className="font-bold">Confirmation history</h3>{[...observations].sort((a,b) => (b.confirmedAt || '').localeCompare(a.confirmedAt || '')).map(o => <p key={o.id} className="text-sm py-2 border-b">{o.observedAt?.replace('T', ' ')} · {o.source} · {o.confirmedBy}</p>)}</div>
+    <div className="bg-white p-5 rounded-xl border border-slate-200"><h3 className="font-bold">Confirmation history</h3>{[...observations].sort((a,b) => (b.confirmedAt || '').localeCompare(a.confirmedAt || '')).map(o => <div key={o.id} className="text-sm py-2 border-b flex flex-wrap justify-between gap-2"><p>{o.observedAt?.replace('T', ' ')} · {o.source} · {o.confirmedBy}</p><DeleteRecordAction collection="monitoring" record={o} /></div>)}</div>
   </div>;
 }

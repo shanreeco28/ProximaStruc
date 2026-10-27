@@ -92,15 +92,76 @@ service cloud.firestore {
         && d.phone is string && d.phone.size() <= 40
         && d.birthday is string && (d.birthday == '' || d.birthday.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'));
     }
+    function deletionTarget(projectId, collectionName, recordId) {
+      return collectionName == 'projects' ? /databases/$(database)/documents/projects/$(projectId)
+        : /databases/$(database)/documents/artifacts/$(projectId)/$(collectionName)/$(recordId);
+    }
+    function deletable(collectionName) {
+      return collectionName in ['tasks', 'materials', 'lifts', 'inspections', 'weatherLogs', 'users', 'zones', 'monitoring', 'projects'];
+    }
+    function deletionReviewer(projectId) { return admin(projectId) || role(projectId) == 'manager'; }
+    function validDeletionEvent() {
+      let d = request.resource.data;
+      let history = d.history;
+      let previous = resource == null ? [] : resource.data.get('history', []);
+      let entry = history[history.size() - 1];
+      return history is list && history.size() == previous.size() + 1 && history == previous.concat([entry])
+        && entry.keys().hasOnly(['status', 'by', 'byUid', 'at', 'reason'])
+        && entry.status == d.status && entry.by == request.auth.token.email && entry.byUid == request.auth.uid
+        && entry.at is timestamp && entry.reason == (d.status in ['approved', 'rejected'] ? d.reviewReason : d.reason);
+    }
+    function validDeletionShape(projectId, key) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['targetCollection', 'targetId', 'targetLabel', 'targetSnapshot', 'reason', 'requestedBy', 'requestedByUid', 'requestedAt', 'status', 'reviewedBy', 'reviewedByUid', 'reviewedAt', 'reviewReason', 'history'])
+        && deletable(d.targetCollection) && d.targetId is string && d.targetId.size() > 0
+        && key == d.targetCollection + ':' + d.targetId && (d.targetCollection != 'projects' || d.targetId == projectId)
+        && d.targetLabel is string && d.targetSnapshot is map && d.reason is string && d.reason.size() > 0 && d.reason.size() <= 2000
+        && d.reviewReason is string && d.reviewReason.size() <= 2000 && validDeletionEvent();
+    }
+    function newDeletionRequest(projectId, key) {
+      let d = request.resource.data;
+      let target = deletionTarget(projectId, d.targetCollection, d.targetId);
+      return validDeletionShape(projectId, key) && exists(target) && d.targetSnapshot == get(target).data
+        && d.requestedBy == request.auth.token.email && d.requestedByUid == request.auth.uid && d.requestedAt == request.time
+        && (d.status == 'pending' && member(projectId) && get(target).data.get('createdBy', '').lower() == request.auth.token.email.lower()
+          && d.reviewedBy == '' && d.reviewedByUid == '' && d.reviewedAt == null && d.reviewReason == ''
+          || d.status == 'deleted' && admin(projectId) && !existsAfter(target)
+          && d.reviewedBy == request.auth.token.email && d.reviewedByUid == request.auth.uid && d.reviewedAt == request.time);
+    }
+    function reviewedDeletionRequest(projectId, key) {
+      let d = request.resource.data;
+      let previous = resource.data;
+      let target = deletionTarget(projectId, previous.targetCollection, previous.targetId);
+      return validDeletionShape(projectId, key) && previous.status == 'pending' && deletionReviewer(projectId)
+        && (admin(projectId) || previous.requestedByUid != request.auth.uid)
+        && d.diff(previous).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedByUid', 'reviewedAt', 'reviewReason', 'history'])
+        && d.reviewedBy == request.auth.token.email && d.reviewedByUid == request.auth.uid && d.reviewedAt == request.time && d.reviewReason.size() > 0
+        && (d.status == 'rejected' || d.status == 'approved' && exists(target) && previous.targetSnapshot == get(target).data && !existsAfter(target));
+    }
+    function verifiedRecordDelete(projectId, collectionName, recordId) {
+      let path = /databases/$(database)/documents/artifacts/$(projectId)/deletionRequests/$(collectionName + ':' + recordId);
+      let before = get(path).data;
+      let after = getAfter(path).data;
+      return role(projectId) == 'manager' && before.status == 'pending' && before.requestedByUid != request.auth.uid
+        && before.targetSnapshot == resource.data && after.status == 'approved'
+        && after.reviewedByUid == request.auth.uid && after.reviewedAt == request.time;
+    }
+    match /artifacts/{projectId}/deletionRequests/{key} {
+      allow read: if member(projectId);
+      allow create: if signedIn() && newDeletionRequest(projectId, key);
+      allow update: if signedIn() && (reviewedDeletionRequest(projectId, key)
+        || (resource.data.status == 'rejected' || admin(projectId)) && newDeletionRequest(projectId, key));
+      // Retain verification history after the operational record is deleted.
+    }
     match /projects/{projectId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && auditCreate();
       allow update: if owner(projectId) && request.resource.data.ownerId == resource.data.ownerId;
-      allow delete: if owner(projectId);
+      allow delete: if admin(projectId) || verifiedRecordDelete(projectId, 'projects', projectId);
     }
     match /artifacts/{projectId}/{collectionName}/{recordId} {
       allow read: if member(projectId) || collectionName == 'users' && verifiedEmail() && recordId == request.auth.token.email.lower();
-      allow delete: if admin(projectId) && collectionName in ['users', 'tasks', 'materials', 'weatherLogs', 'zones', 'inspections', 'lifts'];
+      allow delete: if deletable(collectionName) && (admin(projectId) || verifiedRecordDelete(projectId, collectionName, recordId));
       allow create: if auditCreate() && (
         (collectionName == 'tasks' && planner(projectId) && validTask()) ||
         (collectionName == 'materials' && siteRecorder(projectId) && validMaterial()) ||
@@ -121,7 +182,7 @@ service cloud.firestore {
         (collectionName == 'users' && admin(projectId) && recordId == request.resource.data.email.lower()
           && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin'])
       );
-      // Confirmed monitoring observations are append-only; corrections use a new confirmation.
+      // Observations cannot be edited; deletion follows the same admin/verification policy.
     }
   }
 }

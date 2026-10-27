@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Field, RecordModal } from './RecordForm';
 import { personalProfileUpdates } from '../utils/profile';
 import { today } from '../utils/siteData';
@@ -10,19 +10,9 @@ export default function ProfileEditor({ user, profile, projectName, onSave, onCl
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const container = useRef(null);
-  useEffect(() => { container.current?.querySelector('input')?.focus(); }, []);
   const change = key => event => setForm(prev => ({ ...prev, [key]: event.target.value }));
   const close = () => { if (!saving) onClose(); };
-  return <div ref={container} onKeyDown={event => {
-    if (event.key === 'Escape') { event.preventDefault(); close(); }
-    if (event.key === 'Tab') {
-      const controls = [...container.current.querySelectorAll('button:not(:disabled), input:not(:disabled)')];
-      const first = controls[0], last = controls.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    }
-  }}><RecordModal title="Edit profile" onClose={close}>
+  return <RecordModal title="Edit profile" onClose={close}>
     <p className="text-sm text-slate-500">Personal details for {projectName || 'this project'}. Your job title does not change your access permissions.</p>
     <form className="space-y-4" onSubmit={async event => {
       event.preventDefault(); if (saving) return;
@@ -47,5 +37,5 @@ export default function ProfileEditor({ user, profile, projectName, onSave, onCl
         </div>
       </fieldset>
     </form>
-  </RecordModal></div>;
+  </RecordModal>;
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
-const COLLECTIONS = ['users', 'tasks', 'inspections', 'materials', 'weatherLogs', 'lifts', 'zones', 'monitoring'];
+const COLLECTIONS = ['users', 'tasks', 'inspections', 'materials', 'weatherLogs', 'lifts', 'zones', 'monitoring', 'deletionRequests'];
 export default function useProjectRecords(projectId, userId) {
   const [records, setRecords] = useState({});
   useEffect(() => {

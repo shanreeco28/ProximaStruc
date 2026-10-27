@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { RecordModal } from './RecordForm';
+import DeleteRecordAction from './DeleteRecordAction';
 import { today } from '../utils/siteData';
 
 
@@ -143,15 +145,15 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
 
       {/* 3. Enterprise RBAC & Statutory Matrix Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" role="region" aria-label="UserManagement records" tabIndex={0}>
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500">
-                <th className="py-3.5 px-4">Personnel & Role</th>
-                <th className="py-3.5 px-4">Organization & bizSAFE</th>
-                <th className="py-3.5 px-4">ISO 19650 CDE Authority & Sign-Off</th>
-                <th className="py-3.5 px-4">Recorded Certificate</th>
-                {currentUser?.systemRole === 'admin' && <th className="py-3.5 px-4 text-right">System Role</th>}
+                <th scope="col" className="py-3.5 px-4">Personnel & Role</th>
+                <th scope="col" className="py-3.5 px-4">Organization & bizSAFE</th>
+                <th scope="col" className="py-3.5 px-4">ISO 19650 CDE Authority & Sign-Off</th>
+                <th scope="col" className="py-3.5 px-4">Recorded Certificate</th><th scope="col" className="py-3.5 px-4">Record action</th>
+                {currentUser?.systemRole === 'admin' && <th scope="col" className="py-3.5 px-4 text-right">System Role</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -219,9 +221,11 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
                       </div>
                     </td>
 
+                    <td className="py-4 px-4"><DeleteRecordAction collection="users" record={person} /></td>
                     {currentUser?.systemRole === 'admin' && (
                       <td className="py-4 px-4 text-right">
                         <select
+                          aria-label={`System role for ${person.name || person.email}`}
                           value={person.systemRole || 'guest'}
                           onChange={(e) => onUpdatePersonnelRole && onUpdatePersonnelRole(person.id, e.target.value)}
                           className="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
@@ -246,25 +250,7 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
       </div>
 
       {/* 4. Modal to Register New Personnel / Subcontractor */}
-      {isAddModalOpen && isAdmin && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full max-h-[90vh] overflow-auto p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="text-base font-bold text-slate-900">
-                Register Site Personnel / Appointed Subcontractor
-              </h3>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
+      {isAddModalOpen && isAdmin && <RecordModal title="Register Site Personnel / Appointed Subcontractor" onClose={() => { if (!saving) setIsAddModalOpen(false); }}>
             <form onSubmit={handleFormSubmit} className="space-y-4 text-sm">
               {error && <p role="alert" className="text-red-700">{error}</p>}
               <label className="block text-xs font-semibold">Sign-in email<input type="email" required value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} className="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2" /></label>
@@ -273,7 +259,7 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
                 <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                   Full Name (As per FIN / NRIC)
                 </label>
-                <input
+                <input aria-label="Full Name (As per FIN / NRIC)"
                   type="text"
                   required
                   value={newUser.name}
@@ -288,7 +274,7 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                     Project Role
                   </label>
-                  <input
+                  <input aria-label="Project Role"
                     type="text"
                     required
                     value={newUser.role}
@@ -301,7 +287,7 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                     Category
                   </label>
-                  <select
+                  <select aria-label="Category"
                     value={newUser.category}
                     onChange={(e) => setNewUser({ ...newUser, category: e.target.value })}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2"
@@ -317,7 +303,7 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
                 <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                   Company / Subcontractor Name
                 </label>
-                <input
+                <input aria-label="Company / Subcontractor Name"
                   type="text"
                   required
                   value={newUser.organization}
@@ -332,7 +318,7 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                     MOM / BCA / WSQ Cert No.
                   </label>
-                  <input
+                  <input aria-label="MOM / BCA / WSQ Cert No."
                     type="text"
                     required
                     value={newUser.statutoryReg}
@@ -345,7 +331,7 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                     CSOC / Cert Expiry Date
                   </label>
-                  <input
+                  <input aria-label="CSOC / Cert Expiry Date"
                     type="date"
                     required
                     value={newUser.certExpiry}
@@ -371,9 +357,7 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </RecordModal>}
     </div>
   );
 }

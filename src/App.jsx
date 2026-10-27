@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 // Existing Component Imports from your repository structure
-import AppLogo from './components/AppLogo';
-import AccountControls from './components/AccountControls';
+import WorkspaceShell from './components/WorkspaceShell';
+import PMCommandDashboard from './components/PMCommandDashboard';
+import { RecordDeletionContext } from './contexts/RecordDeletionContext';
+import DeletionReviewPanel from './components/DeletionReviewPanel';
+import { submitRecordDeletion, reviewRecordDeletion } from './services/recordDeletion';
+import { isDeletionReviewer } from './utils/deletions';
 import { saveOwnProjectProfile } from './services/personalProfile';
 import CalendarView from './components/CalendarView';
 import InspectionsView from './components/InspectionsView';
@@ -10,16 +14,14 @@ import MaterialsView from './components/MaterialsView';
 import SiteDiaryView from './components/SiteDiaryView';
 import UserManagementView from './components/UserManagementView';
 import ExecutiveReportModal from './components/ExecutiveReportModal';
-import MobileNav from './components/MobileNav';
 import MonitoringView from './components/MonitoringView';
-import { observationValue } from './utils/monitoring';
 import useProjectRecords from './hooks/useProjectRecords';
 import useSelfRegistration from './hooks/useSelfRegistration';
 import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canAdvanceInspection, canEditInspection, canCommentInspection, isInspectionClosed, INSPECTION_STAGES, taskStatus } from './utils/siteData';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, sendEmailVerification, updateProfile } from 'firebase/auth';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, runTransaction, arrayUnion } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, runTransaction, arrayUnion } from 'firebase/firestore';
 import LoginView from './components/LoginView';
 import ProjectSelection from './components/ProjectSelection';
 
@@ -46,6 +48,7 @@ export default function App() {
   const [selectedZone, setSelectedZone] = useState('All Zones');
 
   const [operationError, setOperationError] = useState('');
+  const [deletionStatus, setDeletionStatus] = useState('');
   const liveProject = projects.find(p => p.id === selectedProject?.id);
   const registration = useSelfRegistration(user, liveProject?.id, liveProject?.ownerId);
   const records = useProjectRecords(registration.ready ? selectedProject?.id : null, user?.uid);
@@ -57,6 +60,7 @@ export default function App() {
   const tasks = records.tasks.items;
   const zones = records.zones.items;
   const observations = records.monitoring.items;
+  const deletionRequests = records.deletionRequests.items;
   const observation = latestObservation(observations);
 
 
@@ -223,10 +227,6 @@ export default function App() {
       updatedBy: user.email, updatedAt: timestamp
     });
   };
-  const handleDeleteInspection = async id => {
-    if (!isAdmin) throw new Error('Only admins can delete inspections.');
-    await deleteDoc(doc(db, `artifacts/${selectedProject.id}/inspections`, id));
-  };
   const handleToggleLift = async (id) => {
     const lift = lifts.find(p => p.id === id);
     if (!lift) return;
@@ -264,7 +264,7 @@ export default function App() {
     {
       group: 'System & Access',
       items: [
-        { id: 'users', label: 'Role & Subcon Matrix', badge: null },
+        { id: 'users', label: 'Role & Subcon Matrix', badge: isDeletionReviewer(currentUser) && deletionRequests.some(request => request.status === 'pending') ? `${deletionRequests.filter(request => request.status === 'pending').length} Review` : null },
         ...(isAdmin ? [{ id: 'monitoring', label: 'Admin Control Panel', badge: null }] : []),
       ],
     },
@@ -296,146 +296,40 @@ export default function App() {
             throw new Error(e.message || 'Could not create project.');
           }
         }}
-        onDelete={async (id) => {
-          try {
-            if (projects.find(p => p.id === id)?.ownerId !== user.uid) throw new Error('Only the project owner can delete the project.');
-            await deleteDoc(doc(db, 'projects', id));
-          } catch (e) {
-            setOperationError(e.message);
-          }
+        onDelete={async (id, reason) => {
+          if (projects.find(project => project.id === id)?.ownerId !== user.uid) throw new Error('Open the project as an admin to delete it.');
+          await submitRecordDeletion(db, id, { uid: user.uid, email: user.email, systemRole: 'admin' }, 'projects', id, reason);
         }}
         onLogout={handleLogout}
       />
     );
   }
 
+  const deletionContext = {
+    user: { ...currentUser, uid: user.uid }, requests: deletionRequests,
+    records: { tasks, materials, lifts, inspections, weatherLogs, users: personnel, zones, monitoring: observations, projects: liveProject ? [liveProject] : [] },
+    submit: async (collection, id, reason) => {
+      const status = await submitRecordDeletion(db, selectedProject.id, { ...currentUser, uid: user.uid }, collection, id, reason);
+      setDeletionStatus(status === 'pending' ? 'Deletion requested. The record remains available until verification.' : 'Record deleted. Verification history retained.');
+      if (collection === 'projects' && status === 'deleted') { setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard'); }
+      if (collection === 'zones' && status === 'deleted' && zones.find(zone=>zone.id===id)?.name === selectedZone) setSelectedZone('All Zones');
+      return status;
+    },
+    review: async (key, approve, reason) => {
+      const request = deletionRequests.find(request=>request.id===key);
+      await reviewRecordDeletion(db, selectedProject.id, { ...currentUser, uid: user.uid }, key, approve, reason);
+      setDeletionStatus(approve ? 'Deletion verified. The reviewed record was deleted.' : 'Deletion request rejected. The record remains available.');
+      if (approve && request?.targetCollection === 'projects') { setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard'); }
+      if (approve && request?.targetCollection === 'zones' && zones.find(zone=>zone.id===request.targetId)?.name === selectedZone) setSelectedZone('All Zones');
+    },
+  };
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col md:flex-row font-sans antialiased selection:bg-blue-600 selection:text-white">
-      
-      {/* 1. ENTERPRISE SIDEBAR (ISO 9241-110 Grouped Navigation) */}
-      <aside className="hidden md:flex md:w-72 bg-slate-900 text-slate-100 flex-col border-r border-slate-800 shrink-0">
-        <div className="h-16 px-5 flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <AppLogo className="w-8 h-8" />
-            <div>
-              <span className="font-bold tracking-tight text-white text-base block leading-none">
-                PROXIMA<span className="text-blue-400">STRUC</span>
-              </span>
-              <span className="text-[11px] text-slate-400 font-mono uppercase tracking-wider">
-                CDE • SG Enterprise
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Active Contract Selector */}
-        <div className="p-4 border-b border-slate-800 bg-slate-950/40">
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
-              Active Project / Zone
-            </label>
-            {isPrivileged && (
-              <button onClick={handleAddZone} className="text-xs text-blue-400 hover:text-blue-300">+</button>
-            )}
-          </div>
-          <select
-            value={selectedZone}
-            onChange={(e) => setSelectedZone(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 text-slate-100 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="All Zones">All Zones</option>
-            {zones.map(z => (
-              <option key={z.id} value={z.name}>{z.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Navigation Groups */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6" aria-label="Main Project Navigation">
-          {dynamicNavGroups.map((section) => (
-            <div key={section.group}>
-              <h3 className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                {section.group}
-              </h3>
-              <ul className="space-y-1">
-                {section.items.map((item) => {
-                  const isActive = activeTab === item.id;
-                  return (
-                    <li key={item.id}>
-                      <button
-                        onClick={() => setActiveTab(item.id)}
-                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                          isActive
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'
-                        }`}
-                      >
-                        <span>{item.label}</span>
-                        {item.badge && (
-                          <span
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                              isActive
-                                ? 'bg-blue-800 text-blue-100'
-                                : item.alert === 'danger'
-                                ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                                : item.alert === 'warning'
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                : item.alert === 'success'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-slate-800 text-slate-300'
-                            }`}
-                          >
-                            {item.badge}
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </nav>
-
-        {/* PM Regulatory Quick-Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/60 text-xs text-slate-400 space-y-1">
-          <div className="flex justify-between">
-            <span>Incident-free since:</span>
-            <span className="font-mono font-bold text-slate-300">{observationValue(observation, 'incidentFreeSince')}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Last noise reading:</span>
-            <span className="font-mono text-slate-300">{observationValue(observation, 'noise', 'dB(A)')}</span>
-          </div>
-        </div>
-      </aside>
-
-      {/* 2. MAIN WORKSPACE */}
-      <div className="flex-1 flex flex-col min-w-0">
-        
-        {/* Top Statutory & Telemetry Bar */}
-        <header className="h-16 bg-white border-b border-slate-200 px-4 lg:px-8 flex items-center justify-between gap-3 sticky top-0 z-20">
-          <div className="flex items-center gap-4 min-w-0 flex-1">
-            <h1 className="text-lg font-bold text-slate-900 tracking-tight truncate">
-              {dynamicNavGroups.flatMap((g) => g.items).find((i) => i.id === activeTab)?.label}
-            </h1>
-            <span className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200 max-w-xs shrink-0 truncate">
-              <span className="w-2 h-2 rounded-full bg-slate-400" />
-              Weather: {observationValue(observation, 'weather')}{observation ? ` · ${observation.observedAt.replace('T', ' ')}` : ''}
-            </span>
-          </div>
-
-          <AccountControls user={user} profile={ownProfile} projectName={liveProject?.name}
-            onSaveProfile={handleSaveProfile} onLogout={handleLogout}
-            onProjects={() => { setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard'); setOperationError(''); setIsExecModalOpen(false); }}
-            onExecutiveBrief={() => setIsExecModalOpen(true)} />
-        </header>
-
-        {/* Persistent PM KPI Ribbon (ISO Progressive Disclosure) */}
-        <section
-          aria-label="Key Project Metrics"
-          className="bg-white border-b border-slate-200 px-4 lg:px-8 py-3 grid grid-cols-2 lg:grid-cols-5 gap-3"
-        >
+    <RecordDeletionContext.Provider value={deletionContext}>
+    <WorkspaceShell project={liveProject} navGroups={dynamicNavGroups} activeTab={activeTab} onNavigate={setActiveTab}
+      zones={zones} selectedZone={selectedZone} onZoneChange={setSelectedZone} onAddZone={handleAddZone} canAddZone={isPrivileged}
+      observation={observation} user={user} profile={ownProfile} isAdmin={isAdmin} onSaveProfile={handleSaveProfile} onLogout={handleLogout}
+      onProjects={() => { setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard'); setOperationError(''); setIsExecModalOpen(false); }}
+      onExecutiveBrief={() => setIsExecModalOpen(true)} metrics={<>
           <KpiPill
             title="Recorded plan progress"
             value={progress.actual === null ? 'Not recorded' : `${progress.actual.toFixed(1)}%`}
@@ -471,10 +365,8 @@ export default function App() {
             status="neutral"
             onClick={() => setActiveTab('users')}
           />
-        </section>
-
-        {/* Active View Container */}
-        <main key={selectedProject.id} className="flex-1 p-4 lg:p-8 pb-24 md:pb-8 overflow-y-auto">
+      </>}>
+          <p role="status" className="sr-only">{deletionStatus}</p>
           {(operationError || registration.error || Object.values(records).some(r => r.error)) && <div role="alert" className="mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">{operationError || registration.error || Object.values(records).find(r => r.error)?.error}<button onClick={() => setOperationError('')} className="ml-3 underline">Dismiss</button></div>}
           {user && !user.emailVerified && liveProject?.ownerId !== user.uid && <p className="mb-4 text-sm text-amber-700">Verify your email to use assigned project access. <button className="underline" onClick={async () => { try { await sendEmailVerification(user); setOperationError('Verification email sent. Follow its link, then sign in again.'); } catch (e) { setOperationError(e.message); } }}>Send verification email</button></p>}
           {!currentUser && <p className="mb-4 text-sm text-slate-500">Project records require an admin-assigned role for your verified sign-in email.</p>}
@@ -492,7 +384,6 @@ export default function App() {
               inspections={filteredInspections}
               onAdvance={handleAdvanceInspection}
               onComment={handleCommentInspection}
-              onDelete={handleDeleteInspection}
               onAdd={(t) => addRecord('inspections', t)}
               onUpdate={(id, t) => updateRecord('inspections', id, t)}
               currentUser={currentUser}
@@ -533,23 +424,15 @@ export default function App() {
           )}
           {activeTab === 'monitoring' && isAdmin && <MonitoringView key={selectedProject.id} observations={observations} currentUser={currentUser} onAdd={record => addRecord('monitoring', record)} />}
           {activeTab === 'users' && (
-            <UserManagementView
+            <div className="space-y-6"><UserManagementView
               users={personnel}
               onAddPersonnel={handleAddPersonnel}
               onUpdatePersonnelRole={handleUpdatePersonnelRole}
               onUpdatePersonnelOrganization={handleUpdatePersonnelOrganization}
               currentUser={currentUser}
-            />
+            /><DeletionReviewPanel /></div>
           )}
-        </main>
-
-        {/* Mobile Bottom Navigation */}
-        <div className="md:hidden">
-          <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} />
-        </div>
-      </div>
-
-      {/* Executive Summary / Print Modal */}
+    </WorkspaceShell>
       {isExecModalOpen && (
         <ExecutiveReportModal
           onClose={() => setIsExecModalOpen(false)}
@@ -561,7 +444,7 @@ export default function App() {
           materials={filteredMaterials}
         />
       )}
-    </div>
+    </RecordDeletionContext.Provider>
   );
 }
 
@@ -584,132 +467,5 @@ function KpiPill({ title, value, sub, status, onClick }) {
       <div className="text-lg font-bold text-slate-900 font-mono mt-0.5">{value}</div>
       <div className="text-xs text-slate-600 truncate mt-0.5">{sub}</div>
     </button>
-  );
-}
-
-function PMCommandDashboard({ onNavigate, inspections, lifts, materials }) {
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Column 1: Today's Critical Casting & RTO Hold Points */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
-              Structural Hold Points (RE/RTO)
-            </h2>
-            <button
-              onClick={() => onNavigate('inspections')}
-              className="text-xs font-semibold text-blue-600 hover:underline"
-            >
-              View All RFIs →
-            </button>
-          </div>
-          <div className="space-y-3 text-sm flex-1 overflow-y-auto max-h-[300px]">
-            {inspections.map((rfi) => (
-              <div
-                key={rfi.id}
-                className={`p-3 rounded-lg border flex justify-between items-center ${
-                  isInspectionClosed(rfi)
-                    ? 'bg-emerald-50 border-emerald-200'
-                    : 'bg-amber-50 border-amber-200'
-                }`}
-              >
-                <div>
-                  <span className="font-semibold text-slate-900 block">{rfi.id}: {rfi.element}</span>
-                  <span className="text-xs text-slate-600">Target Pour: {rfi.targetCast}</span>
-                </div>
-                <span
-                  className={`px-2.5 py-1 rounded-md text-xs font-bold ${
-                    isInspectionClosed(rfi)
-                      ? 'bg-emerald-200 text-emerald-900'
-                      : 'bg-amber-200 text-amber-900'
-                  }`}
-                >
-                  {isInspectionClosed(rfi) ? 'APPROVED' : 'AWAITING CLOSURE'}
-                </span>
-              </div>
-            ))}
-            {inspections.length === 0 && (
-              <div className="text-slate-500 text-center py-4">No active RFIs.</div>
-            )}
-          </div>
-        </div>
-
-        {/* Column 2: MOM High-Risk & Lifting PTW Matrix */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
-              MOM Permit-to-Work & Crane Status
-            </h2>
-            <button
-              onClick={() => onNavigate('lifting')}
-              className="text-xs font-semibold text-blue-600 hover:underline"
-            >
-              Manage PTWs →
-            </button>
-          </div>
-          <div className="space-y-3 text-sm flex-1 overflow-y-auto max-h-[300px]">
-            {lifts.map((ptw) => (
-              <div
-                key={ptw.id}
-                className={`p-3 rounded-lg border flex justify-between items-center ${
-                  ptw.status === 'ACTIVE'
-                    ? 'border-slate-200'
-                    : 'border-red-200 bg-red-50'
-                }`}
-              >
-                <div>
-                  <span className="font-semibold text-slate-900 block">{ptw.crane}</span>
-                  <span className={`text-xs ${ptw.status === 'ACTIVE' ? 'text-slate-500' : 'text-red-700'}`}>
-                    Wind: {ptw.windSpeed} • Radius: {ptw.radius}
-                  </span>
-                </div>
-                <span
-                  className={`px-2.5 py-1 rounded-md text-xs font-bold ${
-                    ptw.status === 'ACTIVE'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-red-200 text-red-900'
-                  }`}
-                >
-                  {ptw.status === 'ACTIVE' ? 'PTW ACTIVE' : 'HOLD'}
-                </span>
-              </div>
-            ))}
-            {lifts.length === 0 && (
-              <div className="text-slate-500 text-center py-4">No active PTWs.</div>
-            )}
-          </div>
-        </div>
-
-        {/* Column 3: Site Material & Supply Chain Pulse */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
-              Material Readiness & BBS Logistics
-            </h2>
-            <button
-              onClick={() => onNavigate('materials')}
-              className="text-xs font-semibold text-blue-600 hover:underline"
-            >
-              BBS & DO Log →
-            </button>
-          </div>
-          <div className="space-y-3 text-sm flex-1">
-            <div className="flex justify-between items-center py-2">
-              <span className="text-slate-600">Delayed Materials / BBS:</span>
-              <span className="font-mono font-bold text-red-600">
-                {materials.filter((m) => m.status?.includes('Delay')).length} Item(s)
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-t border-slate-100 mt-2">
-              <span className="text-slate-600">Received material records:</span>
-              <span className="font-mono font-bold text-blue-700">
-                {materials.filter(r => ['Received', 'Installed', 'Poured'].includes(r.status)).length} / {materials.length}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }

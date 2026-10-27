@@ -14,9 +14,9 @@ const fillActivity = async page => {
 test('planning role matrix and admin-only control panel', async ({page}) => {
   for (const role of ['guest','supervisor','engineer','manager','admin','RE','RTO']) {
     await open(page,'calendar',role);
-    await expect(page.getByRole('heading',{name:/Site Planning/})).toBeVisible();
+    await expect(page.getByRole('heading',{name:'Site Planning',level:2})).toBeVisible();
     await expect(page.getByRole('button',{name:'+ Add activity'})).toHaveCount(['engineer','manager','admin'].includes(role)?1:0);
-    await expect(page.getByRole('button',{name:'ADM Admin'})).toHaveCount(role === 'admin'?1:0);
+    await expect(page.getByRole('navigation',{name:'Main Project Navigation'}).getByRole('button',{name:'Admin Control Panel',exact:true})).toHaveCount(role === 'admin'?1:0);
     await open(page,'monitoring',role);
     await expect(page.getByRole('heading',{name:'Admin site observations'})).toHaveCount(role === 'admin'?1:0);
   }
@@ -97,13 +97,13 @@ test('admin confirms observations without pre-filled readings', async ({page}) =
   await page.getByRole('button',{name:'Confirm observations'}).click();
   await expect(page.getByRole('status')).toHaveText('Observations confirmed.');
   await expect(page.getByText('65.2 dB(A)',{exact:true})).toBeVisible();
-  await expect(page.getByText('Not recorded',{exact:true})).toHaveCount(10);
+  await expect(page.locator('dl').getByText('Not recorded',{exact:true})).toHaveCount(10);
 });
 test('mobile navigation reaches planning without restoring the removed analytics tab', async ({page}) => {
   await page.setViewportSize({width:390,height:844});
   await open(page,'diary','engineer');
   await page.getByRole('button',{name:'PLAN Planning'}).click();
-  await expect(page.getByRole('heading',{name:/Site Planning/})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Site Planning',level:2})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
@@ -138,16 +138,16 @@ test('RTO comments persist and rejected comments retain the input', async ({page
   await expect(page.getByRole('alert')).toHaveText('Test write rejected');
   await expect(page.getByLabel('Comment on TEST-RFI')).toHaveValue('Keep this comment');
 });
-test('only admins can delete RFIs, and a failed delete preserves the inspection', async ({page}) => {
+test('admins delete RFIs directly while creators request independent verification', async ({page}) => {
   await open(page,'inspections','admin','&fail=1');
-  await page.getByRole('button',{name:'Edit',exact:true}).click();
-  page.once('dialog', dialog=>dialog.accept());
-  await page.getByRole('button',{name:'Delete RFI'}).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button',{name:'Delete Test slab',exact:true}).click();
+  await page.getByLabel('Reason for deletion').fill('Duplicate RFI');
+  await page.getByRole('button',{name:'Delete record',exact:true}).click();
   await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Test write rejected');
+  await expect(page.getByRole('heading',{name:'Test slab',exact:true})).toHaveCount(1);
   await open(page,'inspections','supervisor');
-  await page.getByRole('button',{name:'Edit',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Delete RFI'})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Request deletion of Test slab',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Delete Test slab',exact:true})).toHaveCount(0);
 });
 test('organisation editing preserves upstream manager access and removes gate controls', async ({page}) => {
   await open(page,'users','manager');
@@ -204,7 +204,7 @@ test('personal profile saves and reopens without exposing email or access editin
   await expect(page.getByLabel('Full name')).toHaveValue('Updated person');
   await expect(page.getByLabel('Job title')).toHaveValue('Site supervisor');
   await expect(page.getByLabel('Contact phone')).toHaveValue('+65 6123 4567');
-  await expect(page.getByRole('combobox')).toHaveCount(0);
+  await expect(page.getByRole('dialog').getByRole('combobox')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button',{name:'Edit profile',exact:true})).toBeFocused();
 });

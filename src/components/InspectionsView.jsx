@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
+import { RecordModal } from './RecordForm';
+import DeleteRecordAction from './DeleteRecordAction';
 
 
 import { INSPECTION_STAGES as STAGES, canRecordSite, canAdvanceInspection, canEditInspection, canCommentInspection, isInspectionClosed } from '../utils/siteData';
 
 const emptyForm = () => ({ id: '', zone: '', discipline: '', element: '', rtoName: '', reName: '', targetCast: '', bbsLinked: '' });
 
-export default function InspectionsView({ inspections, onAdd, onUpdate, onDelete, onAdvance, onComment, currentUser, zones }) {
+export default function InspectionsView({ inspections, onAdd, onUpdate, onAdvance, onComment, currentUser, zones }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [filterDiscipline, setFilterDiscipline] = useState('All');
@@ -145,6 +147,7 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, onDelete
                       ✓ Inspection closed
                     </span>
                   ) : <span className="text-xs text-slate-500">Awaiting authorised stage review</span>}
+                  <DeleteRecordAction collection="inspections" record={rfi} />
                   {canEditInspection(currentUser, rfi) && (
                     <button
                       onClick={() => handleOpenModal(rfi)}
@@ -234,10 +237,7 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, onDelete
         })}
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div role="dialog" aria-modal="true" aria-label={editingRfi ? 'Edit RFI' : 'Add RFI'} className="bg-white rounded-2xl p-6 w-full max-w-xl max-h-[90vh] overflow-auto shadow-xl">
-            <h3 className="text-lg font-bold mb-4">{editingRfi ? 'Edit RFI' : 'Add RFI'}</h3>
+      {isModalOpen && <RecordModal title={editingRfi ? 'Edit RFI' : 'Add RFI'} onClose={() => { if (!saving) setIsModalOpen(false); }}>
             <form onSubmit={handleSubmit} className="space-y-4 text-sm">
               {error && <p role="alert" className="text-red-700">{error}</p>}
               <div className="grid grid-cols-2 gap-3">
@@ -271,11 +271,11 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, onDelete
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Assigned RTO</label>
-                  <input type="text" value={formData.rtoName} onChange={e => setFormData({...formData, rtoName: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                  <input aria-label="Assigned RTO" type="text" value={formData.rtoName} onChange={e => setFormData({...formData, rtoName: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Assigned RE</label>
-                  <input type="text" value={formData.reName} onChange={e => setFormData({...formData, reName: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                  <input aria-label="Assigned RE" type="text" value={formData.reName} onChange={e => setFormData({...formData, reName: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -285,34 +285,18 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, onDelete
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Linked BBS</label>
-                  <input type="text" value={formData.bbsLinked} onChange={e => setFormData({...formData, bbsLinked: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                  <input aria-label="Linked BBS" type="text" value={formData.bbsLinked} onChange={e => setFormData({...formData, bbsLinked: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
                 </div>
               </div>
 
               <div className="flex justify-between items-center pt-4 border-t border-slate-200">
-                {editingRfi && currentUser?.systemRole === 'admin' ? (
-                  <button
-                    type="button"
-                    disabled={saving} onClick={async () => {
-                      if (window.confirm("Are you sure you want to delete this RFI?")) {
-                        setSaving(true); setError('');
-                        try { await onDelete(editingRfi.id); setIsModalOpen(false); } catch (e) { setError(e.message); } finally { setSaving(false); }
-                      }
-                    }}
-                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition"
-                  >
-                    Delete RFI
-                  </button>
-                ) : <div />}
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold text-slate-700">Cancel</button>
                   <button disabled={saving} type="submit" className="px-4 py-2 bg-blue-600 rounded-lg text-xs font-bold text-white">Save RFI</button>
                 </div>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </RecordModal>}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DeleteRecordAction from './DeleteRecordAction';
 import { canPlan } from '../utils/siteData';
 import { observationValue } from '../utils/monitoring';
 import { Field, SaveForm, RecordModal } from './RecordForm';
@@ -98,6 +99,7 @@ export default function LiftingView({ lifts, onToggleLift, onAdd, currentUser, z
                 </div>
               </div>
 
+              <DeleteRecordAction collection="lifts" record={ptw} />
               {/* Action Footer */}
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xs text-slate-500">

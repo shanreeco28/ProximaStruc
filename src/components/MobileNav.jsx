@@ -20,6 +20,7 @@ export default function MobileNav({ activeTab, setActiveTab, isAdmin }) {
         return (
           <button
             key={tab.id}
+            aria-current={isActive ? 'page' : undefined}
             onClick={() => setActiveTab(tab.id)}
             className={`flex flex-col items-center justify-center py-2.5 min-h-[52px] min-w-[72px] flex-1 text-[11px] font-semibold transition ${
               isActive

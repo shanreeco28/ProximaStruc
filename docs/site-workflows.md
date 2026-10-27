@@ -1,6 +1,26 @@
 # Site monitoring workflows
 
-The sidebar, top bar, KPI ribbon, four-column Site Planning board and existing card/table structure remain in place. The separate analytics navigation tab stays removed; physical progress and the Gantt are available within Site Planning and the executive brief. Project requirements are recorded in AGENTS.md. The application has no payment, valuation, cashflow or monetary claim workflows. Legacy monetary fields are not displayed or used; existing records are not deleted automatically.
+The workspace uses a refined project sidebar, project/zone context header, consistent KPI ribbon, four-column Site Planning board and existing record cards/tables. The visual redesign preserves the existing product workflows; the deletion/verification policy below is the requested functional addition. The separate analytics navigation tab stays removed; physical progress and the Gantt are available within Site Planning and the executive brief. Project requirements are recorded in AGENTS.md. The application has no payment, valuation, cashflow or monetary claim workflows. Legacy monetary fields are not displayed or used; existing records are not deleted automatically.
+
+## Design and accessibility
+
+The layout uses a shared enterprise design system for type hierarchy, spacing, surfaces, status labels, navigation and primary/secondary actions. Existing dashboard, zone filtering, planning, inspections, materials, diary, PTW, personnel, profile, account and executive-brief functions remain available. Mobile metrics scroll horizontally rather than pushing working records far below the fold; keyboard users can reach every metric. Wide tables and the planning board have named, keyboard-focusable scroll regions.
+
+Accessibility targets [WCAG 2.2 AA](https://www.w3.org/TR/WCAG22/). The implementation includes a skip-to-content link, semantic landmarks/headings, labeled forms and selectors, current-page navigation, visible focus indicators, status announcements, generous targets, reduced-motion support, higher contrast and responsive layouts. Shared dialogs move focus into the form, contain keyboard focus, close with Escape, make the background inert, and restore focus. Project selection no longer nests buttons. Light and dark account/project-selection views are covered.
+
+The automatic axe checks cover the tested states and breakpoints, not a formal certification or a complete assistive-technology audit. Printed/exported PDF accessibility and production authentication flows have not been certified. No project-management standard is presented as a visual-design certification; the design emphasizes clear project context, ownership, evidence, status and review controls.
+
+## Record deletion and verification
+
+- Admins (including the project owner) can delete any operational record directly, with a reason and confirmation.
+- Other assigned users can request deletion only for records whose `createdBy` matches their verified sign-in email, including records added before a role downgrade.
+- A separate admin or manager verifies a pending request. A manager cannot verify their own request; admin authority to delete directly is unchanged.
+- The record remains available while pending. Approval and deletion occur in one transaction. If the record changed after the request, approval fails; reject it and submit a fresh request for the current version.
+- Rejection preserves the record. Resubmission appends to the existing decision history. The application retains request reasons, actor identities, timestamps, the current request snapshot and decision history after deletion; these system verification records cannot be deleted through the operational-record controls.
+
+Controls are available on planning activities, materials/DO/BBS/batches, lifting permits, inspections, diary entries and personnel. **Role & Subcon Matrix** also contains the verification queue and controls for every operational record type, including zones, observations and the selected project. The UI shows reviewers the queue and other users the requests they participated in. The audit collection is readable by project members, like the underlying site records.
+
+Deleting a project removes its workspace entry and retains underlying site records in storage; it does not cascade. Deleting personnel removes that membership's assigned access, not the authentication account or previously added site records. Linked activities/materials/inspections remain independent records and may need their references reviewed. No live site data was deleted during development or tests.
 
 ## Header account controls
 
@@ -12,7 +32,7 @@ Profile editing is available to every assigned project role and changes only the
 
 The **Admin Control Panel** is visible only to project admins (including the project owner). It records confirmed observations with observation time, source/reference, confirmer and confirmation time. Weather, temperature, noise, site-specific noise limits, TSS, site-specific TSS limits, vector findings, actual headcount, wind, anti-collision checks and the incident-free start date are blank until entered. No weather service, biometric turnstile or crane sensor is connected. Readings are manual records and never imply statutory compliance or authorization to lift.
 
-Each confirmation is a complete observation: blank fields remain unrecorded, rather than silently inheriting stale values. Read-only displays identify the observation date and source. Corrections use a new confirmation; history remains available. “Registered personnel” counts membership records, not physical attendance.
+Each confirmation is a complete observation: blank fields remain unrecorded, rather than silently inheriting stale values. Read-only displays identify the observation date and source. Corrections use a new confirmation. Deletion follows the record-deletion policy, retaining the deletion snapshot and decision history separately. “Registered personnel” counts membership records, not physical attendance.
 
 ## Roles
 
@@ -27,11 +47,13 @@ Each confirmation is a complete observation: blank fields remain unrecorded, rat
 | Create RFIs / advance site-team stages | Yes | Yes | Yes | Yes | No | No | No |
 | Advance RE-review / closure stages | Yes | No | No | No | Yes | No | No |
 | Record lifting permits | Yes | Yes | Yes | No | No | No | No |
-| Delete RFIs | Yes | No | No | No | No | No | No |
+| Delete operational records directly | Yes | No | No | No | No | No | No |
+| Request deletion of own records | Direct deletion | Yes | Yes | Yes | Yes | Yes | Yes |
+| Verify another user’s deletion request | Yes | Yes | No | No | No | No | No |
 
 A new project's creator is its owner/admin. Do not infer admin access from an empty personnel list. Verified accounts synchronize a guest profile when opening a project, using their supplied sign-up details and leaving organisation/certificate fields blank. An existing invited membership and assigned role are preserved. Only the project's recorded owner receives admin through synchronization; other roles require explicit admin assignment. The job title is descriptive and does not grant access. Role assignments are bound to a verified sign-in email; unverified users can request verification from the project screen. Owner access uses the authenticated UID.
 
-RFIs retain the five-stage process: Created, Under RE Review, Site Inspection, Applying for Closure, Closed. Site-team roles advance stages 1 and 3; REs advance stages 2 and 4; admins can advance either. Only the final Closed stage (stored index 4) clears a linked planning hold point. Existing records at index 3 are not automatically treated as closed; an RE or admin must review and advance them through the current workflow. RTOs retain review/comment access. The creator (while still a site-team member) or an admin can edit inspection details; only admins can delete. Stage transitions use a transaction to reject stale updates and append audit history. Comments append atomically. Forms cannot bypass stage permissions or overwrite discussion history. Manager organisation updates are limited to that field and audit metadata; they cannot change roles.
+RFIs retain the five-stage process: Created, Under RE Review, Site Inspection, Applying for Closure, Closed. Site-team roles advance stages 1 and 3; REs advance stages 2 and 4; admins can advance either. Only the final Closed stage (stored index 4) clears a linked planning hold point. Existing records at index 3 are not automatically treated as closed; an RE or admin must review and advance them through the current workflow. RTOs retain review/comment access. The creator (while still a site-team member) or an admin can edit inspection details; deletion follows the verification policy above. Stage transitions use a transaction to reject stale updates and append audit history. Comments append atomically. Forms cannot bypass stage permissions or overwrite discussion history. Manager organisation updates are limited to that field and audit metadata; they cannot change roles.
 
 ## Planning and progress
 
@@ -68,8 +90,8 @@ No live data migrations, account creation or production deployments are performe
 ## Validation
 
 - `npm test`: date helpers and domain logic (permissions, progress math, Gantt data, dependencies, validation).
-- `npm run test:browser`: isolated workflow component fixtures, including role visibility, the existing board layout/statuses, save/edit, failed saves, diary, BBS receipt, observation confirmation, header dropdown/profile/logout controls, five-stage RFI review/comment/delete permissions, manager organisation edits and mobile navigation. Uses `/usr/bin/chromium` by default; set `CHROMIUM_PATH` to a compatible local browser elsewhere. Fixtures have no Firebase connection and are not part of the production build.
+- `npm run test:browser`: isolated workflow component fixtures, including role visibility, the existing board layout/statuses, save/edit, failed saves, diary, BBS receipt, observation confirmation, header dropdown/profile/logout controls, deletion requests and verification, automated accessibility/320px reflow, five-stage RFI review/comment/delete permissions, manager organisation edits and mobile navigation. Uses `/usr/bin/chromium` by default; set `CHROMIUM_PATH` to a compatible local browser elsewhere. Fixtures have no Firebase connection and are not part of the production build.
 - `npm run test:rules`: starts the Firestore emulator for `demo-proximastruc`, then checks direct reads/writes, role escalation, registration synchronization, manager-only organisation updates and five-stage RFI transitions/discussion integrity. Requires Java and access to `storage.googleapis.com` for the official emulator download. Local runtime state goes under `/workspace/.config` and `/workspace/.cache/firebase/emulators`; no production credentials are needed.
 - `npm run lint` and `npm run build`.
 
-Current verification: lint and the production build pass, along with 26 unit tests, 16 browser workflow tests and 34 Firestore emulator tests. The official emulator download is now accessible and backend permission tests complete successfully. Production rules remain undeployed; authenticated production operations and legacy data migration have not been performed.
+Current verification after the visual and deletion-policy update: lint and the production build pass, along with 29 unit tests, 34 browser tests (including automated accessibility checks) and 42 Firestore emulator tests. The official emulator download is now accessible and backend permission tests complete successfully. Production rules remain undeployed; authenticated production operations and legacy data migration have not been performed.

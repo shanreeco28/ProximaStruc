@@ -5,12 +5,16 @@ import DeleteRecordAction from './DeleteRecordAction';
 
 import { INSPECTION_STAGES as STAGES, canRecordSite, canAdvanceInspection, canEditInspection, canCommentInspection, isInspectionClosed } from '../utils/siteData';
 
+import RecordSearch from './RecordSearch';
+import { matchesRecordSearch } from '../utils/recordSearch';
+
 const emptyForm = () => ({ id: '', zone: '', discipline: '', element: '', rtoName: '', reName: '', targetCast: '', bbsLinked: '' });
 
 export default function InspectionsView({ inspections, onAdd, onUpdate, onAdvance, onComment, currentUser, zones }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [filterDiscipline, setFilterDiscipline] = useState('All');
+  const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRfi, setEditingRfi] = useState(null);
   const [formData, setFormData] = useState(emptyForm());
@@ -56,15 +60,13 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, onAdvanc
   };
 
 
-  const filtered = filterDiscipline === 'All'
-    ? inspections
-    : inspections.filter((i) => i.discipline === filterDiscipline);
+  const filtered = inspections.filter(i => (filterDiscipline === 'All' || i.discipline === filterDiscipline) && matchesRecordSearch(search, [i.id, i.element, i.zone, i.discipline, i.rtoName, i.reName, i.targetCast, i.bbsLinked, i.createdBy, STAGES[i.stage], ...(i.comments || []).map(comment => comment.text)]));
 
   return (
     <div className="space-y-6">
       {error && <p role="alert" className="text-red-700">{error}</p>}
       {/* Header & Filter Controls */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
         <div>
           <h2 className="text-base font-bold text-slate-900">
             BCA Statutory & RE/RTO Inspection Matrix (RFI)
@@ -74,11 +76,13 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, onAdvanc
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+        <div className="record-toolbar flex flex-wrap items-center gap-4">
+          <RecordSearch label="Search RFIs" placeholder="RFI reference, element, reviewer or stage…" value={search} onChange={setSearch} count={filtered.length} total={inspections.length} />
+          <div className="flex flex-wrap items-center gap-2">
             {['All', 'Structural', 'M&E Sleeve / Conduit'].map((disc) => (
               <button
                 key={disc}
+                aria-pressed={filterDiscipline === disc}
                 onClick={() => setFilterDiscipline(disc)}
                 className={`px-3 py-2 rounded-lg text-xs font-semibold transition ${
                   filterDiscipline === disc
@@ -101,6 +105,7 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, onAdvanc
         </div>
       </div>
 
+      {!filtered.length && <p className="empty-state" role="status">No RFI records for this selection.</p>}
       {/* Inspection Cards */}
       <div className="space-y-4">
         {filtered.map((rfi) => {

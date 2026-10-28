@@ -450,10 +450,10 @@ export default function App() {
 
 function KpiPill({ title, value, sub, status, onClick }) {
   const statusStyles = {
-    success: 'border-l-4 border-l-emerald-500 bg-emerald-50/30',
-    warning: 'border-l-4 border-l-amber-500 bg-amber-50/30',
-    danger: 'border-l-4 border-l-red-600 bg-red-50/30',
-    neutral: 'border-l-4 border-l-blue-600 bg-slate-50/60',
+    success: 'bg-white border-t-2 border-t-emerald-600',
+    warning: 'bg-white border-t-2 border-t-amber-600',
+    danger: 'bg-white border-t-2 border-t-red-600',
+    neutral: 'bg-white',
   };
 
   return (

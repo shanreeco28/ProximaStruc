@@ -3,6 +3,9 @@ import DeleteRecordAction from './DeleteRecordAction';
 import { canRecordSite, today } from '../utils/siteData';
 import { Field, SaveForm, RecordModal } from './RecordForm';
 
+import RecordSearch from './RecordSearch';
+import { matchesRecordSearch } from '../utils/recordSearch';
+
 const CATEGORIES = ['Work progress', 'Manpower', 'Plant & equipment', 'Delivery', 'Inspection', 'Safety', 'Environment', 'Weather', 'Instruction', 'Visitor', 'Delay', 'Other'];
 const blankEntry = () => ({ date: '', time: '', category: '', title: '', details: '', zone: '', taskId: '', action: '' });
 export default function SiteDiaryView({ weatherLogs = [], onAddWeatherLog, onUpdate, currentUser, zones = [], tasks = [] }) {
@@ -10,13 +13,14 @@ export default function SiteDiaryView({ weatherLogs = [], onAddWeatherLog, onUpd
   const [editing, setEditing] = useState(null);
   const [category, setCategory] = useState('All');
   const [date, setDate] = useState('');
+  const [search, setSearch] = useState('');
   const permitted = canRecordSite(currentUser);
   const change = key => e => setForm({ ...form, [key]: e.target.value });
-  const entries = [...weatherLogs].filter(e => (category === 'All' || e.category === category) && (!date || e.date === date)).sort((a,b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
+  const entries = [...weatherLogs].filter(e => (category === 'All' || e.category === category) && (!date || e.date === date) && matchesRecordSearch(search, [e.id, e.title, e.event, e.details, e.impact, e.zone, e.category, e.date, e.time, e.timeWindow, e.action, e.createdBy, e.updatedBy, e.taskId, tasks.find(t => t.id === e.taskId)?.activity])).sort((a,b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
   return <div className="space-y-6">
     <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
       <div className="flex justify-between items-center gap-3"><div><h2 className="text-base font-bold">Daily site diary</h2><p className="text-xs text-slate-500">Work, people, plant, deliveries, inspections, instructions, safety and delays. Supervisors, engineers, managers and admins may add records.</p></div>{permitted && <button className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm shrink-0" onClick={() => { setEditing(null); setForm(blankEntry()); }}>+ Add site entry</button>}</div>
-      <div className="flex flex-wrap gap-3"><Field label="Category" value={category} onChange={e => setCategory(e.target.value)}>{['All', ...CATEGORIES].map(c => <option key={c}>{c}</option>)}</Field><Field label="Date filter" type="date" value={date} onChange={e => setDate(e.target.value)} />{date && <button className="text-sm text-blue-700" onClick={() => setDate('')}>Clear date</button>}</div>
+      <div className="record-toolbar flex flex-wrap gap-4 items-start"><RecordSearch label="Search site diary" placeholder="Title, details, zone or person…" value={search} onChange={setSearch} count={entries.length} total={weatherLogs.length} /><Field label="Category" value={category} onChange={e => setCategory(e.target.value)}>{['All', ...CATEGORIES].map(c => <option key={c}>{c}</option>)}</Field><Field label="Date filter" type="date" value={date} onChange={e => setDate(e.target.value)} />{date && <button className="text-sm text-blue-700" onClick={() => setDate('')}>Clear date</button>}</div>
       <div className="divide-y border-t">{entries.map(entry => <div key={entry.id} className="py-4 flex items-start justify-between gap-3 text-sm"><div><div className="text-xs text-slate-500">{entry.date || 'Date not recorded'} {entry.time || entry.timeWindow} · {entry.zone || 'Zone not recorded'} · {entry.category || 'Legacy site record'}</div><h3 className="font-semibold mt-1">{entry.title || entry.event}</h3><p className="text-slate-600 whitespace-pre-wrap">{entry.details || entry.impact}</p>{entry.taskId && <p className="text-xs mt-1">Activity: {tasks.find(t => t.id === entry.taskId)?.activity || entry.taskId}</p>}{entry.action && <p className="text-xs mt-1">Follow-up: {entry.action}</p>}<p className="text-xs text-slate-400 mt-2">Recorded by {entry.createdBy || 'Not recorded'}{entry.updatedBy ? ` · Updated by ${entry.updatedBy}` : ''}</p></div>{permitted && <button className="text-blue-700 text-xs font-semibold" onClick={() => { setEditing(entry.id); setForm({ ...blankEntry(), ...entry, title: entry.title || entry.event || '', details: entry.details || entry.impact || '' }); }}>Edit</button>}<DeleteRecordAction collection="weatherLogs" record={entry} /></div>)}{!entries.length && <p className="text-sm text-slate-500 py-6 text-center">No diary entries for this selection.</p>}</div>
     </div>
     {form && permitted && <RecordModal title={editing ? 'Edit site entry' : 'Add site entry'} onClose={() => setForm(null)}><SaveForm submitLabel="Save site entry" onSave={async () => {

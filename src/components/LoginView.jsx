@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Moon, Sun, Shield, Mail, CheckCircle2 } from 'lucide-react';
 import AppLogo from './AppLogo';
+import useTheme from '../hooks/useTheme';
 import { auth } from '../firebase';
 import {
   signInWithEmailLink,
@@ -14,7 +15,8 @@ import {
 } from 'firebase/auth';
 
 
-const LoginView = ({ initialMode = 'login', isDark, toggleTheme }) => {
+const LoginView = ({ initialMode = 'login' }) => {
+  const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [mode, setMode] = useState(initialMode);
   const [formData, setFormData] = useState({ email: '', password: '', name: '', birthday: '', designation: '' });

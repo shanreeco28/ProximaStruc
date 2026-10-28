@@ -1,10 +1,12 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, FileText, FolderOpen, LogOut, UserRound } from 'lucide-react';
+import { ChevronDown, FileText, FolderOpen, LogOut, UserRound, Moon, Sun } from 'lucide-react';
+import useTheme, { SHOW_THEME_SHORTCUT } from '../hooks/useTheme';
 import ProfileEditor from './ProfileEditor';
 import { RecordModal } from './RecordForm';
 
 export default function AccountControls({ user, profile, projectName, onSaveProfile, onLogout, onProjects, onExecutiveBrief }) {
+  const { isDark, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -28,7 +30,7 @@ export default function AccountControls({ user, profile, projectName, onSaveProf
   return <div ref={root} className="relative flex items-center gap-1.5 sm:gap-3 shrink-0" onKeyDown={event => {
     if (menuOpen && event.key === 'Tab') {
       event.preventDefault(); setMenuOpen(false);
-      (event.shiftKey ? menuButton : profileButton).current?.focus();
+      (event.shiftKey ? menuButton.current : profileButton.current || menuButton.current)?.focus();
     }
   }} onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget)) setMenuOpen(false);
@@ -50,13 +52,17 @@ export default function AccountControls({ user, profile, projectName, onSaveProf
         event.preventDefault(); focusItem(event.key === 'Home' ? 0 : event.key === 'End' ? -1 : index + (event.key === 'ArrowDown' ? 1 : -1));
       } else if (event.key === 'Escape') { event.preventDefault(); setMenuOpen(false); menuButton.current?.focus(); }
     }}>
-      <button type="button" role="menuitem" tabIndex={-1} onClick={() => action(onProjects)} className="flex w-full items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-slate-700 hover:bg-slate-100"><FolderOpen size={16} aria-hidden="true" />Projects</button>
-      <button type="button" role="menuitem" tabIndex={-1} onClick={() => action(onExecutiveBrief)} className="flex w-full items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-slate-700 hover:bg-slate-100"><FileText size={16} aria-hidden="true" />Generate Executive Brief</button>
+      {onProjects && <button type="button" role="menuitem" tabIndex={-1} onClick={() => action(onProjects)} className="flex w-full items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-slate-700 hover:bg-slate-100"><FolderOpen size={16} aria-hidden="true" />Projects</button>}
+      {onExecutiveBrief && <button type="button" role="menuitem" tabIndex={-1} onClick={() => action(onExecutiveBrief)} className="flex w-full items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-slate-700 hover:bg-slate-100"><FileText size={16} aria-hidden="true" />Generate Executive Brief</button>}
+      {(onProjects || onExecutiveBrief) && <div role="separator" className="my-1 border-t border-slate-200" />}
+      <button type="button" role="menuitem" tabIndex={-1} onClick={() => action(() => { toggleTheme(); window.dispatchEvent(new Event(SHOW_THEME_SHORTCUT)); })} className="flex w-full items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-slate-700 hover:bg-slate-100">
+        {isDark ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}{isDark ? 'Light mode' : 'Dark mode'}
+      </button>
     </div>}
-    <button ref={profileButton} type="button" aria-label="Edit profile" title="Edit profile" disabled={loggingOut} onClick={() => { setError(''); setMenuOpen(false); setProfileOpen(true); }}
+    {onSaveProfile && <button ref={profileButton} type="button" aria-label="Edit profile" title="Edit profile" disabled={loggingOut} onClick={() => { setError(''); setMenuOpen(false); setProfileOpen(true); }}
       className="inline-flex items-center gap-2 px-2.5 sm:px-3 py-2.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs sm:text-sm">
       <UserRound size={16} aria-hidden="true" /><span className="hidden sm:inline">Edit profile</span>
-    </button>
+    </button>}
     <button type="button" aria-label={loggingOut ? 'Logging out' : 'Log out'} title="Log out" disabled={loggingOut} onClick={async () => {
       if (loggingOut) return;
       setMenuOpen(false); setLoggingOut(true); setError('');

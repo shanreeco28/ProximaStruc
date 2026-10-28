@@ -102,7 +102,7 @@ test('admin confirms observations without pre-filled readings', async ({page}) =
 test('mobile navigation reaches planning without restoring the removed analytics tab', async ({page}) => {
   await page.setViewportSize({width:390,height:844});
   await open(page,'diary','engineer');
-  await page.getByRole('button',{name:'PLAN Planning'}).click();
+  await page.getByRole('button',{name:'Planning',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Site Planning',level:2})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

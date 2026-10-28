@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import DeleteRecordAction from './DeleteRecordAction';
 import { RecordDeletionContext } from '../contexts/RecordDeletionContext';
-import { Briefcase, Plus, LogOut, ArrowRight, Building, CheckCircle2 } from 'lucide-react';
+import { Plus, LogOut, ArrowRight, CheckCircle2 } from 'lucide-react';
+import AppLogo from './AppLogo';
+import ConstructionIcon from './ConstructionIcon';
+import FloatingThemeControl from './FloatingThemeControl';
+import AccountControls from './AccountControls';
 
 const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user }) => {
   const [newProjectName, setNewProjectName] = useState('');
@@ -22,12 +26,14 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
 
   return (
     <main tabIndex={-1} className="project-selection min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4 transition-colors duration-300">
+      <div className="absolute top-4 right-4"><AccountControls user={user} onLogout={onLogout} /></div>
+      <FloatingThemeControl />
       <div className="w-full max-w-4xl space-y-8 animate-in fade-in zoom-in-95 duration-500">
 
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 shadow-lg mb-4">
-             <Building className="text-white w-8 h-8" />
+             <AppLogo className="w-14 h-14" />
           </div>
           <h1 className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">Select Project</h1>
           <p className="text-slate-500 dark:text-slate-400">Welcome back, {user?.name || 'User'}. Choose a workspace to continue.</p>
@@ -43,7 +49,7 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
             >
               <button type="button" onClick={() => onSelect(project)} className="text-left w-full flex-1">
               <div className="w-12 h-12 rounded-lg bg-blue-50 dark:bg-slate-700 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Briefcase size={24} />
+                <ConstructionIcon name="dashboard" size={24} />
               </div>
               <h2 className="text-lg font-bold break-words text-slate-800 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                 {project.name}

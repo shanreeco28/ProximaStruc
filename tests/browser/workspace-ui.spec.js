@@ -14,7 +14,7 @@ test('collapsed sidebar preserves named navigation, zone access and the saved pr
   const expanded = await sidebar.boundingBox();
   await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Expand sidebar', exact: true })).toHaveAttribute('aria-expanded', 'false');
-  expect((await sidebar.boundingBox()).width).toBeLessThan(expanded.width / 2);
+  await expect.poll(async () => (await sidebar.boundingBox()).width).toBeLessThan(expanded.width / 2);
   await expect(page.getByLabel('Project zone', { exact: true })).toBeVisible();
   const diary = sidebar.getByRole('button', { name: 'Site Diary', exact: true });
   await diary.focus();

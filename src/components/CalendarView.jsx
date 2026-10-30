@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AlertTriangle, CalendarCheck, CalendarRange, Link2, NotebookPen, Package, UserRound } from 'lucide-react';
 import DeleteRecordAction from './DeleteRecordAction';
 import { canPlan, taskProgress, taskConstraints, validateTask, taskStatus, TASK_STATUSES, projectProgress } from '../utils/siteData';
 import { Field, SaveForm, RecordModal } from './RecordForm';
@@ -6,6 +7,7 @@ import ProjectTimeline from './ProjectTimeline';
 
 const emptyTask = () => ({ wbs: '', activity: '', zone: '', owner: '', startDate: '', endDate: '', progress: '0', status: 'lookahead', predecessorId: '', inspectionId: '', materialId: '', blocker: '', commitment: '' });
 const COLUMNS = TASK_STATUSES.filter(([id]) => id !== 'blocked');
+const COLUMN_TONE = { lookahead: 'neutral', make_ready: 'warning', in_progress: 'info', done: 'success' };
 export default function CalendarView({ tasks, allTasks = tasks, inspections = [], materials = [], diary = [], lifts = [], onAdd, onUpdate, currentUser, zones = [], timeline }) {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(null);
@@ -31,43 +33,64 @@ export default function CalendarView({ tasks, allTasks = tasks, inspections = []
     finally { setSaving(false); }
   };
   return <div className="space-y-6 min-w-0">
-    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
-      <div className="p-5 border-b border-slate-200 flex items-center justify-between gap-4 flex-wrap shrink-0">
-        <div><h2 className="text-base font-bold">Site Planning</h2><p className="text-xs text-slate-500">Lean-agile lookahead, make-ready and sprint commitments. Only admins, managers and engineers can change the plan.</p></div>
-        {permitted && <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm" onClick={() => { setEditing(null); setForm(emptyTask()); }}>+ Add activity</button>}
+    <div className="card overflow-hidden flex flex-col">
+      <div className="card-header items-center">
+        <div className="min-w-0"><h2 className="card-title">Site Planning</h2><p className="card-subtitle">Lean-agile lookahead, make-ready and sprint commitments. Only admins, managers and engineers can change the plan.</p></div>
+        {permitted && <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(emptyTask()); }}>+ Add activity</button>}
       </div>
-      {error && <p role="alert" className="px-5 pt-3 text-sm text-red-700">{error}</p>}
-      <div className="p-5 overflow-x-auto bg-slate-50/50" role="region" aria-label="Site planning board" tabIndex={0}>
+      {error && <p role="alert" className="form-error mx-5 mt-4">{error}</p>}
+      <div className="p-4 sm:p-5 overflow-x-auto" role="region" aria-label="Site planning board" tabIndex={0}>
         <div className="flex gap-4 min-w-[1064px] items-start">
           {COLUMNS.map(([id, title]) => {
             const columnTasks = tasks.filter(t => taskStatus(t) === id || id === 'make_ready' && taskStatus(t) === 'blocked');
-            return <section key={id} aria-label={title} className="flex-1 min-w-[250px] bg-slate-100 rounded-xl p-3 border border-slate-200 flex flex-col max-h-[70vh]">
-              <div className="flex items-center justify-between mb-3 px-1"><h3 className="text-xs font-bold uppercase text-slate-700">{title}</h3><span className="bg-slate-200 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{columnTasks.length}</span></div>
-              <div className="space-y-3 overflow-y-auto flex-1 pr-1 pb-2">{columnTasks.map(t => {
+            return <section key={id} aria-label={title} className="board-column">
+              <div className="flex items-center justify-between mb-3 px-1 gap-2"><h3 className="eyebrow" style={{ color: 'var(--text-2)' }}>{title}</h3><span className="badge" data-tone={COLUMN_TONE[id]}>{columnTasks.length}</span></div>
+              <div className="space-y-3 overflow-y-auto flex-1 pr-1 pb-1">{columnTasks.map(t => {
                 const constraints = taskConstraints(t, { tasks: allTasks, inspections, materials });
-                return <article key={t.id} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:border-blue-300 transition">
-                  <div className="flex justify-between items-center mb-2"><span className="font-mono text-[10px] bg-slate-100 border px-1.5 py-0.5 rounded">{t.wbs || 'No WBS recorded'}</span>{taskStatus(t) === 'blocked' && <span className="text-xs text-amber-700 font-bold">Blocked</span>}</div>
-                  <h4 className="text-sm font-bold leading-tight mb-2">{t.activity}</h4><p className="text-xs text-slate-500">{t.zone || 'No zone'} · {t.owner || 'Unassigned'}</p>
-                  <div className="text-xs mt-2 space-y-1"><div>Start: {t.startDate || t.baseline || 'Not recorded'}</div><div>Finish: {t.endDate || t.forecast || 'Not recorded'}</div><div>Completion: {taskProgress(t)}%</div><progress className="w-full h-2 accent-blue-700" value={taskProgress(t)} max={100} aria-label={`${t.activity} completion`} /><p>{t.commitment || 'No commitment recorded'}</p></div>
-                  <div className="text-xs mt-2 text-amber-700">{constraints.join(' · ')}</div>
-                  {t.inspectionId && <div className="text-xs mt-2 text-blue-700">RFI: {t.inspectionId}</div>}{t.materialId && <div className="text-xs mt-1">Material: {materials.find(m => m.id === t.materialId)?.reference || t.materialId}</div>}
-                  <div className="text-xs text-slate-500 mt-2">{diary.filter(d => d.taskId === t.id).length} linked diary entries</div>
-                  {permitted && <div className="mt-3 space-y-2"><select aria-label={`Move ${t.activity}`} disabled={saving} value={taskStatus(t)} onChange={e => moveTask(t, e.target.value)} className="w-full text-xs bg-slate-50 border rounded px-2 py-1">{TASK_STATUSES.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select><button className="text-blue-700 text-xs font-semibold" onClick={() => { setEditing(t.id); setForm({ ...emptyTask(), ...t, status: taskStatus(t) }); }}>Edit</button></div>}
-                  <div className="mt-2"><DeleteRecordAction collection="tasks" record={t} /></div>
+                const completion = taskProgress(t);
+                return <article key={t.id} className="board-card">
+                  <div className="flex justify-between items-center gap-2 mb-2"><span className="ref-tag">{t.wbs || 'No WBS recorded'}</span>{taskStatus(t) === 'blocked' && <span className="badge" data-tone="warning">Blocked</span>}</div>
+                  <h4 className="text-sm font-semibold leading-snug">{t.activity}</h4>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-muted"><UserRound size={12} aria-hidden="true" />{t.zone || 'No zone'} · {t.owner || 'Unassigned'}</p>
+                  <div className="text-xs mt-3 space-y-1.5 text-secondary">
+                    <div className="flex items-center gap-1.5"><CalendarRange size={12} aria-hidden="true" className="shrink-0" /><span>Start: {t.startDate || t.baseline || 'Not recorded'}</span></div>
+                    <div className="flex items-center gap-1.5"><CalendarCheck size={12} aria-hidden="true" className="shrink-0" /><span>Finish: {t.endDate || t.forecast || 'Not recorded'}</span></div>
+                    <div className="flex items-center justify-between gap-2 pt-1"><span>Completion: {completion}%</span></div>
+                    <progress className="progress-native" value={completion} max={100} aria-label={`${t.activity} completion`} />
+                    <p className="pt-1">{t.commitment || 'No commitment recorded'}</p>
+                  </div>
+                  {!!constraints.length && <p className="text-xs mt-2 flex items-start gap-1.5" style={{ color: 'var(--warning)' }}><AlertTriangle size={12} aria-hidden="true" className="mt-0.5 shrink-0" />{constraints.join(' · ')}</p>}
+                  {(t.inspectionId || t.materialId) && <div className="mt-2 space-y-1 text-xs">
+                    {t.inspectionId && <div className="flex items-center gap-1.5" style={{ color: 'var(--accent-text)' }}><Link2 size={12} aria-hidden="true" />RFI: {t.inspectionId}</div>}
+                    {t.materialId && <div className="flex items-center gap-1.5 text-secondary"><Package size={12} aria-hidden="true" />Material: {materials.find(m => m.id === t.materialId)?.reference || t.materialId}</div>}
+                  </div>}
+                  <div className="text-xs text-muted mt-2 flex items-center gap-1.5"><NotebookPen size={12} aria-hidden="true" />{diary.filter(d => d.taskId === t.id).length} linked diary entries</div>
+                  <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
+                    {permitted && <select aria-label={`Move ${t.activity}`} disabled={saving} value={taskStatus(t)} onChange={e => moveTask(t, e.target.value)} className="field-control !mt-0 !min-h-[34px] !py-1 text-xs">{TASK_STATUSES.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select>}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {permitted && <button className="btn btn-secondary btn-sm" onClick={() => { setEditing(t.id); setForm({ ...emptyTask(), ...t, status: taskStatus(t) }); }}>Edit</button>}
+                      <DeleteRecordAction collection="tasks" record={t} />
+                    </div>
+                  </div>
                 </article>;
-              })}{!columnTasks.length && <div className="text-center py-6 text-xs text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">No tasks</div>}</div>
+              })}{!columnTasks.length && <div className="text-center py-6 text-xs text-muted border border-dashed rounded-lg" style={{ borderColor: 'var(--border-strong)' }}>No tasks</div>}</div>
             </section>;
           })}
         </div>
       </div>
     </div>
-    <div className="bg-white rounded-xl border border-slate-200 p-4 text-sm text-slate-600">Recorded progress: <strong>{progress.actual === null ? 'Not recorded' : `${progress.actual.toFixed(1)}%`}</strong> · Planned progress: <strong>{progress.planned === null ? 'Not recorded' : `${progress.planned.toFixed(1)}%`}</strong><p className="text-xs mt-1">Duration-weighted across {progress.dated.length} dated activities. Blocked work stays visible in Make-Ready.</p></div>
+
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="stat-tile" data-tone={progress.actual === null ? undefined : 'info'}><span className="eyebrow">Recorded progress</span><strong className="stat-value">{progress.actual === null ? 'Not recorded' : `${progress.actual.toFixed(1)}%`}</strong><span className="text-xs text-muted">Duration-weighted across {progress.dated.length} dated activities.</span></div>
+      <div className="stat-tile"><span className="eyebrow">Planned progress</span><strong className="stat-value">{progress.planned === null ? 'Not recorded' : `${progress.planned.toFixed(1)}%`}</strong><span className="text-xs text-muted">Blocked work stays visible in Make-Ready.</span></div>
+    </div>
+
     <ProjectTimeline {...(timeline || { tasks, inspections, materials, diary, lifts })} />
     {form && permitted && <RecordModal title={editing ? 'Edit activity' : 'Add activity'} onClose={() => setForm(null)}><SaveForm submitLabel="Save activity" onSave={async () => {
       await saveTask(form, editing);
       setForm(null);
     }}>
-      <div className="grid sm:grid-cols-2 gap-3">
+      <div className="form-grid">
         <Field label="WBS / work package reference" value={form.wbs} onChange={change('wbs')} />
         <Field label="Activity" required value={form.activity} onChange={change('activity')} />
         <Field label="Zone" required value={form.zone} onChange={change('zone')}><option value="">Select zone</option>{zones.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}</Field>
@@ -80,7 +103,7 @@ export default function CalendarView({ tasks, allTasks = tasks, inspections = []
         <Field label="Inspection hold point" value={form.inspectionId} onChange={change('inspectionId')}><option value="">None</option>{inspections.map(i => <option key={i.id} value={i.id}>{i.id} · {i.element}</option>)}</Field>
         <Field label="Required material / batch" value={form.materialId} onChange={change('materialId')}><option value="">None</option>{materials.map(m => <option key={m.id} value={m.id}>{m.reference || m.id}</option>)}</Field>
         <Field label="Constraint / blocker" value={form.blocker} onChange={change('blocker')} />
-        <Field label="Lookahead commitment / next action" value={form.commitment} onChange={change('commitment')} />
+        <Field label="Lookahead commitment / next action" className="sm:col-span-2" value={form.commitment} onChange={change('commitment')} />
       </div>
     </SaveForm></RecordModal>}
   </div>;

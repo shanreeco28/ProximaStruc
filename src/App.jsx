@@ -24,14 +24,8 @@ import { onAuthStateChanged, signOut, sendEmailVerification, updateProfile } fro
 import { collection, onSnapshot, doc, updateDoc, runTransaction, arrayUnion } from 'firebase/firestore';
 import LoginView from './components/LoginView';
 import ProjectSelection from './components/ProjectSelection';
-
-
-
-
-
-
-
-
+import ConstructionIcon from './components/ConstructionIcon';
+import AppLogo from './components/AppLogo';
 
 export default function App() {
 
@@ -272,7 +266,10 @@ export default function App() {
 
 
   if (authLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full"></div></div>;
+    return <div role="status" aria-label="Loading ProximaStruc" className="min-h-screen flex flex-col items-center justify-center gap-5" style={{ background: 'var(--bg)' }}>
+      <AppLogo className="w-12 h-12" />
+      <div className="w-40 progress-track"><div className="progress-fill w-1/3 animate-pulse" /></div>
+    </div>;
   }
 
   if (!user) {
@@ -332,6 +329,7 @@ export default function App() {
       onExecutiveBrief={() => setIsExecModalOpen(true)} metrics={<>
           <KpiPill
             title="Recorded plan progress"
+            icon="calendar"
             value={progress.actual === null ? 'Not recorded' : `${progress.actual.toFixed(1)}%`}
             sub={`${filteredTasks.length} activities · ${filteredTasks.filter(t => taskStatus(t) === 'blocked').length} blocked`}
             status="neutral"
@@ -339,6 +337,7 @@ export default function App() {
           />
           <KpiPill
             title="RE / RTO Inspections"
+            icon="inspections"
             value={`${filteredInspections.filter(i => isInspectionClosed(i)).length} Cleared`}
             sub={`${filteredInspections.filter(i => !isInspectionClosed(i)).length} Awaiting Sign-off`}
             status={filteredInspections.length && filteredInspections.every(i => isInspectionClosed(i)) ? 'success' : 'neutral'}
@@ -346,6 +345,7 @@ export default function App() {
           />
           <KpiPill
             title="Active Lifting / PTWs"
+            icon="lifting"
             value={`${filteredLifts.filter(l => l.status === 'ACTIVE').length} Permits`}
             sub={`${filteredLifts.length} permits recorded`}
             status={!filteredLifts.length ? 'neutral' : filteredLifts.some(l => l.status !== 'ACTIVE') ? 'warning' : 'success'}
@@ -353,6 +353,7 @@ export default function App() {
           />
           <KpiPill
             title="Rebar (BBS) & Concrete"
+            icon="materials"
             value={`${filteredMaterials.length} Records`}
             sub={`${filteredMaterials.filter(m => m.status?.includes('Delay')).length} Material Records Delayed`}
             status={filteredMaterials.some(m => m.status?.includes('Delay')) ? 'danger' : 'neutral'}
@@ -360,6 +361,7 @@ export default function App() {
           />
           <KpiPill
             title="Site Personnel"
+            icon="users"
             value={`${personnel.length} registered`}
             sub={`Main: ${personnel.filter(p => p.category === 'Main Contractor').length} | Subcon: ${personnel.filter(p => p.category?.includes('Subcontractor')).length}`}
             status="neutral"
@@ -367,9 +369,9 @@ export default function App() {
           />
       </>}>
           <p role="status" className="sr-only">{deletionStatus}</p>
-          {(operationError || registration.error || Object.values(records).some(r => r.error)) && <div role="alert" className="mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">{operationError || registration.error || Object.values(records).find(r => r.error)?.error}<button onClick={() => setOperationError('')} className="ml-3 underline">Dismiss</button></div>}
-          {user && !user.emailVerified && liveProject?.ownerId !== user.uid && <p className="mb-4 text-sm text-amber-700">Verify your email to use assigned project access. <button className="underline" onClick={async () => { try { await sendEmailVerification(user); setOperationError('Verification email sent. Follow its link, then sign in again.'); } catch (e) { setOperationError(e.message); } }}>Send verification email</button></p>}
-          {!currentUser && <p className="mb-4 text-sm text-slate-500">Project records require an admin-assigned role for your verified sign-in email.</p>}
+          {(operationError || registration.error || Object.values(records).some(r => r.error)) && <div role="alert" data-tone="danger" className="alert mb-5"><span className="flex-1 min-w-0">{operationError || registration.error || Object.values(records).find(r => r.error)?.error}</span><button onClick={() => setOperationError('')}>Dismiss</button></div>}
+          {user && !user.emailVerified && liveProject?.ownerId !== user.uid && <p data-tone="warning" className="alert mb-5"><span className="flex-1 min-w-0">Verify your email to use assigned project access.</span><button onClick={async () => { try { await sendEmailVerification(user); setOperationError('Verification email sent. Follow its link, then sign in again.'); } catch (e) { setOperationError(e.message); } }}>Send verification email</button></p>}
+          {!currentUser && <p data-tone="info" className="alert mb-5">Project records require an admin-assigned role for your verified sign-in email.</p>}
           {activeTab === 'dashboard' && (
             <PMCommandDashboard
               onNavigate={setActiveTab}
@@ -448,24 +450,15 @@ export default function App() {
   );
 }
 
-function KpiPill({ title, value, sub, status, onClick }) {
-  const statusStyles = {
-    success: 'bg-white border-t-2 border-t-emerald-600',
-    warning: 'bg-white border-t-2 border-t-amber-600',
-    danger: 'bg-white border-t-2 border-t-red-600',
-    neutral: 'bg-white',
-  };
-
+function KpiPill({ title, value, sub, status, icon, onClick }) {
   return (
-    <button
-      onClick={onClick}
-      className={`text-left p-3 rounded-lg border border-slate-200 hover:border-slate-300 transition ${statusStyles[status]}`}
-    >
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-        {title}
-      </div>
-      <div className="text-lg font-bold text-slate-900 font-mono mt-0.5">{value}</div>
-      <div className="text-xs text-slate-600 truncate mt-0.5">{sub}</div>
+    <button type="button" onClick={onClick} data-status={status} className="kpi-card">
+      <span className="kpi-head">
+        <span className="kpi-label">{title}</span>
+        {icon && <span className="kpi-icon"><ConstructionIcon name={icon} size={15} /></span>}
+      </span>
+      <span className="kpi-value kpi-metric">{value}</span>
+      <span className="kpi-sub">{sub}</span>
     </button>
   );
 }

@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
+import { Search } from 'lucide-react';
 import { RecordModal } from './RecordForm';
 import DeleteRecordAction from './DeleteRecordAction';
 import { today } from '../utils/siteData';
 
-
 const CATEGORIES = ['All', 'Main Contractor', 'Consultant / RE / RTO', 'Specialist Subcontractor'];
+const initialsOf = value => (value || '').split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('') || '?';
+
+function FormField({ label, ariaLabel, className = '', children }) {
+  return <label className={`field-label ${className}`}>{label}{React.cloneElement(children, { 'aria-label': ariaLabel === false ? undefined : ariaLabel || label, className: `field-control ${children.props.className || ''}` })}</label>;
+}
 
 export default function UserManagementView({ users, onAddPersonnel, onUpdatePersonnelRole, onUpdatePersonnelOrganization, currentUser }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -16,7 +21,6 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
   const [saving, setSaving] = useState(false);
   const [organizationSaving, setOrganizationSaving] = useState(null);
 
-  // New user form state
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
@@ -32,12 +36,12 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
   // Check if cert is expired or expiring within 30 days
   const getCertStatus = (expiryDateStr) => {
     const currentDate = new Date(`${today()}T00:00:00Z`);
-    if (!expiryDateStr || !Number.isFinite(Date.parse(expiryDateStr))) return { label: 'NOT RECORDED', style: 'bg-slate-100 text-slate-600' };
+    if (!expiryDateStr || !Number.isFinite(Date.parse(expiryDateStr))) return { label: 'NOT RECORDED', tone: undefined };
     const exp = new Date(expiryDateStr);
     const diffDays = Math.ceil((exp - currentDate) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return { label: 'EXPIRED', style: 'bg-red-100 text-red-900 border-red-300' };
-    if (diffDays <= 30) return { label: `EXPIRING (${diffDays}d)`, style: 'bg-amber-100 text-amber-900 border-amber-300' };
-    return { label: 'VALID', style: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
+    if (diffDays < 0) return { label: 'EXPIRED', tone: 'danger' };
+    if (diffDays <= 30) return { label: `EXPIRING (${diffDays}d)`, tone: 'warning' };
+    return { label: 'VALID', tone: 'success' };
   };
 
   const handleFormSubmit = async (e) => {
@@ -61,118 +65,63 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
       (p.statutoryReg || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+  const expiring = users.filter(p => getCertStatus(p.certExpiry).label.startsWith('EXPIRING')).length;
+  const expired = users.filter(p => getCertStatus(p.certExpiry).label === 'EXPIRED').length;
+  const field = key => e => setNewUser({ ...newUser, [key]: e.target.value });
 
   return (
     <div className="space-y-6">
-      {error && !isAddModalOpen && <p role="alert" className="text-red-700 text-sm">{error}</p>}
-      {/* 1. Statutory & Access Control Summary KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Registered Personnel
-          </span>
-          <div className="text-2xl font-bold font-mono text-slate-900 mt-1">
-            {users.length} Personnel
-          </div>
-          <span className="text-xs text-slate-500">Project membership records</span>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Assigned RE / RTO
-          </span>
-          <div className="text-2xl font-bold font-mono text-blue-700 mt-1">
-            {users.filter(p => ['RE', 'RTO'].includes(p.systemRole)).length} assigned
-          </div>
-          <span className="text-xs text-slate-500">Based on admin-assigned project roles</span>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            MOM WSH & CSOC Alerts
-          </span>
-          <div className="text-2xl font-bold font-mono text-amber-600 mt-1">
-            {users.filter(p => getCertStatus(p.certExpiry).label.startsWith('EXPIRING')).length} Expiring · {users.filter(p => getCertStatus(p.certExpiry).label === 'EXPIRED').length} Expired
-          </div>
-          <span className="text-xs text-red-600 font-semibold">Recorded certificate alerts</span>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Subcontractor bizSAFE Records
-          </span>
-          <div className="text-2xl font-bold font-mono text-emerald-700 mt-1">
-            {users.filter(p => p.category === 'Specialist Subcontractor' && p.bizSafe).length} recorded
-          </div>
-          <span className="text-xs text-slate-500">Subcontractors with bizSAFE details</span>
-        </div>
+      {error && !isAddModalOpen && <p role="alert" className="form-error">{error}</p>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="stat-tile"><span className="eyebrow">Registered Personnel</span><span className="stat-value">{users.length} Personnel</span><span className="text-xs text-muted">Project membership records</span></div>
+        <div className="stat-tile"><span className="eyebrow">Assigned RE / RTO</span><span className="stat-value">{users.filter(p => ['RE', 'RTO'].includes(p.systemRole)).length} assigned</span><span className="text-xs text-muted">Based on admin-assigned project roles</span></div>
+        <div className="stat-tile" data-tone={expired ? 'danger' : expiring ? 'warning' : undefined}><span className="eyebrow">MOM WSH & CSOC Alerts</span><span className="stat-value">{expiring} Expiring · {expired} Expired</span><span className="text-xs text-muted">Recorded certificate alerts</span></div>
+        <div className="stat-tile"><span className="eyebrow">Subcontractor bizSAFE Records</span><span className="stat-value">{users.filter(p => p.category === 'Specialist Subcontractor' && p.bizSafe).length} recorded</span><span className="text-xs text-muted">Subcontractors with bizSAFE details</span></div>
       </div>
 
-      {/* 2. Filter, Search & Onboarding Bar */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition ${
-                selectedCategory === cat
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+      <div className="card overflow-hidden">
+        <div className="card-header items-center">
+          <div className="min-w-0"><h2 className="card-title">Project personnel & access</h2><p className="card-subtitle">Organisations, statutory registrations and admin-assigned system roles.</p></div>
+          {isAdmin && <button onClick={() => { setError(''); setIsAddModalOpen(true); }} className="btn btn-primary">+ Register Site Personnel / Subcon</button>}
         </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <input
-            type="search"
-            placeholder="Search name, IES/WSQ reg, subcon..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3.5 py-2 text-xs sm:text-sm min-w-[240px] focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {isAdmin && <button
-            onClick={() => { setError(''); setIsAddModalOpen(true); }}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-lg shadow-xs transition shrink-0"
-          >
-            + Register Site Personnel / Subcon
-          </button>}
+        <div className="px-5 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="chip-group" role="group" aria-label="Personnel filters">
+            {CATEGORIES.map((cat) => <button key={cat} type="button" aria-pressed={selectedCategory === cat} onClick={() => setSelectedCategory(cat)} className="chip">{cat}</button>)}
+          </div>
+          <div className="relative w-full lg:w-80">
+            <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted" />
+            <input type="search" aria-label="Search personnel" placeholder="Search name, IES/WSQ reg, subcon…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="field-control !mt-0 pl-9" />
+          </div>
         </div>
-      </div>
-
-      {/* 3. Enterprise RBAC & Statutory Matrix Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto" role="region" aria-label="UserManagement records" tabIndex={0}>
-          <table className="w-full text-left border-collapse text-sm">
+        <div className="overflow-x-auto border-t" style={{ borderColor: 'var(--border)' }} role="region" aria-label="UserManagement records" tabIndex={0}>
+          <table className="data-table">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500">
-                <th scope="col" className="py-3.5 px-4">Personnel & Role</th>
-                <th scope="col" className="py-3.5 px-4">Organization & bizSAFE</th>
-                <th scope="col" className="py-3.5 px-4">ISO 19650 CDE Authority & Sign-Off</th>
-                <th scope="col" className="py-3.5 px-4">Recorded Certificate</th><th scope="col" className="py-3.5 px-4">Record action</th>
-                {currentUser?.systemRole === 'admin' && <th scope="col" className="py-3.5 px-4 text-right">System Role</th>}
+              <tr>
+                <th scope="col">Personnel & Role</th>
+                <th scope="col">Organization & bizSAFE</th>
+                <th scope="col">ISO 19650 CDE Authority & Sign-Off</th>
+                <th scope="col">Recorded Certificate</th>
+                <th scope="col">Record action</th>
+                {isAdmin && <th scope="col" className="text-right">System Role</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody>
               {filteredPersonnel.map((person) => {
                 const certBadge = getCertStatus(person.certExpiry);
-
                 return (
-                  <tr key={person.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-300">
-                          {person.id}
-                        </span>
-                        <span className="font-bold text-slate-900">{person.name}</span>
+                  <tr key={person.id}>
+                    <td className="min-w-[240px]">
+                      <div className="flex items-start gap-3">
+                        <span className="avatar mt-0.5" aria-hidden="true">{initialsOf(person.name || person.email)}</span>
+                        <div className="min-w-0">
+                          <div className="font-semibold">{person.name}</div>
+                          <div className="text-xs font-semibold mt-0.5" style={{ color: 'var(--accent-text)' }}>{person.role}</div>
+                          <div className="text-xs text-muted mt-0.5 break-all">{person.email || 'No sign-in email recorded'}</div>
+                          <span className="ref-tag mt-1.5 !text-[10.5px]">{person.id}</span>
+                        </div>
                       </div>
-                      <div className="text-xs font-semibold text-blue-700 mt-1">{person.role}</div><div className="text-xs text-slate-500">{person.email || 'No sign-in email recorded'}</div>
                     </td>
-
-                    <td className="py-4 px-4">
+                    <td className="min-w-[200px]">
                       {['admin', 'manager'].includes(currentUser?.systemRole) ? <input
                         key={`${person.id}-${person.organization || ''}`} aria-label={`Organisation for ${person.name || person.email}`}
                         defaultValue={person.organization || ''} disabled={organizationSaving === person.id}
@@ -184,51 +133,29 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
                           try { await onUpdatePersonnelOrganization(person.id, value); }
                           catch (e) { input.value = person.organization || ''; setError(e.message || 'Could not update organisation.'); }
                           finally { setOrganizationSaving(null); }
-                        }} className="font-semibold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none w-full" />
-                        : <div className="font-semibold text-slate-800">{person.organization || 'Not recorded'}</div>}
-                      <span className="inline-block mt-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                        {person.bizSafe}
-                      </span>
+                        }} className="field-control !mt-0 !min-h-[36px] !py-1.5 font-semibold" />
+                        : <div className="font-semibold">{person.organization || 'Not recorded'}</div>}
+                      {person.bizSafe && <span className="badge badge-square mt-1.5">{person.bizSafe}</span>}
                     </td>
-
-                    <td className="py-4 px-4">
-                      <div className="text-xs font-bold text-slate-900">{person.cdePermission}</div>
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {(person.ptwAuthority || []).map((auth) => (
-                          <span
-                            key={auth}
-                            className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200"
-                          >
-                            {auth}
-                          </span>
-                        ))}
+                    <td className="min-w-[200px]">
+                      <div className="text-xs font-semibold">{person.cdePermission}</div>
+                      <div className="flex flex-wrap gap-1 mt-1.5">{(person.ptwAuthority || []).map((auth) => <span key={auth} className="badge" data-tone="info">{auth}</span>)}</div>
+                    </td>
+                    <td className="min-w-[180px]">
+                      <div className="font-mono text-xs font-semibold">{person.statutoryReg}</div>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className="badge badge-square" data-tone={certBadge.tone}>{certBadge.label}</span>
+                        <span className="text-xs text-muted tabular">Exp: {person.certExpiry}</span>
                       </div>
                     </td>
-
-                    <td className="py-4 px-4">
-                      <div className="font-mono text-xs font-semibold text-slate-800">
-                        {person.statutoryReg}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span
-                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${certBadge.style}`}
-                        >
-                          {certBadge.label}
-                        </span>
-                        <span className="text-xs font-mono text-slate-500">
-                          Exp: {person.certExpiry}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td className="py-4 px-4"><DeleteRecordAction collection="users" record={person} /></td>
-                    {currentUser?.systemRole === 'admin' && (
-                      <td className="py-4 px-4 text-right">
+                    <td><DeleteRecordAction collection="users" record={person} /></td>
+                    {isAdmin && (
+                      <td className="text-right">
                         <select
                           aria-label={`System role for ${person.name || person.email}`}
                           value={person.systemRole || 'guest'}
                           onChange={(e) => onUpdatePersonnelRole && onUpdatePersonnelRole(person.id, e.target.value)}
-                          className="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
+                          className="field-control !mt-0 !w-auto !min-h-[36px] !py-1.5 text-xs"
                         >
                           <option value="guest">Guest</option>
                           <option value="admin">Admin</option>
@@ -238,125 +165,36 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
                           <option value="engineer">Engineer</option>
                           <option value="supervisor">Supervisor</option>
                         </select>
-                        {person.email && person.id !== person.email.toLowerCase() && <button className="block mt-1 text-blue-700 text-xs" onClick={() => onUpdatePersonnelRole(person.id, person.systemRole || 'guest')}>Confirm legacy access</button>}
+                        {person.email && person.id !== person.email.toLowerCase() && <button className="link-action block ml-auto mt-1" onClick={() => onUpdatePersonnelRole(person.id, person.systemRole || 'guest')}>Confirm legacy access</button>}
                       </td>
                     )}
                   </tr>
                 );
               })}
+              {!filteredPersonnel.length && <tr><td colSpan={isAdmin ? 6 : 5} className="!py-10 text-center text-muted">No personnel match this selection.</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* 4. Modal to Register New Personnel / Subcontractor */}
       {isAddModalOpen && isAdmin && <RecordModal title="Register Site Personnel / Appointed Subcontractor" onClose={() => { if (!saving) setIsAddModalOpen(false); }}>
-            <form onSubmit={handleFormSubmit} className="space-y-4 text-sm">
-              {error && <p role="alert" className="text-red-700">{error}</p>}
-              <label className="block text-xs font-semibold">Sign-in email<input type="email" required value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} className="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2" /></label>
-              <label className="block text-xs font-semibold">bizSAFE details (if recorded)<input value={newUser.bizSafe} onChange={e => setNewUser({ ...newUser, bizSafe: e.target.value })} className="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2" /></label>
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                  Full Name (As per FIN / NRIC)
-                </label>
-                <input aria-label="Full Name (As per FIN / NRIC)"
-                  type="text"
-                  required
-                  value={newUser.name}
-                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                  placeholder="e.g. Mohd Faizal Bin Rahman"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                    Project Role
-                  </label>
-                  <input aria-label="Project Role"
-                    type="text"
-                    required
-                    value={newUser.role}
-                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                    placeholder="e.g. Lifting Supervisor / RTO"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                    Category
-                  </label>
-                  <select aria-label="Category"
-                    value={newUser.category}
-                    onChange={(e) => setNewUser({ ...newUser, category: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                  >
-                    <option value="Main Contractor">Main Contractor</option>
-                    <option value="Consultant / RE / RTO">Consultant / RE / RTO</option>
-                    <option value="Specialist Subcontractor">Specialist Subcontractor</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                  Company / Subcontractor Name
-                </label>
-                <input aria-label="Company / Subcontractor Name"
-                  type="text"
-                  required
-                  value={newUser.organization}
-                  onChange={(e) => setNewUser({ ...newUser, organization: e.target.value })}
-                  placeholder="e.g. Progressive Builders Pte Ltd"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                    MOM / BCA / WSQ Cert No.
-                  </label>
-                  <input aria-label="MOM / BCA / WSQ Cert No."
-                    type="text"
-                    required
-                    value={newUser.statutoryReg}
-                    onChange={(e) => setNewUser({ ...newUser, statutoryReg: e.target.value })}
-                    placeholder="e.g. WSQ-LS-9012 / IES RTO"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                    CSOC / Cert Expiry Date
-                  </label>
-                  <input aria-label="CSOC / Cert Expiry Date"
-                    type="date"
-                    required
-                    value={newUser.certExpiry}
-                    onChange={(e) => setNewUser({ ...newUser, certExpiry: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit" disabled={saving}
-                  className="px-4 py-2 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700"
-                >
-                  {saving ? 'Saving…' : 'Register personnel'}
-                </button>
-              </div>
-            </form>
+        <form onSubmit={handleFormSubmit} className="space-y-5">
+          {error && <p role="alert" className="form-error">{error}</p>}
+          <div className="form-grid">
+            <FormField label="Sign-in email" ariaLabel={false}><input type="email" required value={newUser.email} onChange={field('email')} /></FormField>
+            <FormField label="bizSAFE details (if recorded)" ariaLabel={false}><input value={newUser.bizSafe} onChange={field('bizSafe')} /></FormField>
+            <FormField label="Full Name (As per FIN / NRIC)" className="sm:col-span-2"><input type="text" required value={newUser.name} onChange={field('name')} placeholder="e.g. Mohd Faizal Bin Rahman" /></FormField>
+            <FormField label="Project Role"><input type="text" required value={newUser.role} onChange={field('role')} placeholder="e.g. Lifting Supervisor / RTO" /></FormField>
+            <FormField label="Category"><select value={newUser.category} onChange={field('category')}><option value="Main Contractor">Main Contractor</option><option value="Consultant / RE / RTO">Consultant / RE / RTO</option><option value="Specialist Subcontractor">Specialist Subcontractor</option></select></FormField>
+            <FormField label="Company / Subcontractor Name" className="sm:col-span-2"><input type="text" required value={newUser.organization} onChange={field('organization')} placeholder="e.g. Progressive Builders Pte Ltd" /></FormField>
+            <FormField label="MOM / BCA / WSQ Cert No."><input type="text" required value={newUser.statutoryReg} onChange={field('statutoryReg')} placeholder="e.g. WSQ-LS-9012 / IES RTO" /></FormField>
+            <FormField label="CSOC / Cert Expiry Date"><input type="date" required value={newUser.certExpiry} onChange={field('certExpiry')} className="font-mono" /></FormField>
+          </div>
+          <div className="form-actions">
+            <button type="button" onClick={() => setIsAddModalOpen(false)} className="btn btn-secondary">Cancel</button>
+            <button type="submit" disabled={saving} className="btn btn-primary">{saving ? 'Saving…' : 'Register personnel'}</button>
+          </div>
+        </form>
       </RecordModal>}
     </div>
   );

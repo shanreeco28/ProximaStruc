@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
+import { ArrowRight, CalendarClock, ChevronDown, MapPin, MessageSquare, UserRound } from 'lucide-react';
 import { RecordModal } from './RecordForm';
 import DeleteRecordAction from './DeleteRecordAction';
-
-
 import { INSPECTION_STAGES as STAGES, canRecordSite, canAdvanceInspection, canEditInspection, canCommentInspection, isInspectionClosed } from '../utils/siteData';
-
 import RecordSearch from './RecordSearch';
 import { matchesRecordSearch } from '../utils/recordSearch';
 
 const emptyForm = () => ({ id: '', zone: '', discipline: '', element: '', rtoName: '', reName: '', targetCast: '', bbsLinked: '' });
+
+function FormField({ label, ariaLabel, children }) {
+  return <label className="field-label">{label}{React.cloneElement(children, { 'aria-label': ariaLabel || label, className: 'field-control' })}</label>;
+}
 
 export default function InspectionsView({ inspections, onAdd, onUpdate, onAdvance, onComment, currentUser, zones }) {
   const [error, setError] = useState('');
@@ -18,7 +20,6 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, onAdvanc
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRfi, setEditingRfi] = useState(null);
   const [formData, setFormData] = useState(emptyForm());
-
   const [commentInputs, setCommentInputs] = useState({});
   const [expandedRfi, setExpandedRfi] = useState(null);
 
@@ -58,249 +59,138 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, onAdvanc
       setIsModalOpen(false);
     } catch (e) { setError(e.message); } finally { setSaving(false); }
   };
-
+  const set = key => e => setFormData({ ...formData, [key]: e.target.value });
 
   const filtered = inspections.filter(i => (filterDiscipline === 'All' || i.discipline === filterDiscipline) && matchesRecordSearch(search, [i.id, i.element, i.zone, i.discipline, i.rtoName, i.reName, i.targetCast, i.bbsLinked, i.createdBy, STAGES[i.stage], ...(i.comments || []).map(comment => comment.text)]));
 
   return (
     <div className="space-y-6">
-      {error && <p role="alert" className="text-red-700">{error}</p>}
-      {/* Header & Filter Controls */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
-        <div>
-          <h2 className="text-base font-bold text-slate-900">
-            BCA Statutory & RE/RTO Inspection Matrix (RFI)
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Track five-stage RFI review and closure. Linked planning hold points remain unresolved until the inspection is Closed.
-          </p>
+      {error && <p role="alert" className="form-error">{error}</p>}
+      <div className="card">
+        <div className="card-header">
+          <div className="min-w-0">
+            <h2 className="card-title">BCA Statutory & RE/RTO Inspection Matrix (RFI)</h2>
+            <p className="card-subtitle">Track five-stage RFI review and closure. Linked planning hold points remain unresolved until the inspection is Closed.</p>
+          </div>
+          {isPrivileged && <button onClick={() => handleOpenModal()} className="btn btn-primary">+ Add RFI</button>}
         </div>
-
-        <div className="record-toolbar flex flex-wrap items-center gap-4">
+        <div className="record-toolbar card-body flex flex-wrap items-end gap-4">
           <RecordSearch label="Search RFIs" placeholder="RFI reference, element, reviewer or stage…" value={search} onChange={setSearch} count={filtered.length} total={inspections.length} />
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="chip-group mb-6" role="group" aria-label="RFI filters">
             {['All', 'Structural', 'M&E Sleeve / Conduit'].map((disc) => (
-              <button
-                key={disc}
-                aria-pressed={filterDiscipline === disc}
-                onClick={() => setFilterDiscipline(disc)}
-                className={`px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                  filterDiscipline === disc
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {disc}
-              </button>
+              <button key={disc} type="button" aria-pressed={filterDiscipline === disc} onClick={() => setFilterDiscipline(disc)} className="chip">{disc}</button>
             ))}
           </div>
-          {isPrivileged && (
-            <button
-              onClick={() => handleOpenModal()}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg px-4 py-2 transition"
-            >
-              + Add RFI
-            </button>
-          )}
         </div>
       </div>
 
       {!filtered.length && <p className="empty-state" role="status">No RFI records for this selection.</p>}
-      {/* Inspection Cards */}
       <div className="space-y-4">
         {filtered.map((rfi) => {
           const isCleared = isInspectionClosed(rfi);
+          const activity = (rfi.comments?.length || 0) + (rfi.history?.length || 0);
+          const expanded = expandedRfi === rfi.id;
           return (
-            <div
-              key={rfi.id}
-              className={`bg-white rounded-xl border p-5 transition ${
-                isCleared ? 'border-emerald-300' : 'border-amber-300'
-              }`}
-            >
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                <div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="font-mono text-xs font-bold px-2.5 py-1 rounded bg-slate-900 text-white">
-                      {rfi.id}
-                    </span>
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded bg-blue-50 text-blue-800 border border-blue-200">
-                      {rfi.discipline}
-                    </span>
-                    <span className="text-xs font-medium text-slate-500">{rfi.zone}</span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 mt-2">{rfi.element}</h3>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4 text-xs">
-                  <div className="bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
-                    <span className="text-slate-400 block uppercase text-[10px] font-semibold">Assigned RTO / RE</span>
-                    <span className="font-semibold text-slate-800">{rfi.rtoName} / {rfi.reName}</span>
-                  </div>
-                  <div className="bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
-                    <span className="text-slate-400 block uppercase text-[10px] font-semibold">Target Concrete Pour</span>
-                    <span className="font-mono font-bold text-slate-900">{rfi.targetCast}</span>
-                  </div>
-                  {!isCleared && canAdvanceInspection(currentUser, rfi) ? (
-                    <button
-                      disabled={saving} onClick={() => handleAdvance(rfi.id)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-xs transition"
-                    >
-                      Advance Sign-Off →
-                    </button>
-                  ) : isCleared ? (
-                    <span className="px-3.5 py-2 rounded-lg font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                      ✓ Inspection closed
-                    </span>
-                  ) : <span className="text-xs text-slate-500">Awaiting authorised stage review</span>}
-                  <DeleteRecordAction collection="inspections" record={rfi} />
-                  {canEditInspection(currentUser, rfi) && (
-                    <button
-                      onClick={() => handleOpenModal(rfi)}
-                      className="ml-2 px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
-                    >
-                      Edit
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* 5-Stage ISO 19650 / BCA Stepper */}
-              <div className="mt-4 grid grid-cols-5 gap-2">
-                {STAGES.map((label, idx) => {
-                  const completed = idx <= rfi.stage;
-                  const current = idx === rfi.stage;
-                  return (
-                    <div
-                      key={label}
-                      className={`p-2.5 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
-                        completed
-                          ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                          : 'bg-slate-50 border-slate-200 text-slate-400'
-                      } ${current ? 'ring-2 ring-blue-500' : ''}`}
-                    >
-                      <span
-                        className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
-                          completed ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
-                        }`}
-                      >
-                        {idx + 1}
-                      </span>
-                      <span className="truncate">{label}</span>
+            <article key={rfi.id} className="card overflow-hidden" style={{ borderTop: `3px solid ${isCleared ? 'var(--success-solid)' : 'var(--warning-solid)'}` }}>
+              <div className="card-body space-y-5">
+                <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="ref-tag">{rfi.id}</span>
+                      {rfi.discipline && <span className="badge" data-tone="info">{rfi.discipline}</span>}
+                      <span className="badge" data-tone={isCleared ? 'success' : 'warning'}>{STAGES[rfi.stage] || 'Stage not recorded'}</span>
+                      {rfi.zone && <span className="inline-flex items-center gap-1 text-xs text-muted"><MapPin size={12} aria-hidden="true" />{rfi.zone}</span>}
                     </div>
-                  );
-                })}
+                    <h3 className="text-base font-semibold mt-2.5">{rfi.element}</h3>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!isCleared && canAdvanceInspection(currentUser, rfi) ? (
+                      <button disabled={saving} onClick={() => handleAdvance(rfi.id)} className="btn btn-primary">Advance Sign-Off →</button>
+                    ) : isCleared ? (
+                      <span className="badge" data-tone="success" style={{ padding: '.45rem .8rem', fontSize: '.8rem' }}>✓ Inspection closed</span>
+                    ) : <span className="text-xs text-muted px-1">Awaiting authorised stage review</span>}
+                    {canEditInspection(currentUser, rfi) && <button onClick={() => handleOpenModal(rfi)} className="btn btn-secondary">Edit</button>}
+                    <DeleteRecordAction collection="inspections" record={rfi} />
+                  </div>
+                </div>
+
+                <div className="meta-grid grid-cols-1 sm:grid-cols-3 inset p-3.5">
+                  <div><span className="meta-label">Assigned RTO / RE</span><span className="meta-value flex items-center gap-1.5"><UserRound size={13} aria-hidden="true" className="shrink-0 text-muted" />{rfi.rtoName || 'Not recorded'} / {rfi.reName || 'Not recorded'}</span></div>
+                  <div><span className="meta-label">Target Concrete Pour</span><span className="meta-value flex items-center gap-1.5 tabular"><CalendarClock size={13} aria-hidden="true" className="shrink-0 text-muted" />{rfi.targetCast || 'Not recorded'}</span></div>
+                  <div><span className="meta-label">Linked BBS</span><span className="meta-value">{rfi.bbsLinked || 'Not recorded'}</span></div>
+                </div>
+
+                <ol className="stepper" aria-label={`${rfi.id} review stages`}>
+                  {STAGES.map((label, idx) => {
+                    const state = idx === rfi.stage ? 'current' : idx < rfi.stage ? 'done' : 'todo';
+                    return <li key={label} className="step" data-state={isCleared && idx === rfi.stage ? 'done' : state} aria-current={idx === rfi.stage ? 'step' : undefined}>
+                      <span className="step-index" aria-hidden="true">{idx + 1}</span><span className="truncate">{label}</span>
+                    </li>;
+                  })}
+                </ol>
               </div>
 
-              {/* Comments & History Section */}
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <button
-                  onClick={() => setExpandedRfi(expandedRfi === rfi.id ? null : rfi.id)}
-                  className="text-xs font-bold text-blue-600 hover:underline mb-2"
-                >
-                  {expandedRfi === rfi.id ? 'Hide Comments & History' : `Show Comments & History (${(rfi.comments?.length || 0) + (rfi.history?.length || 0)})`}
+              <div className="border-t px-5 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+                <button onClick={() => setExpandedRfi(expanded ? null : rfi.id)} aria-expanded={expanded} className="link-action">
+                  <MessageSquare size={14} aria-hidden="true" />
+                  {expanded ? 'Hide Comments & History' : `Show Comments & History (${activity})`}
+                  <ChevronDown size={14} aria-hidden="true" className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
                 </button>
 
-                {expandedRfi === rfi.id && (
-                  <div className="space-y-4 mt-3">
-                    <div className="max-h-60 overflow-y-auto space-y-3 pr-2">
+                {expanded && (
+                  <div className="space-y-3 mt-3 pb-2">
+                    <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
                       {[...(rfi.history || []).map(h => ({ ...h, type: 'history' })), ...(rfi.comments || []).map(c => ({ ...c, type: 'comment' }))]
                         .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
                         .map((item, idx) => (
-                          <div key={idx} className={`p-3 rounded-lg text-xs ${item.type === 'history' ? 'bg-slate-50 border border-slate-200 text-slate-500' : 'bg-blue-50 border border-blue-100 text-slate-800'}`}>
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="font-bold">{item.user} <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-slate-200 ml-1">{item.role}</span></span>
-                              <span className="text-[10px] opacity-70">{new Date(item.timestamp).toLocaleString()}</span>
+                          <div key={idx} className="feed-item" data-kind={item.type}>
+                            <div className="flex flex-wrap justify-between items-center gap-2 mb-1">
+                              <span className="font-semibold text-xs">{item.user} <span className="badge ml-1">{item.role}</span></span>
+                              <span className="text-[11px] text-muted">{new Date(item.timestamp).toLocaleString()}</span>
                             </div>
                             <div>{item.type === 'history' ? <span className="italic">{item.action}</span> : item.text}</div>
                           </div>
                       ))}
-                      {(!rfi.history?.length && !rfi.comments?.length) && <div className="text-xs text-slate-400 italic">No comments or history yet.</div>}
+                      {(!rfi.history?.length && !rfi.comments?.length) && <p className="text-xs text-muted italic">No comments or history yet.</p>}
                     </div>
 
                     {canCommentInspection(currentUser) && <div className="flex gap-2 items-center">
                       <input
                         type="text"
-                        aria-label={`Comment on ${rfi.id}`} placeholder="Add a comment..."
+                        aria-label={`Comment on ${rfi.id}`} placeholder="Add a comment…"
                         value={commentInputs[rfi.id] || ''}
                         onChange={(e) => setCommentInputs(prev => ({ ...prev, [rfi.id]: e.target.value }))}
-                        className="flex-1 text-xs border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
-                        onKeyDown={(e) => { if(e.key === 'Enter') handleAddComment(rfi.id); }}
+                        className="field-control !mt-0 flex-1 min-w-0"
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddComment(rfi.id); }}
                       />
-                      <button
-                        disabled={saving} onClick={() => handleAddComment(rfi.id)}
-                        className="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition"
-                      >
-                        Send
-                      </button>
+                      <button disabled={saving} onClick={() => handleAddComment(rfi.id)} className="btn btn-dark">Send</button>
                     </div>}
                   </div>
                 )}
               </div>
-
-            </div>
+            </article>
           );
         })}
       </div>
 
       {isModalOpen && <RecordModal title={editingRfi ? 'Edit RFI' : 'Add RFI'} onClose={() => { if (!saving) setIsModalOpen(false); }}>
-            <form onSubmit={handleSubmit} className="space-y-4 text-sm">
-              {error && <p role="alert" className="text-red-700">{error}</p>}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">RFI ID</label>
-                  <input aria-label="RFI ID" required disabled={!!editingRfi} type="text" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Zone</label>
-                  <select aria-label="Zone" required value={formData.zone} onChange={e => setFormData({...formData, zone: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2">
-                    <option value="" disabled>Select Zone</option>
-                    {zones.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Discipline</label>
-                  <select aria-label="Discipline" required value={formData.discipline} onChange={e => setFormData({...formData, discipline: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2">
-                    <option value="">Select discipline</option>
-                    <option value="Structural">Structural</option>
-                    <option value="M&E Sleeve / Conduit">M&E Sleeve / Conduit</option>
-                    <option value="Architectural">Architectural</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Element</label>
-                  <input aria-label="Element" required type="text" value={formData.element} onChange={e => setFormData({...formData, element: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Assigned RTO</label>
-                  <input aria-label="Assigned RTO" type="text" value={formData.rtoName} onChange={e => setFormData({...formData, rtoName: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Assigned RE</label>
-                  <input aria-label="Assigned RE" type="text" value={formData.reName} onChange={e => setFormData({...formData, reName: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Target Cast</label>
-                  <input aria-label="Target cast" required type="date" value={formData.targetCast} onChange={e => setFormData({...formData, targetCast: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Linked BBS</label>
-                  <input aria-label="Linked BBS" type="text" value={formData.bbsLinked} onChange={e => setFormData({...formData, bbsLinked: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center pt-4 border-t border-slate-200">
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold text-slate-700">Cancel</button>
-                  <button disabled={saving} type="submit" className="px-4 py-2 bg-blue-600 rounded-lg text-xs font-bold text-white">Save RFI</button>
-                </div>
-              </div>
-            </form>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {error && <p role="alert" className="form-error">{error}</p>}
+          <div className="form-grid">
+            <FormField label="RFI ID"><input required disabled={!!editingRfi} type="text" value={formData.id} onChange={set('id')} /></FormField>
+            <FormField label="Zone"><select required value={formData.zone} onChange={set('zone')}><option value="" disabled>Select Zone</option>{zones.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}</select></FormField>
+            <FormField label="Discipline"><select required value={formData.discipline} onChange={set('discipline')}><option value="">Select discipline</option><option value="Structural">Structural</option><option value="M&E Sleeve / Conduit">M&E Sleeve / Conduit</option><option value="Architectural">Architectural</option></select></FormField>
+            <FormField label="Element"><input required type="text" value={formData.element} onChange={set('element')} /></FormField>
+            <FormField label="Assigned RTO"><input type="text" value={formData.rtoName} onChange={set('rtoName')} /></FormField>
+            <FormField label="Assigned RE"><input type="text" value={formData.reName} onChange={set('reName')} /></FormField>
+            <FormField label="Target Cast" ariaLabel="Target cast"><input required type="date" value={formData.targetCast} onChange={set('targetCast')} /></FormField>
+            <FormField label="Linked BBS"><input type="text" value={formData.bbsLinked} onChange={set('bbsLinked')} /></FormField>
+          </div>
+          <div className="form-actions">
+            <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">Cancel</button>
+            <button disabled={saving} type="submit" className="btn btn-primary">Save RFI <ArrowRight size={15} aria-hidden="true" /></button>
+          </div>
+        </form>
       </RecordModal>}
     </div>
   );

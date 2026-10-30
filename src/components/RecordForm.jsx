@@ -1,12 +1,16 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import { lockModalBackground, trapDialogFocus } from '../utils/modalAccessibility';
 
-export function Field({ label, children, ...props }) {
-  return <label className="block text-sm font-semibold text-slate-700">{label}
-    {children ? <select aria-label={label} {...props} className="mt-1.5 w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm bg-white">{children}</select>
-      : <input aria-label={label} {...props} className="mt-1.5 w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />}
+export function Field({ label, children, className = '', ...props }) {
+  return <label className={`field-label ${className}`}>{label}
+    {children ? <select aria-label={label} {...props} className="field-control">{children}</select>
+      : <input aria-label={label} {...props} className="field-control" />}
   </label>;
+}
+export function TextArea({ label, className = '', ...props }) {
+  return <label className={`field-label ${className}`}>{label}<textarea {...props} className="field-control" /></label>;
 }
 export function SaveForm({ onSave, children, submitLabel = 'Save record', className = 'space-y-4' }) {
   const [error, setError] = useState('');
@@ -16,8 +20,8 @@ export function SaveForm({ onSave, children, submitLabel = 'Save record', classN
     setError(''); setSaving(true);
     try { await onSave(); } catch (error) { setError(error.message || 'Could not save. Please retry.'); }
     finally { setSaving(false); }
-  }}><fieldset disabled={saving} className="space-y-4">{children}{error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-    <button disabled={saving} className="button-primary">{saving ? 'Saving…' : submitLabel}</button>
+  }}><fieldset disabled={saving} className="space-y-5">{children}{error && <p role="alert" className="form-error">{error}</p>}
+    <div className="form-actions"><button disabled={saving} className="btn btn-primary">{saving ? 'Saving…' : submitLabel}</button></div>
   </fieldset></form>;
 }
 export function RecordModal({ title, onClose, children, wide = false }) {
@@ -37,7 +41,11 @@ export function RecordModal({ title, onClose, children, wide = false }) {
   return createPortal(<div className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6" onKeyDown={event => {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close.current(); }
     trapDialogFocus(event, dialog.current);
-  }}><section ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`dialog-panel bg-white rounded-2xl border border-slate-200 w-full max-h-[90dvh] overflow-auto p-5 sm:p-7 space-y-5 ${wide ? 'max-w-3xl' : 'max-w-2xl'}`}>
-    <div className="flex justify-between items-start gap-3 border-b border-slate-200 pb-4"><h2 id={titleId} className="font-bold text-xl text-slate-900">{title}</h2><button type="button" onClick={onClose} className="button-secondary shrink-0">Close</button></div>{children}
+  }}><section ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`dialog-panel animate-in-scale-in rounded-2xl w-full max-h-[90dvh] overflow-auto ${wide ? 'max-w-3xl' : 'max-w-2xl'}`}>
+    <div className="sticky top-0 z-10 flex justify-between items-center gap-3 px-5 sm:px-7 py-4 border-b" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+      <h2 id={titleId} className="font-semibold text-lg tracking-tight min-w-0">{title}</h2>
+      <button type="button" onClick={onClose} className="btn btn-secondary btn-sm shrink-0"><X size={15} aria-hidden="true" />Close</button>
+    </div>
+    <div className="px-5 sm:px-7 py-5 space-y-5">{children}</div>
   </section></div>, portal);
 }

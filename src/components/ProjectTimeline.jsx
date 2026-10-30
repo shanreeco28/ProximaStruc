@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChartGantt } from 'lucide-react';
 import { dayNumber, scheduleRows } from '../utils/siteData';
+import { sheetCode } from '../utils/sheets';
 
 export default function ProjectTimeline({ tasks = [], inspections = [], materials = [], diary = [], lifts = [] }) {
   const rows = scheduleRows({ tasks, inspections, materials, diary, lifts });
@@ -12,7 +13,7 @@ export default function ProjectTimeline({ tasks = [], inspections = [], material
       <div className="flex items-start gap-3 min-w-0">
         <span className="icon-tile"><ChartGantt size={18} aria-hidden="true" /></span>
         <div className="min-w-0">
-          <h3 className="card-title">Project Gantt · activities & site milestones</h3>
+          <div className="title-row"><span className="sheet-code">{sheetCode('calendar', 2)}</span><h3 className="card-title">Project Gantt · activities & site milestones</h3></div>
           <p className="card-subtitle">Generated from saved planning dates, inspection targets, material deliveries, diary entries and lifting dates. Bars show activity progress; milestones are recorded events, not activity completion.</p>
         </div>
       </div>

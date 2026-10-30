@@ -4,6 +4,7 @@ import DeleteRecordAction from './DeleteRecordAction';
 import { canPlan } from '../utils/siteData';
 import { observationValue } from '../utils/monitoring';
 import { Field, SaveForm, RecordModal } from './RecordForm';
+import { sheetCode } from '../utils/sheets';
 
 export default function LiftingView({ lifts, onToggleLift, onAdd, currentUser, zones = [], observation }) {
   const [form, setForm] = useState(null);
@@ -13,7 +14,7 @@ export default function LiftingView({ lifts, onToggleLift, onAdd, currentUser, z
     <div className="space-y-6">
       <section aria-label="Recorded lifting conditions" className="feature-band flex flex-col lg:flex-row lg:items-center justify-between gap-5">
         <div className="min-w-0">
-          <span className="eyebrow block">Recorded lifting conditions</span>
+          <span className="eyebrow block">{sheetCode('lifting', 1)} · Recorded lifting conditions</span>
           <h2 className="text-base sm:text-lg font-semibold mt-1 text-white">Active Lifting Permit-to-Work (PTW) & Crane Hook-Time Matrix</h2>
           <p className="text-xs mt-1.5" style={{ color: '#b9c6da' }}>{observation ? `Conditions observed ${observation.observedAt.replace('T', ' ')} · ${observation.source}` : 'No conditions confirmed by admin.'} Recorded conditions do not automatically authorize lifting.</p>
         </div>
@@ -24,7 +25,7 @@ export default function LiftingView({ lifts, onToggleLift, onAdd, currentUser, z
       </section>
 
       <div className="view-header">
-        <div><h2 className="view-title">Lifting permits</h2><p className="view-description">{lifts.length} permit{lifts.length === 1 ? '' : 's'} recorded. New permits start suspended until site approvals are recorded.</p></div>
+        <div><div className="title-row"><span className="sheet-code">{sheetCode('lifting', 2)}</span><h2 className="view-title">Lifting permits</h2></div><p className="view-description">{lifts.length} permit{lifts.length === 1 ? '' : 's'} recorded. New permits start suspended until site approvals are recorded.</p></div>
         {permitted && <button className="btn btn-primary" onClick={() => setForm({ crane: '', date: '', zone: '', loadDescription: '', radius: '', lmExpiry: '', supervisor: '', rigger: '', signalman: '', status: 'SUSPENDED' })}>+ Record lifting permit</button>}
       </div>
       {!lifts.length && <p className="empty-state">No lifting permits recorded.</p>}
@@ -33,7 +34,8 @@ export default function LiftingView({ lifts, onToggleLift, onAdd, currentUser, z
         {lifts.map((ptw) => {
           const isActive = ptw.status === 'ACTIVE';
           return (
-            <article key={ptw.id} className="card flex flex-col">
+            <article key={ptw.id} className="card flex flex-col overflow-hidden">
+              {!isActive && <div className="hazard-edge !rounded-none" aria-hidden="true" />}
               <div className="card-body flex-1 space-y-4">
                 <div className="flex items-center justify-between gap-2">
                   <span className="ref-tag">{ptw.id}</span>

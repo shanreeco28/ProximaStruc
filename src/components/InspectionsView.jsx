@@ -5,6 +5,7 @@ import DeleteRecordAction from './DeleteRecordAction';
 import { INSPECTION_STAGES as STAGES, canRecordSite, canAdvanceInspection, canEditInspection, canCommentInspection, isInspectionClosed } from '../utils/siteData';
 import RecordSearch from './RecordSearch';
 import { matchesRecordSearch } from '../utils/recordSearch';
+import { sheetCode } from '../utils/sheets';
 
 const emptyForm = () => ({ id: '', zone: '', discipline: '', element: '', rtoName: '', reName: '', targetCast: '', bbsLinked: '' });
 
@@ -69,7 +70,7 @@ export default function InspectionsView({ inspections, onAdd, onUpdate, onAdvanc
       <div className="card">
         <div className="card-header">
           <div className="min-w-0">
-            <h2 className="card-title">BCA Statutory & RE/RTO Inspection Matrix (RFI)</h2>
+            <div className="title-row"><span className="sheet-code">{sheetCode('inspections', 1)}</span><h2 className="card-title">BCA Statutory & RE/RTO Inspection Matrix (RFI)</h2></div>
             <p className="card-subtitle">Track five-stage RFI review and closure. Linked planning hold points remain unresolved until the inspection is Closed.</p>
           </div>
           {isPrivileged && <button onClick={() => handleOpenModal()} className="btn btn-primary">+ Add RFI</button>}

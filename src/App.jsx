@@ -24,7 +24,7 @@ import { onAuthStateChanged, signOut, sendEmailVerification, updateProfile } fro
 import { collection, onSnapshot, doc, updateDoc, runTransaction, arrayUnion } from 'firebase/firestore';
 import LoginView from './components/LoginView';
 import ProjectSelection from './components/ProjectSelection';
-import ConstructionIcon from './components/ConstructionIcon';
+import { sheetCode } from './utils/sheets';
 import AppLogo from './components/AppLogo';
 
 export default function App() {
@@ -233,33 +233,35 @@ export default function App() {
   const delayedMaterials = filteredMaterials.filter((m) => m.status?.includes('Delay')).length;
   const activeLifts = filteredLifts.filter((l) => l.status === 'ACTIVE').length;
 
+  // Navigation follows ISO 21502 practice areas; each module is a sheet in the register (utils/sheets.js).
+  const pendingReviews = deletionRequests.filter(request => request.status === 'pending').length;
   const dynamicNavGroups = [
     {
-      group: 'Executive & Planning',
+      group: 'Project control',
       items: [
-        { id: 'dashboard', label: 'PM Command Center', badge: null },
-        { id: 'calendar', label: 'Site Planning', badge: null },
+        { id: 'dashboard', label: 'Control Centre', badge: null },
+        { id: 'calendar', label: 'Schedule & Lookahead', badge: null },
       ],
     },
     {
-      group: 'Site Execution & QA/QC',
+      group: 'Delivery assurance',
       items: [
-        { id: 'inspections', label: 'RE/RTO Inspections (RFI)', badge: pendingInspections > 0 ? `${pendingInspections} Pending` : null, alert: pendingInspections > 0 ? 'warning' : null },
-        { id: 'materials', label: 'Materials, BBS & DOs', badge: delayedMaterials > 0 ? `${delayedMaterials} Delayed` : null, alert: delayedMaterials > 0 ? 'danger' : null },
+        { id: 'inspections', label: 'Quality · RE/RTO Inspections', badge: pendingInspections > 0 ? `${pendingInspections} open` : null, alert: pendingInspections > 0 ? 'warning' : null },
+        { id: 'materials', label: 'Materials · BBS & DOs', badge: delayedMaterials > 0 ? `${delayedMaterials} delayed` : null, alert: delayedMaterials > 0 ? 'danger' : null },
         { id: 'diary', label: 'Site Diary', badge: null },
       ],
     },
     {
-      group: 'WSH & High-Risk Ops (MOM)',
+      group: 'Risk & WSH (MOM)',
       items: [
-        { id: 'lifting', label: 'Lifting Plan & PTW Matrix', badge: activeLifts > 0 ? `${activeLifts} Active` : null, alert: activeLifts > 0 ? 'success' : null },
+        { id: 'lifting', label: 'Lifting & Permit-to-Work', badge: activeLifts > 0 ? `${activeLifts} active` : null, alert: activeLifts > 0 ? 'success' : null },
       ],
     },
     {
-      group: 'System & Access',
+      group: 'Governance',
       items: [
-        { id: 'users', label: 'Role & Subcon Matrix', badge: isDeletionReviewer(currentUser) && deletionRequests.some(request => request.status === 'pending') ? `${deletionRequests.filter(request => request.status === 'pending').length} Review` : null },
-        ...(isAdmin ? [{ id: 'monitoring', label: 'Admin Control Panel', badge: null }] : []),
+        { id: 'users', label: 'Stakeholders & Access', badge: isDeletionReviewer(currentUser) && pendingReviews ? `${pendingReviews} review` : null },
+        ...(isAdmin ? [{ id: 'monitoring', label: 'Site Observations', badge: null }] : []),
       ],
     },
   ];
@@ -378,6 +380,9 @@ export default function App() {
               inspections={filteredInspections}
               lifts={filteredLifts}
               materials={filteredMaterials}
+              tasks={filteredTasks}
+              diary={filteredWeatherLogs}
+              users={personnel}
             />
           )}
           {activeTab === 'calendar' && <CalendarView key={selectedProject.id} tasks={filteredTasks} allTasks={tasks} timeline={{ tasks: filteredTasks, inspections: filteredInspections, materials: filteredMaterials, diary: filteredWeatherLogs, lifts: filteredLifts }} inspections={inspections} materials={materials} diary={filteredWeatherLogs} lifts={filteredLifts} onAdd={(t) => addRecord('tasks', t)} onUpdate={(id, t) => updateRecord('tasks', id, t)} currentUser={currentUser} zones={zones} />}
@@ -454,9 +459,10 @@ function KpiPill({ title, value, sub, status, icon, onClick }) {
   return (
     <button type="button" onClick={onClick} data-status={status} className="kpi-card">
       <span className="kpi-head">
-        <span className="kpi-label">{title}</span>
-        {icon && <span className="kpi-icon"><ConstructionIcon name={icon} size={15} /></span>}
+        {icon && <span className="kpi-code">{sheetCode(icon)}</span>}
+        <span className="kpi-marker" aria-hidden="true" />
       </span>
+      <span className="kpi-label">{title}</span>
       <span className="kpi-value kpi-metric">{value}</span>
       <span className="kpi-sub">{sub}</span>
     </button>

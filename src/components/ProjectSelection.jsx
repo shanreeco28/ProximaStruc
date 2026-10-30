@@ -25,12 +25,12 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
   };
 
   return (
-    <main tabIndex={-1} className="project-selection min-h-screen flex flex-col">
-      <div className="w-full border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+    <main tabIndex={-1} className="project-selection survey-grid min-h-screen flex flex-col">
+      <div className="w-full border-b-[1.5px]" style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <AppLogo className="w-8 h-8 shrink-0" />
-            <span className="font-bold tracking-wide text-[15px] truncate">PROXIMA<span style={{ color: 'var(--accent-text)' }}>STRUC</span></span>
+            <span className="display text-xl font-bold tracking-wide truncate">PROXIMA<span style={{ color: 'var(--accent-text)' }}>STRUC</span></span>
           </div>
           <AccountControls user={user} onLogout={onLogout} />
         </div>
@@ -38,28 +38,30 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
       <FloatingThemeControl />
 
       <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-24 space-y-8 animate-in-fade-in-up">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-4 border-b pb-5" style={{ borderColor: 'var(--rule)' }}>
           <div>
-            <p className="eyebrow" style={{ color: 'var(--accent-text)' }}>Workspaces</p>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mt-1">Select Project</h1>
-            <p className="text-muted mt-1.5">Welcome back, {user?.name || 'User'}. Choose a workspace to continue.</p>
+            <p className="eyebrow" style={{ color: 'var(--accent-text)' }}>Project register</p>
+            <h1 className="display text-4xl sm:text-5xl font-semibold uppercase leading-none mt-2">Select Project</h1>
+            <p className="text-muted mt-2.5">Welcome back, {user?.name || 'User'}. Choose a workspace to continue.</p>
           </div>
-          <span className="badge">{projects.length} project{projects.length === 1 ? '' : 's'}</span>
+          <span className="badge stamp">{projects.length} project{projects.length === 1 ? '' : 's'} on register</span>
         </div>
 
         {error && <p role="alert" className="form-error">{error}</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {projects.map((project) => (
+          {projects.map((project, index) => (
             <article key={project.id} className="project-card group">
-              <button type="button" onClick={() => onSelect(project)} className="text-left w-full flex-1 p-5 pb-3 rounded-t-2xl">
-                <div className="flex items-start justify-between gap-3 mb-5">
-                  <span className="icon-tile !w-11 !h-11"><ConstructionIcon name="dashboard" size={22} /></span>
-                  {project.ownerId === user?.uid && <span className="badge" data-tone="info">Owner</span>}
-                </div>
-                <h2 className="text-lg font-semibold break-words leading-snug">{project.name}</h2>
-                <p className="text-xs text-muted font-mono mt-1 break-all">ID: {project.id}</p>
-                <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--accent-text)' }}>
-                  Open Workspace <ArrowRight size={16} aria-hidden="true" className="transition-transform group-hover:translate-x-1" />
+              <button type="button" onClick={() => onSelect(project)} className="text-left w-full flex-1 flex flex-col">
+                <span className="flex items-stretch border-b w-full" style={{ borderColor: 'var(--border-strong)' }}>
+                  <span className="flex items-center px-3 py-2 font-mono text-xs font-semibold" style={{ background: 'var(--text)', color: 'var(--surface)' }}>PRJ-{String(index + 1).padStart(2, '0')}</span>
+                  <span className="flex-1 flex items-center justify-end gap-2 px-3">{project.ownerId === user?.uid && <span className="badge" data-tone="info">Owner</span>}<ConstructionIcon name="dashboard" size={18} className="text-muted" /></span>
+                </span>
+                <span className="block p-5 pb-4 flex-1">
+                  <h2 className="display text-2xl font-semibold uppercase break-words leading-tight">{project.name}</h2>
+                  <span className="block text-xs text-muted font-mono mt-1.5 break-all">ID: {project.id}</span>
+                  <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--accent-text)' }}>
+                    Open Workspace <ArrowRight size={16} aria-hidden="true" className="transition-transform group-hover:translate-x-1" />
+                  </span>
                 </span>
               </button>
               {project.ownerId === user?.uid && onDelete && <div className="px-5 py-2.5 border-t flex justify-end" style={{ borderColor: 'var(--border)' }}>

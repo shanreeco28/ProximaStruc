@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, FileText, FolderOpen, LogOut, Moon, Sun } from 'lucide-react';
+import { ChevronDown, FileText, FolderOpen, LogOut, Menu, Moon, Sun } from 'lucide-react';
 import useTheme, { SHOW_THEME_SHORTCUT } from '../hooks/useTheme';
 import ProfileEditor from './ProfileEditor';
 import { RecordModal } from './RecordForm';
@@ -45,8 +45,8 @@ export default function AccountControls({ user, profile, projectName, onSaveProf
           event.preventDefault(); setError(''); setMenuOpen(true);
           requestAnimationFrame(() => focusItem(event.key === 'ArrowUp' ? -1 : 0));
         }
-      }} className="btn btn-primary px-3 sm:px-3.5">
-      Actions <ChevronDown size={15} aria-hidden="true" className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+      }} aria-label="Actions" className="btn btn-primary px-2.5 sm:px-3.5">
+      <Menu size={17} aria-hidden="true" className="sm:hidden" /><span className="hidden sm:inline">Actions</span> <ChevronDown size={15} aria-hidden="true" className={`hidden sm:block transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
     </button>
     {menuOpen && <div id={menuId} role="menu" aria-label="Project actions" className="menu-panel absolute right-0 top-full mt-2 w-64 rounded-xl p-1.5 z-30 animate-in-fade-in-up" onKeyDown={event => {
       const items = [...event.currentTarget.querySelectorAll('[role="menuitem"]')];

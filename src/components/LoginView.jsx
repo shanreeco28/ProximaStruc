@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, ClipboardCheck, DraftingCompass, Mail, Moon, NotebookPen, Shield, Sun, Truck } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Mail, Moon, Shield, Sun } from 'lucide-react';
 import AppLogo from './AppLogo';
 import useTheme from '../hooks/useTheme';
+import { SHEETS } from '../utils/sheets';
 import { auth } from '../firebase';
 import {
   signInWithEmailLink,
@@ -14,12 +15,6 @@ import {
   updateProfile
 } from 'firebase/auth';
 
-const FEATURES = [
-  [DraftingCompass, 'Site planning & lookahead', 'Make-ready board, sprint commitments and a generated Gantt.'],
-  [ClipboardCheck, 'RE / RTO inspection workflow', 'Five-stage RFI sign-off with comments and full history.'],
-  [Truck, 'Materials, BBS & deliveries', 'Trace bar bending schedules, batches and delivery orders.'],
-  [NotebookPen, 'Site diary & lifting permits', 'Daily records and permit-to-work status in one place.'],
-];
 
 function GoogleMark() {
   return <svg viewBox="0 0 48 48" className="w-5 h-5" aria-hidden="true" focusable="false">
@@ -81,30 +76,28 @@ const LoginView = ({ initialMode = 'login' }) => {
 
   return (
     <main className="auth-shell min-h-screen flex w-full">
-      <div className="auth-brand-panel hidden lg:flex w-[46%] xl:w-1/2 flex-col justify-between p-12 xl:p-16">
-        <div className="grid-lines" aria-hidden="true" />
-        <button onClick={() => navigate('/')} className="relative flex items-center gap-3 self-start rounded-xl hover:opacity-90 transition-opacity">
+      <div className="auth-brand-panel hidden lg:flex w-[48%] xl:w-1/2 flex-col justify-between gap-10 p-12 xl:p-14 pb-16 max-h-screen overflow-y-auto sticky top-0">
+        <button onClick={() => navigate('/')} className="relative flex items-center gap-3 self-start hover:opacity-90">
           <AppLogo className="w-11 h-11" />
-          <span className="text-lg font-bold tracking-wide text-white">PROXIMA<span style={{ color: '#8fb1ff' }}>STRUC</span></span>
+          <span className="text-left"><span className="block text-2xl font-bold tracking-wide text-white display leading-none">PROXIMA<span style={{ color: '#f59a5b' }}>STRUC</span></span><span className="block mt-1 font-mono text-[10px] tracking-[.12em] uppercase" style={{ color: '#a3a8b0' }}>Project control · Construction</span></span>
         </button>
-        <div className="relative max-w-lg">
-          <p className="text-4xl xl:text-[2.75rem] font-bold tracking-tight text-white leading-[1.1]">Construction site monitoring, planned and recorded in one workspace.</p>
-          <p className="mt-5 text-base leading-relaxed" style={{ color: '#b9c6da' }}>Construction Logistics Management — planning, inspections, materials and site records for every project team.</p>
-          <ul className="mt-10 grid gap-4">
-            {FEATURES.map(([Icon, title, text]) => <li key={title} className="flex items-start gap-3.5">
-              <span className="flex items-center justify-center w-10 h-10 rounded-xl shrink-0" style={{ background: 'rgb(255 255 255 / 8%)', border: '1px solid rgb(255 255 255 / 14%)', color: '#a9c4ff' }}><Icon size={19} aria-hidden="true" /></span>
-              <span><span className="block font-semibold text-white text-[15px]">{title}</span><span className="block text-sm mt-0.5" style={{ color: '#a9b7cc' }}>{text}</span></span>
-            </li>)}
-          </ul>
+        <div className="relative max-w-xl">
+          <p className="font-mono text-[11px] tracking-[.14em] uppercase" style={{ color: '#f5c518' }}>Sheet register · Rev A</p>
+          <p className="display mt-3 text-4xl xl:text-[3.25rem] font-semibold uppercase text-white leading-[.95]">Every site record,<br />filed like a drawing.</p>
+          <p className="mt-5 text-[15px] leading-relaxed max-w-md" style={{ color: '#c9c5ba' }}>Construction Logistics Management — schedule, quality, materials, WSH and site records organised by project practice area.</p>
+          <table className="register-table mt-7">
+            <thead><tr><th scope="col">Sheet</th><th scope="col">Practice area</th><th scope="col">Reference</th></tr></thead>
+            <tbody>{Object.values(SHEETS).map(sheet => <tr key={sheet.code}><td>{sheet.code}</td><td>{sheet.area}</td><td>{sheet.ref}</td></tr>)}</tbody>
+          </table>
         </div>
-        <p className="relative text-xs" style={{ color: '#8a9ab4' }}>Records shown in the workspace are entered and confirmed by your project team.</p>
+        <p className="relative font-mono text-[10.5px] leading-relaxed" style={{ color: '#8f96a0' }}>ISO 21502 practice-area terms · ISO 19650 information naming · Singapore BCA &amp; MOM touchpoints. Records are entered and confirmed by your project team.</p>
       </div>
 
-      <div className="w-full lg:flex-1 flex flex-col relative">
+      <div className="w-full lg:flex-1 flex flex-col relative survey-grid">
         <div className="flex items-center justify-between gap-2 p-4 sm:p-6">
           <div className="flex items-center gap-2.5 lg:invisible">
             <AppLogo className="w-9 h-9" />
-            <span className="font-bold tracking-wide">PROXIMA<span style={{ color: 'var(--accent-text)' }}>STRUC</span></span>
+            <span className="display text-xl font-bold tracking-wide">PROXIMA<span style={{ color: 'var(--accent-text)' }}>STRUC</span></span>
           </div>
           <div className="flex gap-2">
             <button onClick={() => navigate('/')} className="btn btn-ghost btn-sm">Back to Home</button>
@@ -116,12 +109,16 @@ const LoginView = ({ initialMode = 'login' }) => {
 
         <div className="flex-1 flex items-center justify-center px-4 pb-16 pt-4">
           <div className="w-full max-w-[420px]">
-            <div className="mb-7">
-              <h1 className="text-2xl font-bold tracking-tight">{heading[0]}</h1>
-              <p className="text-muted mt-1.5 text-sm">{heading[1]}</p>
+            <div className="mb-6 flex items-end justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--rule)' }}>
+              <div>
+                <p className="eyebrow" style={{ color: 'var(--accent-text)' }}>Project access</p>
+                <h1 className="display text-4xl font-semibold uppercase leading-none mt-1.5">{heading[0]}</h1>
+                <p className="text-muted mt-2 text-sm">{heading[1]}</p>
+              </div>
+              <span className="sheet-code hidden sm:inline-flex">ACC-00</span>
             </div>
 
-            <div className="auth-card p-6 sm:p-7 space-y-5">
+            <div className="auth-card reg-marks p-6 sm:p-7 space-y-5">
               {mode === 'login' && (<>
                 <form onSubmit={handleEmailLogin} className="space-y-4">
                   <label className={labelClass}>Email<input aria-label="Email" name="email" type="email" autoComplete="email" value={formData.email} onChange={handleChange} className={inputClass} required /></label>

@@ -4,6 +4,7 @@ import { useRecordDeletions } from '../contexts/RecordDeletionContext';
 import { canReviewDeletion, isDeletionReviewer, RECORD_COLLECTIONS } from '../utils/deletions';
 import { Field, RecordModal, SaveForm, TextArea } from './RecordForm';
 import DeleteRecordAction from './DeleteRecordAction';
+import { sheetCode } from '../utils/sheets';
 
 const when = value => value?.toDate ? value.toDate().toLocaleString() : value ? new Date(value).toLocaleString() : 'Not recorded';
 export default function DeletionReviewPanel() {
@@ -17,7 +18,7 @@ export default function DeletionReviewPanel() {
       <div className="card-header">
         <div className="flex items-start gap-3 min-w-0">
           <span className="icon-tile"><ShieldCheck size={18} aria-hidden="true" /></span>
-          <div className="min-w-0"><h2 className="card-title">{reviewer ? 'Deletion verification' : 'Your deletion requests'}</h2><p className="card-subtitle">Admins delete directly. Creators request deletion; an independent admin or manager verifies it.</p></div>
+          <div className="min-w-0"><div className="title-row"><span className="sheet-code">{sheetCode('users', 2)}</span><h2 className="card-title">{reviewer ? 'Deletion verification' : 'Your deletion requests'}</h2></div><p className="card-subtitle">Admins delete directly. Creators request deletion; an independent admin or manager verifies it.</p></div>
         </div>
       </div>
       <div className="card-body space-y-3">
@@ -36,7 +37,7 @@ export default function DeletionReviewPanel() {
       <div className="card-header">
         <div className="flex items-start gap-3 min-w-0">
           <span className="icon-tile" data-tone="danger"><Trash2 size={18} aria-hidden="true" /></span>
-          <div className="min-w-0"><h2 className="card-title">Record deletion controls</h2><p className="card-subtitle">All record types are available here, including zones and observations. Only admins can delete another person's record directly.</p></div>
+          <div className="min-w-0"><div className="title-row"><span className="sheet-code">{sheetCode('users', 3)}</span><h2 className="card-title">Record deletion controls</h2></div><p className="card-subtitle">All record types are available here, including zones and observations. Only admins can delete another person's record directly.</p></div>
         </div>
         <Field label="Record type for deletion" className="w-full sm:w-64" value={collection} onChange={event=>setCollection(event.target.value)}>{Object.entries(RECORD_COLLECTIONS).map(([key,label])=><option key={key} value={key}>{label}</option>)}</Field>
       </div>

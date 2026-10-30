@@ -5,6 +5,7 @@ import { canRecordSite, today } from '../utils/siteData';
 import { Field, SaveForm, RecordModal, TextArea } from './RecordForm';
 import RecordSearch from './RecordSearch';
 import { matchesRecordSearch } from '../utils/recordSearch';
+import { sheetCode } from '../utils/sheets';
 
 const CATEGORIES = ['Work progress', 'Manpower', 'Plant & equipment', 'Delivery', 'Inspection', 'Safety', 'Environment', 'Weather', 'Instruction', 'Visitor', 'Delay', 'Other'];
 const CATEGORY_TONE = { Safety: 'warning', Delay: 'danger', Inspection: 'info', 'Work progress': 'success' };
@@ -27,7 +28,7 @@ export default function SiteDiaryView({ weatherLogs = [], onAddWeatherLog, onUpd
   return <div className="space-y-6">
     <div className="card">
       <div className="card-header items-center">
-        <div className="min-w-0"><h2 className="card-title">Daily site diary</h2><p className="card-subtitle">Work, people, plant, deliveries, inspections, instructions, safety and delays. Supervisors, engineers, managers and admins may add records.</p></div>
+        <div className="min-w-0"><div className="title-row"><span className="sheet-code">{sheetCode('diary', 1)}</span><h2 className="card-title">Daily site diary</h2></div><p className="card-subtitle">Work, people, plant, deliveries, inspections, instructions, safety and delays. Supervisors, engineers, managers and admins may add records.</p></div>
         {permitted && <button className="btn btn-primary shrink-0" onClick={() => { setEditing(null); setForm(blankEntry()); }}>+ Add site entry</button>}
       </div>
       <div className="record-toolbar px-5 pt-4 pb-1 flex flex-wrap gap-4 items-start">

@@ -4,6 +4,7 @@ import { canRecordSite, validateMaterial } from '../utils/siteData';
 import { Field, SaveForm, RecordModal } from './RecordForm';
 import RecordSearch from './RecordSearch';
 import { matchesRecordSearch } from '../utils/recordSearch';
+import { sheetCode } from '../utils/sheets';
 
 const TYPES = ['BBS', 'Concrete', 'Delivery Order'];
 const STATUSES = ['Planned', 'Ordered', 'Dispatched', 'Received', 'Delayed', 'Rejected', 'Installed', 'Poured'];
@@ -28,7 +29,7 @@ export default function MaterialsView({ materials = [], onAdd, onUpdate, current
 
     <div className="card overflow-hidden">
       <div className="card-header items-center">
-        <div className="min-w-0"><h2 className="card-title">BBS, Concrete Batches & Delivery Orders</h2><p className="card-subtitle">Traceability from bar bending schedules and batch tickets through to delivery and receipt.</p></div>
+        <div className="min-w-0"><div className="title-row"><span className="sheet-code">{sheetCode('materials', 1)}</span><h2 className="card-title">BBS, Concrete Batches & Delivery Orders</h2></div><p className="card-subtitle">Traceability from bar bending schedules and batch tickets through to delivery and receipt.</p></div>
         {permitted && <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(blank()); }}>+ Add material record</button>}
       </div>
       <div className="record-toolbar px-5 pt-4 pb-1 flex flex-wrap gap-4 items-end">

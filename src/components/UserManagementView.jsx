@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 import { RecordModal } from './RecordForm';
 import DeleteRecordAction from './DeleteRecordAction';
 import { today } from '../utils/siteData';
+import { sheetCode } from '../utils/sheets';
 
 const CATEGORIES = ['All', 'Main Contractor', 'Consultant / RE / RTO', 'Specialist Subcontractor'];
 const initialsOf = value => (value || '').split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('') || '?';
@@ -81,7 +82,7 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
 
       <div className="card overflow-hidden">
         <div className="card-header items-center">
-          <div className="min-w-0"><h2 className="card-title">Project personnel & access</h2><p className="card-subtitle">Organisations, statutory registrations and admin-assigned system roles.</p></div>
+          <div className="min-w-0"><div className="title-row"><span className="sheet-code">{sheetCode('users', 1)}</span><h2 className="card-title">Project personnel & access</h2></div><p className="card-subtitle">Organisations, statutory registrations and admin-assigned system roles.</p></div>
           {isAdmin && <button onClick={() => { setError(''); setIsAddModalOpen(true); }} className="btn btn-primary">+ Register Site Personnel / Subcon</button>}
         </div>
         <div className="px-5 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">

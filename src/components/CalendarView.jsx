@@ -4,6 +4,7 @@ import DeleteRecordAction from './DeleteRecordAction';
 import { canPlan, taskProgress, taskConstraints, validateTask, taskStatus, TASK_STATUSES, projectProgress } from '../utils/siteData';
 import { Field, SaveForm, RecordModal } from './RecordForm';
 import ProjectTimeline from './ProjectTimeline';
+import { sheetCode } from '../utils/sheets';
 
 const emptyTask = () => ({ wbs: '', activity: '', zone: '', owner: '', startDate: '', endDate: '', progress: '0', status: 'lookahead', predecessorId: '', inspectionId: '', materialId: '', blocker: '', commitment: '' });
 const COLUMNS = TASK_STATUSES.filter(([id]) => id !== 'blocked');
@@ -35,7 +36,7 @@ export default function CalendarView({ tasks, allTasks = tasks, inspections = []
   return <div className="space-y-6 min-w-0">
     <div className="card overflow-hidden flex flex-col">
       <div className="card-header items-center">
-        <div className="min-w-0"><h2 className="card-title">Site Planning</h2><p className="card-subtitle">Lean-agile lookahead, make-ready and sprint commitments. Only admins, managers and engineers can change the plan.</p></div>
+        <div className="min-w-0"><div className="title-row"><span className="sheet-code">{sheetCode('calendar', 1)}</span><h2 className="card-title">Site Planning</h2></div><p className="card-subtitle">Lean-agile lookahead, make-ready and sprint commitments. Only admins, managers and engineers can change the plan.</p></div>
         {permitted && <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(emptyTask()); }}>+ Add activity</button>}
       </div>
       {error && <p role="alert" className="form-error mx-5 mt-4">{error}</p>}

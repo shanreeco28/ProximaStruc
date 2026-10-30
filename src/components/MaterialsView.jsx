@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import DeleteRecordAction from './DeleteRecordAction';
 import { canRecordSite, validateMaterial } from '../utils/siteData';
 import { Field, SaveForm, RecordModal } from './RecordForm';
-
 import RecordSearch from './RecordSearch';
 import { matchesRecordSearch } from '../utils/recordSearch';
+import { sheetCode } from '../utils/sheets';
 
 const TYPES = ['BBS', 'Concrete', 'Delivery Order'];
 const STATUSES = ['Planned', 'Ordered', 'Dispatched', 'Received', 'Delayed', 'Rejected', 'Installed', 'Poured'];
+const STATUS_TONE = { Received: 'success', Installed: 'success', Poured: 'success', Dispatched: 'info', Ordered: 'info', Delayed: 'danger', Rejected: 'danger' };
 const blank = () => ({ type: '', reference: '', zone: '', element: '', supplier: '', quantity: '', unit: '', doNumber: '', deliveryDate: '', actualDate: '', status: 'Planned', drawingRef: '', barMark: '', barDiameter: '', cuttingLength: '', barCount: '', grade: '', pourLocation: '', batchTicket: '', slump: '', cubeRef: '', testResult: '', linkedRecordId: '', taskId: '', notes: '' });
 export default function MaterialsView({ materials = [], onAdd, onUpdate, currentUser, zones = [], tasks = [] }) {
   const [type, setType] = useState('All');
@@ -17,16 +18,38 @@ export default function MaterialsView({ materials = [], onAdd, onUpdate, current
   const permitted = canRecordSite(currentUser);
   const change = key => e => setForm({ ...form, [key]: e.target.value });
   const delivered = materials.filter(m => ['Received', 'Installed', 'Poured'].includes(m.status)).length;
+  const constraints = materials.filter(m => ['Delayed', 'Rejected'].includes(m.status)).length;
   const filtered = materials.filter(m => (type === 'All' || m.type === type) && matchesRecordSearch(search, [m.id, ...Object.keys(blank()).map(key => m[key]), tasks.find(t => t.id === m.taskId)?.activity, materials.find(record => record.id === m.linkedRecordId)?.reference]));
   return <div className="space-y-6">
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{[['Received material records', `${delivered} / ${materials.length}`, 'Recorded receipt, installation or pour'], ['Concrete batches', materials.filter(m => m.type === 'Concrete').length, `${materials.filter(m => m.type === 'Concrete' && m.testResult).length} with recorded test results`], ['BBS / delivery constraints', materials.filter(m => ['Delayed', 'Rejected'].includes(m.status)).length, 'Delayed or rejected records requiring follow-up']].map(([label, value, sub]) => <div key={label} className="bg-white p-4 rounded-xl border border-slate-200"><span className="text-[11px] font-bold uppercase text-slate-400">{label}</span><div className="text-2xl font-bold font-mono mt-1">{value}</div><span className="text-xs text-slate-500">{sub}</span></div>)}</div>
-    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-      <div className="p-4 border-b flex flex-wrap justify-between items-center gap-3"><h2 className="text-sm font-bold uppercase tracking-wider">BBS, Concrete Batches & Delivery Orders</h2>{permitted && <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm" onClick={() => { setEditing(null); setForm(blank()); }}>+ Add material record</button>}</div>
-      <div className="record-toolbar px-4 py-4 flex flex-wrap gap-4 items-center"><RecordSearch label="Search materials" placeholder="Reference, supplier, element or delivery…" value={search} onChange={setSearch} count={filtered.length} total={materials.length} /><div className="flex flex-wrap gap-2">{['All', ...TYPES].map(t => <button key={t} aria-pressed={type === t} onClick={() => setType(t)} className={`px-3 py-2 rounded-lg text-xs font-semibold ${type === t ? 'bg-slate-900 text-white' : 'bg-slate-100'}`}>{t}</button>)}</div></div>
-      <div className="overflow-x-auto" role="region" aria-label="Materials records" tabIndex={0}><table className="w-full text-left text-sm"><thead><tr className="bg-slate-50 border-b text-[11px] font-bold uppercase text-slate-500">{['Reference / type', 'Element & supplier', 'Quantity & DO', 'Delivery / traceability', 'Site status', 'Action'].map(h => <th scope="col" key={h} className="py-3 px-4">{h}</th>)}</tr></thead><tbody className="divide-y">
-        {filtered.map(m => <tr key={m.id} className="hover:bg-slate-50"><td className="p-4 font-mono font-bold">{m.reference || m.id}<span className="block text-xs font-normal text-slate-500">{m.type || 'Unclassified'}</span></td><td className="p-4"><div className="font-semibold">{m.element}</div><div className="text-xs text-slate-500">{m.zone} · {m.supplier || 'Supplier not recorded'}</div></td><td className="p-4"><div>{m.quantity} {m.unit}</div><div className="text-xs text-slate-500">DO: {m.doNumber || 'Not recorded'}</div>{m.linkedRecordId && <div className="text-xs">Linked: {materials.find(r => r.id === m.linkedRecordId)?.reference || m.linkedRecordId}</div>}</td><td className="p-4 text-xs"><div>Required: {m.deliveryDate || 'Not recorded'}</div><div>Received: {m.actualDate || 'Not recorded'}</div>{m.type === 'BBS' && <div>Drawing: {m.drawingRef || '—'} · Mark {m.barMark || '—'} · Ø {m.barDiameter || '—'} mm · {m.barCount || '—'} bars · {m.cuttingLength || '—'} mm</div>}{m.type === 'Concrete' && <div>Mix: {m.grade || '—'} · Pour: {m.pourLocation || '—'} · Batch: {m.batchTicket || '—'} · Slump: {m.slump || '—'} mm · Cube: {m.cubeRef || '—'} · Test: {m.testResult || 'Not recorded'}</div>}{m.taskId && <div>Activity: {tasks.find(t => t.id === m.taskId)?.activity || m.taskId}</div>}{m.notes && <p className="text-slate-500 mt-1">{m.notes}</p>}</td><td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${['Delayed', 'Rejected'].includes(m.status) ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'}`}>{m.status || 'Not recorded'}</span></td><td className="p-4">{permitted && <button className="text-blue-700 text-xs font-semibold" onClick={() => { setEditing(m.id); setForm({ ...blank(), ...m }); }}>Edit / Receive</button>}<DeleteRecordAction collection="materials" record={m} /></td></tr>)}
-        {!filtered.length && <tr><td colSpan="6" className="p-8 text-center text-slate-500">No material records for this selection.</td></tr>}
-      </tbody></table></div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{[
+      ['Received material records', `${delivered} / ${materials.length}`, 'Recorded receipt, installation or pour', delivered ? 'info' : undefined],
+      ['Concrete batches', materials.filter(m => m.type === 'Concrete').length, `${materials.filter(m => m.type === 'Concrete' && m.testResult).length} with recorded test results`, undefined],
+      ['BBS / delivery constraints', constraints, 'Delayed or rejected records requiring follow-up', constraints ? 'danger' : undefined],
+    ].map(([label, value, sub, tone]) => <div key={label} className="stat-tile" data-tone={tone}><span className="eyebrow">{label}</span><span className="stat-value">{value}</span><span className="text-xs text-muted">{sub}</span></div>)}</div>
+
+    <div className="card overflow-hidden">
+      <div className="card-header items-center">
+        <div className="min-w-0"><div className="title-row"><span className="sheet-code">{sheetCode('materials', 1)}</span><h2 className="card-title">BBS, Concrete Batches & Delivery Orders</h2></div><p className="card-subtitle">Traceability from bar bending schedules and batch tickets through to delivery and receipt.</p></div>
+        {permitted && <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(blank()); }}>+ Add material record</button>}
+      </div>
+      <div className="record-toolbar px-5 pt-4 pb-1 flex flex-wrap gap-4 items-end">
+        <RecordSearch label="Search materials" placeholder="Reference, supplier, element or delivery…" value={search} onChange={setSearch} count={filtered.length} total={materials.length} />
+        <div className="chip-group mb-6" role="group" aria-label="Material filters">{['All', ...TYPES].map(t => <button key={t} type="button" aria-pressed={type === t} onClick={() => setType(t)} className="chip">{t}</button>)}</div>
+      </div>
+      <div className="overflow-x-auto border-t" style={{ borderColor: 'var(--border)' }} role="region" aria-label="Materials records" tabIndex={0}><table className="data-table">
+        <thead><tr>{['Reference / type', 'Element & supplier', 'Quantity & DO', 'Delivery / traceability', 'Site status', 'Action'].map(h => <th scope="col" key={h}>{h}</th>)}</tr></thead>
+        <tbody>
+          {filtered.map(m => <tr key={m.id}>
+            <td className="font-mono font-semibold whitespace-nowrap">{m.reference || m.id}<span className="block text-xs font-normal text-muted font-sans mt-0.5">{m.type || 'Unclassified'}</span></td>
+            <td><div className="font-semibold">{m.element}</div><div className="text-xs text-muted mt-0.5">{m.zone} · {m.supplier || 'Supplier not recorded'}</div></td>
+            <td className="whitespace-nowrap"><div className="tabular">{m.quantity} {m.unit}</div><div className="text-xs text-muted mt-0.5">DO: {m.doNumber || 'Not recorded'}</div>{m.linkedRecordId && <div className="text-xs mt-0.5">Linked: {materials.find(r => r.id === m.linkedRecordId)?.reference || m.linkedRecordId}</div>}</td>
+            <td className="text-xs text-secondary space-y-0.5 min-w-[220px]"><div>Required: <span className="tabular">{m.deliveryDate || 'Not recorded'}</span></div><div>Received: <span className="tabular">{m.actualDate || 'Not recorded'}</span></div>{m.type === 'BBS' && <div>Drawing: {m.drawingRef || '—'} · Mark {m.barMark || '—'} · Ø {m.barDiameter || '—'} mm · {m.barCount || '—'} bars · {m.cuttingLength || '—'} mm</div>}{m.type === 'Concrete' && <div>Mix: {m.grade || '—'} · Pour: {m.pourLocation || '—'} · Batch: {m.batchTicket || '—'} · Slump: {m.slump || '—'} mm · Cube: {m.cubeRef || '—'} · Test: {m.testResult || 'Not recorded'}</div>}{m.taskId && <div>Activity: {tasks.find(t => t.id === m.taskId)?.activity || m.taskId}</div>}{m.notes && <p className="text-muted mt-1">{m.notes}</p>}</td>
+            <td><span className="badge badge-dot" data-tone={STATUS_TONE[m.status]}>{m.status || 'Not recorded'}</span></td>
+            <td><div className="flex flex-col items-start gap-1">{permitted && <button className="link-action" onClick={() => { setEditing(m.id); setForm({ ...blank(), ...m }); }}>Edit / Receive</button>}<DeleteRecordAction collection="materials" record={m} /></div></td>
+          </tr>)}
+          {!filtered.length && <tr><td colSpan="6" className="!py-10 text-center text-muted">No material records for this selection.</td></tr>}
+        </tbody>
+      </table></div>
     </div>
     {form && permitted && <RecordModal title={editing ? 'Edit material record' : 'Add material record'} onClose={() => setForm(null)}><SaveForm submitLabel="Save material record" onSave={async () => {
       const error = validateMaterial(form); if (error) throw new Error(error);
@@ -34,7 +57,7 @@ export default function MaterialsView({ materials = [], onAdd, onUpdate, current
       if (materials.some(m => m.id !== editing && m.reference === form.reference.trim() && m.type === form.type)) throw new Error('This reference already exists for this record type.');
       const record = { ...form, reference: form.reference.trim(), quantity: Number(form.quantity) };
       if (editing) await onUpdate(editing, record); else await onAdd(record); setForm(null);
-    }}><div className="grid sm:grid-cols-2 gap-3">
+    }}><div className="form-grid">
       <Field label="Record type" required disabled={!!editing} value={form.type} onChange={e => setForm({ ...blank(), type: e.target.value })}><option value="">Select type</option>{TYPES.map(t => <option key={t}>{t}</option>)}</Field>
       <Field label="Tag / batch / record reference" required value={form.reference} onChange={change('reference')} />
       <Field label="Zone" required value={form.zone} onChange={change('zone')}><option value="">Select zone</option>{zones.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}</Field>
@@ -50,7 +73,7 @@ export default function MaterialsView({ materials = [], onAdd, onUpdate, current
       <Field label="Related BBS / batch / DO record" value={form.linkedRecordId} onChange={change('linkedRecordId')}><option value="">None</option>{materials.filter(m => m.id !== editing).map(m => <option key={m.id} value={m.id}>{m.type} · {m.reference || m.id}</option>)}</Field>
       {form.type === 'BBS' && <>{[['drawingRef', 'Drawing & revision'], ['barMark', 'Bar mark'], ['barDiameter', 'Diameter (mm)'], ['cuttingLength', 'Cutting length (mm)'], ['barCount', 'Number of bars']].map(([key, label]) => <Field key={key} label={label} required type={['barDiameter','cuttingLength','barCount'].includes(key) ? 'number' : 'text'} min="1" value={form[key]} onChange={change(key)} />)}</>}
       {form.type === 'Concrete' && <>{[['grade', 'Mix grade'], ['pourLocation', 'Pour location'], ['batchTicket', 'Batch ticket'], ['slump', 'Measured slump (mm)'], ['cubeRef', 'Cube sample / test reference'], ['testResult', 'Test result / age / strength']].map(([key, label]) => <Field key={key} label={label} required={['grade', 'pourLocation'].includes(key)} type={key === 'slump' ? 'number' : 'text'} min="0" value={form[key]} onChange={change(key)} />)}</>}
-      <Field label="Delivery / quality notes" value={form.notes} onChange={change('notes')} />
+      <Field label="Delivery / quality notes" className="sm:col-span-2" value={form.notes} onChange={change('notes')} />
     </div></SaveForm></RecordModal>}
   </div>;
 }

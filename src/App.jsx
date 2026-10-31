@@ -17,6 +17,9 @@ import ExecutiveReportModal from './components/ExecutiveReportModal';
 import MonitoringView from './components/MonitoringView';
 import useProjectRecords from './hooks/useProjectRecords';
 import useSelfRegistration from './hooks/useSelfRegistration';
+import useSiteOwner from './hooks/useSiteOwner';
+import useProjectMembers from './hooks/useProjectMembers';
+import { grantProjectAccess, revokeProjectAccess, setProjectAccessRole } from './services/projectAccess';
 import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canAdvanceInspection, canEditInspection, canCommentInspection, isInspectionClosed, INSPECTION_STAGES, taskStatus } from './utils/siteData';
 
 import { auth, db } from './firebase';
@@ -44,7 +47,12 @@ export default function App() {
   const [operationError, setOperationError] = useState('');
   const [deletionStatus, setDeletionStatus] = useState('');
   const liveProject = projects.find(p => p.id === selectedProject?.id);
-  const registration = useSelfRegistration(user, liveProject?.id, liveProject?.ownerId);
+  const siteOwner = useSiteOwner(user);
+  const isSiteOwner = siteOwner === true;
+  const [accessProjectId, setAccessProjectId] = useState('');
+  const accessProject = projects.find(p => p.id === accessProjectId) || projects[0];
+  const accessMembers = useProjectMembers(isSiteOwner && !selectedProject ? accessProject?.id : null);
+  const registration = useSelfRegistration(user, liveProject?.id, liveProject?.ownerId, siteOwner);
   const records = useProjectRecords(registration.ready ? selectedProject?.id : null, user?.uid);
   const inspections = records.inspections.items;
   const lifts = records.lifts.items;
@@ -85,7 +93,7 @@ export default function App() {
   }, [user]);
 
   const ownProfile = personnel.find(p => p.id === user?.email?.toLowerCase());
-  const currentUser = liveProject?.ownerId === user?.uid
+  const currentUser = liveProject && (liveProject.ownerId === user?.uid || isSiteOwner)
     ? { email: user?.email, name: ownProfile?.name || user?.displayName || user?.email, systemRole: 'admin' }
     : user?.emailVerified ? (personnel.find(p => p.id === user.email?.toLowerCase()) || personnel.find(p => p.email?.toLowerCase() === user.email?.toLowerCase())) : undefined;
   const isPrivileged = canPlan(currentUser);
@@ -284,6 +292,13 @@ export default function App() {
         projects={projects}
         user={user}
         onSelect={setSelectedProject}
+        isSiteOwner={isSiteOwner}
+        accessControl={{
+          projectId: accessProject?.id, onProjectChange: setAccessProjectId, members: accessMembers,
+          onGrant: (projectId, values) => grantProjectAccess(db, user, projectId, values),
+          onRoleChange: (projectId, id, systemRole) => setProjectAccessRole(db, user, projectId, id, systemRole),
+          onRevoke: (projectId, id, reason) => revokeProjectAccess(db, user, projectId, id, reason),
+        }}
         onAdd={async (newProject) => {
           try {
             const ref = doc(db, 'projects', newProject.id);
@@ -296,7 +311,7 @@ export default function App() {
           }
         }}
         onDelete={async (id, reason) => {
-          if (projects.find(project => project.id === id)?.ownerId !== user.uid) throw new Error('Open the project as an admin to delete it.');
+          if (!isSiteOwner) throw new Error('Only the site owner can delete projects.');
           await submitRecordDeletion(db, id, { uid: user.uid, email: user.email, systemRole: 'admin' }, 'projects', id, reason);
         }}
         onLogout={handleLogout}
@@ -306,7 +321,7 @@ export default function App() {
 
   const deletionContext = {
     user: { ...currentUser, uid: user.uid }, requests: deletionRequests,
-    records: { tasks, materials, lifts, inspections, weatherLogs, users: personnel, zones, monitoring: observations, projects: liveProject ? [liveProject] : [] },
+    records: { tasks, materials, lifts, inspections, weatherLogs, users: personnel, zones, monitoring: observations, projects: liveProject && isSiteOwner ? [liveProject] : [] },
     submit: async (collection, id, reason) => {
       const status = await submitRecordDeletion(db, selectedProject.id, { ...currentUser, uid: user.uid }, collection, id, reason);
       setDeletionStatus(status === 'pending' ? 'Deletion requested. The record remains available until verification.' : 'Record deleted. Verification history retained.');
@@ -372,7 +387,7 @@ export default function App() {
       </>}>
           <p role="status" className="sr-only">{deletionStatus}</p>
           {(operationError || registration.error || Object.values(records).some(r => r.error)) && <div role="alert" data-tone="danger" className="alert mb-5"><span className="flex-1 min-w-0">{operationError || registration.error || Object.values(records).find(r => r.error)?.error}</span><button onClick={() => setOperationError('')}>Dismiss</button></div>}
-          {user && !user.emailVerified && liveProject?.ownerId !== user.uid && <p data-tone="warning" className="alert mb-5"><span className="flex-1 min-w-0">Verify your email to use assigned project access.</span><button onClick={async () => { try { await sendEmailVerification(user); setOperationError('Verification email sent. Follow its link, then sign in again.'); } catch (e) { setOperationError(e.message); } }}>Send verification email</button></p>}
+          {user && !user.emailVerified && !isSiteOwner && liveProject?.ownerId !== user.uid && <p data-tone="warning" className="alert mb-5"><span className="flex-1 min-w-0">Verify your email to use assigned project access.</span><button onClick={async () => { try { await sendEmailVerification(user); setOperationError('Verification email sent. Follow its link, then sign in again.'); } catch (e) { setOperationError(e.message); } }}>Send verification email</button></p>}
           {!currentUser && <p data-tone="info" className="alert mb-5">{registration.pending ? 'Access requested. A project admin must assign your role before project records are shown.' : 'Project records require an admin-assigned role for your verified sign-in email.'}</p>}
           {activeTab === 'dashboard' && (
             <PMCommandDashboard

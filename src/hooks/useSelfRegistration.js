@@ -5,12 +5,13 @@ import { synchronizeProjectMembership } from '../services/projectMembership';
 
 // Synchronize registration without granting access based on an empty project roster.
 // New registrations stay pending until an admin assigns a role; the membership is
-// watched so approval takes effect without a reload.
-export default function useSelfRegistration(user, projectId, ownerId) {
+// watched so approval takes effect without a reload. Site owners already have admin access
+// everywhere, so they are not added to project rosters; siteOwner is undefined while loading.
+export default function useSelfRegistration(user, projectId, ownerId, siteOwner) {
   const [result, setResult] = useState({});
   const scope = `${user?.uid}/${projectId}`;
   useEffect(() => {
-    if (!user?.email || !projectId || !user.emailVerified && user.uid !== ownerId) return;
+    if (siteOwner !== false || !user?.email || !projectId || !user.emailVerified && user.uid !== ownerId) return;
     let active = true;
     let unsubscribe = () => {};
     const currentScope = `${user.uid}/${projectId}`;
@@ -27,6 +28,7 @@ export default function useSelfRegistration(user, projectId, ownerId) {
       }, failed);
     }).catch(failed);
     return () => { active = false; unsubscribe(); };
-  }, [user, projectId, ownerId]);
+  }, [user, projectId, ownerId, siteOwner]);
+  if (siteOwner && projectId) return { ready: true };
   return result.scope === scope ? result : { ready: false };
 }

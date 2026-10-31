@@ -34,6 +34,8 @@ export default function Harness() {
     inspections:[{id:'TEST-RFI',element:'Test slab',discipline:'Structural',zone:'East',createdBy:creator,stage:Number(query.get('stage') || 0),comments:[],history:[]}],
     users:[{id:'person@example.test',email:'person@example.test',name:'Test member',systemRole:'guest',organization:'Original organisation',createdBy:creator}],
   }));
+  const [access, setAccess] = useState({'fixture-project':[{id:'requester@example.test',email:'requester@example.test',name:'New requester',systemRole:'pending',createdBy:'requester@example.test'}],'second-project':[]});
+  const [accessProjectId, setAccessProjectId] = useState('fixture-project');
   const currentUser = {email:query.get('email') || creator,uid:`fixture-${role}`,systemRole:role};
   const accountUser = {...currentUser,displayName:accountProfile.name,emailVerified:true};
   const fail = () => {if(query.get('fail'))throw new Error('Test write rejected');};
@@ -74,7 +76,11 @@ export default function Harness() {
   const navGroups=[{group:'Executive & Planning',items:[{id:'dashboard',label:'PM Command Center'},{id:'calendar',label:'Site Planning'}]},{group:'Site Execution & QA/QC',items:[{id:'inspections',label:'RE/RTO Inspections (RFI)'},{id:'materials',label:'Materials, BBS & DOs'},{id:'diary',label:'Site Diary'},{id:'lifting',label:'Lifting Plan & PTW Matrix'}]},{group:'System & Access',items:[{id:'users',label:'Role & Subcon Matrix'},...(role==='admin'?[{id:'monitoring',label:'Admin Control Panel'}]:[])]}];
   return <RecordDeletionContext.Provider value={context}>
     {view==='account'?<main className="app-shell p-4 min-h-screen"><header className="h-20 bg-white border-b px-4 flex items-center justify-between gap-3"><h1 className="text-lg font-bold truncate min-w-0">RE/RTO Inspections (RFI)</h1><AccountControls {...accountProps}/></header>{accountAction&&<p role="status">{accountAction}</p>}</main>
-      :view==='projects'?<ProjectSelection projects={[{id:'fixture-project',name:'Test project',ownerId:currentUser.uid}]} user={accountUser} onSelect={()=>{}} onAdd={async()=>{}} onDelete={async()=>{fail();}} onLogout={accountProps.onLogout}/>
+      :view==='projects'?<ProjectSelection projects={[{id:'fixture-project',name:'Test project',ownerId:currentUser.uid},{id:'second-project',name:'Second project',ownerId:'someone-else'}]} user={accountUser} isSiteOwner={query.get('siteOwner')!=='false'} onSelect={()=>{}} onAdd={async()=>{}} onDelete={async()=>{fail();}} onLogout={accountProps.onLogout}
+        accessControl={{projectId:accessProjectId,onProjectChange:setAccessProjectId,members:{items:access[accessProjectId]},
+          onGrant:async(projectId,{email,name,systemRole})=>{fail();const id=email.trim().toLowerCase();const exists=access[projectId].some(m=>m.id===id);setAccess(prev=>({...prev,[projectId]:exists?prev[projectId].map(m=>m.id===id?{...m,systemRole}:m):[...prev[projectId],{id,email:id,name:name||id,systemRole,createdBy:currentUser.email}]}));return exists?'updated':'created';},
+          onRoleChange:async(projectId,id,systemRole)=>{fail();setAccess(prev=>({...prev,[projectId]:prev[projectId].map(m=>m.id===id?{...m,systemRole}:m)}));},
+          onRevoke:async(projectId,id)=>{fail();setAccess(prev=>({...prev,[projectId]:prev[projectId].filter(m=>m.id!==id)}));}}}/>
       :<WorkspaceShell project={{id:'fixture-project',name:'Test project'}} navGroups={navGroups} activeTab={view} onNavigate={setView} zones={data.zones} selectedZone="All Zones" onZoneChange={()=>{}} onAddZone={()=>{}} canAddZone={['admin','manager','engineer'].includes(role)} isAdmin={role==='admin'} {...accountProps}
         metrics={<>{[['Planning activities',data.tasks.length],['Inspections',data.inspections.length],['Material records',data.materials.length],['Lifting permits',data.lifts.length],['Personnel',data.users.length]].map(([name,value])=><button key={name} className="text-left p-3 rounded-lg border border-slate-200"><span className="text-xs text-slate-600 block">{name}</span><strong className="text-xl">{value}</strong></button>)}</>}>{views}</WorkspaceShell>}
     {brief&&view!=='account'&&<ExecutiveReportModal onClose={()=>setBrief(false)} projectName="Test project" tasks={data.tasks} inspections={data.inspections}/>}

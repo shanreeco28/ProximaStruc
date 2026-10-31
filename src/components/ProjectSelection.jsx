@@ -6,8 +6,10 @@ import AppLogo from './AppLogo';
 import ConstructionIcon from './ConstructionIcon';
 import FloatingThemeControl from './FloatingThemeControl';
 import AccountControls from './AccountControls';
+import ProjectAccessPanel from './ProjectAccessPanel';
 
-const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user }) => {
+// Only the site owner adds or deletes projects and assigns project access; the rules enforce the same.
+const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user, isSiteOwner = false, accessControl }) => {
   const [newProjectName, setNewProjectName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState('');
@@ -44,10 +46,11 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
             <h1 className="display text-4xl sm:text-5xl font-semibold uppercase leading-none mt-2">Select Project</h1>
             <p className="text-muted mt-2.5">Welcome back, {user?.name || 'User'}. Choose a workspace to continue.</p>
           </div>
-          <span className="badge stamp">{projects.length} project{projects.length === 1 ? '' : 's'} on register</span>
+          <span className="flex flex-wrap items-center gap-2">{isSiteOwner && <span className="badge" data-tone="info">Site owner</span>}<span className="badge stamp">{projects.length} project{projects.length === 1 ? '' : 's'} on register</span></span>
         </div>
 
         {error && <p role="alert" className="form-error">{error}</p>}
+        {!isSiteOwner && !projects.length && <p className="empty-state">No projects yet. Projects are created by the site owner.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {projects.map((project, index) => (
             <article key={project.id} className="project-card group">
@@ -64,7 +67,7 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
                   </span>
                 </span>
               </button>
-              {project.ownerId === user?.uid && onDelete && <div className="px-5 py-2.5 border-t flex justify-end" style={{ borderColor: 'var(--border)' }}>
+              {isSiteOwner && onDelete && <div className="px-5 py-2.5 border-t flex justify-end" style={{ borderColor: 'var(--border)' }}>
                 <RecordDeletionContext.Provider value={{ user: { email: user.email, uid: user.uid, systemRole: 'admin' }, requests: [], submit: (collection, id, reason) => onDelete(id, reason) }}>
                   <DeleteRecordAction collection="projects" record={project} />
                 </RecordDeletionContext.Provider>
@@ -72,7 +75,7 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
             </article>
           ))}
 
-          {isAdding ? (
+          {isSiteOwner && (isAdding ? (
             <div className="project-card p-5 animate-in-fade-in-up" style={{ borderStyle: 'dashed', borderColor: 'var(--accent)' }}>
               <h3 className="eyebrow mb-4">New Project</h3>
               <form onSubmit={handleAddSubmit} className="space-y-4 flex-1 flex flex-col">
@@ -90,8 +93,10 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user 
               <span className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}><Plus size={22} aria-hidden="true" /></span>
               <span className="font-semibold text-sm">Add New Project</span>
             </button>
-          )}
+          ))}
         </div>
+
+        {isSiteOwner && accessControl && <ProjectAccessPanel projects={projects} user={user} {...accessControl} />}
 
         <div className="flex justify-center pt-4">
           <button onClick={onLogout} className="btn btn-ghost rounded-full px-5" style={{ color: 'var(--danger)' }}>

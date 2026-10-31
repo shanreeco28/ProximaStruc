@@ -115,7 +115,7 @@ export function createMemberProfile(user, details = {}, isOwner = false, timesta
     role: typeof details.designation === 'string' ? details.designation : '',
     birthday: typeof details.birthday === 'string' ? details.birthday : '',
     organization: '', category: '', statutoryReg: '', certExpiry: '', bizSafe: '',
-    cdePermission: 'Project member', ptwAuthority: [], systemRole: isOwner ? 'admin' : 'guest',
+    cdePermission: 'Project member', ptwAuthority: [], systemRole: isOwner ? 'admin' : 'pending',
     createdBy: user.email, createdAt: timestamp,
   };
 }

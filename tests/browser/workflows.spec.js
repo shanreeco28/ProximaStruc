@@ -232,3 +232,43 @@ test('mobile account controls fit the header and logout dispatches', async ({pag
   await page.getByRole('button',{name:'Log out',exact:true}).click();
   await expect(page.getByRole('status')).toHaveText('Logged out');
 });
+test('site owner controls projects and assigns project access from project selection', async ({page}) => {
+  await open(page,'projects','admin','&siteOwner=false');
+  await expect(page.getByRole('heading',{name:'Select Project'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Add New Project'})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:/^Delete /})).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'Project access control'})).toHaveCount(0);
+
+  await open(page,'projects');
+  await expect(page.getByText('Site owner',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Add New Project'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Delete Test project'})).toBeVisible();
+  const panel = page.getByRole('region',{name:'Project access control'});
+  await expect(panel.getByText('1 access request awaiting a role on Test project.')).toBeVisible();
+  await panel.getByLabel('Project role for New requester').selectOption('supervisor');
+  await expect(panel.getByRole('status')).toHaveText('New requester is now Supervisor on Test project.');
+  await expect(panel.getByText('access request awaiting')).toHaveCount(0);
+
+  await panel.getByLabel('Project',{exact:true}).selectOption('second-project');
+  await expect(panel.getByText('No accounts have access to this project yet.')).toBeVisible();
+  await panel.getByLabel('Sign-in email').fill('Engineer@Example.test');
+  await panel.getByLabel('Project role',{exact:true}).selectOption('engineer');
+  await panel.getByRole('button',{name:'Grant access'}).click();
+  await expect(panel.getByRole('status')).toHaveText('engineer@example.test can now open Second project.');
+  await expect(panel.getByLabel('Project role for engineer@example.test')).toHaveValue('engineer');
+
+  await panel.getByRole('button',{name:'Delete engineer@example.test'}).click();
+  await page.getByRole('dialog').getByLabel('Reason for deletion').fill('Left the project');
+  await page.getByRole('dialog').getByRole('button',{name:'Delete record'}).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(panel.getByText('No accounts have access to this project yet.')).toBeVisible();
+  await expect(panel.getByRole('status')).toHaveText('Access removed. The membership snapshot and reason are retained.');
+});
+test('failed access changes keep the form and show an error', async ({page}) => {
+  await open(page,'projects','admin','&fail=1');
+  const panel = page.getByRole('region',{name:'Project access control'});
+  await panel.getByLabel('Sign-in email').fill('someone@example.test');
+  await panel.getByRole('button',{name:'Grant access'}).click();
+  await expect(panel.getByRole('alert')).toHaveText('Test write rejected');
+  await expect(panel.getByLabel('Sign-in email')).toHaveValue('someone@example.test');
+});

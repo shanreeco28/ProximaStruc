@@ -158,6 +158,7 @@ export default function UserManagementView({ users, onAddPersonnel, onUpdatePers
                           onChange={(e) => onUpdatePersonnelRole && onUpdatePersonnelRole(person.id, e.target.value)}
                           className="field-control !mt-0 !w-auto !min-h-[36px] !py-1.5 text-xs"
                         >
+                          {person.systemRole === 'pending' && <option value="pending" disabled>Access requested</option>}
                           <option value="guest">Guest</option>
                           <option value="admin">Admin</option>
                           <option value="manager">Manager</option>

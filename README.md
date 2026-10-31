@@ -64,7 +64,7 @@ Plan progress is duration-weighted across activities with valid dates, with plan
 
 ## Roles and permissions
 
-Access is bound to a verified sign-in email and enforced in the UI and in Firestore security rules. The project creator is its owner and admin.
+Access is bound to a verified sign-in email and enforced in the UI and in Firestore security rules. The site owner creates projects and becomes each new project's owner and admin. Projects created before the site owner existed keep their recorded owner as admin.
 
 | Action | Admin / owner | Manager | Engineer | Supervisor | RE | RTO | Guest |
 | --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -81,12 +81,25 @@ Access is bound to a verified sign-in email and enforced in the UI and in Firest
 | Request deletion of own records | n/a | Yes | Yes | Yes | Yes | Yes | Yes |
 | Verify another user's deletion request | Yes | Yes | | | | | |
 
-Job titles are descriptive and never grant access.
+Job titles are descriptive and never grant access. Signing up and opening a project only files an **access request**: the membership is created with the `pending` role, which cannot read project records. An admin assigns a role in **Stakeholders and Access**, or the site owner assigns one from **Project access control**, to grant access.
+
+### Site owner
+
+The **site owner** is the website master. Only the site owner can add or delete projects. The project selection screen gives the site owner a **Project access control** panel: choose a project, approve access requests by assigning a role, grant access to a sign-in email, change roles, or remove access. Removing access keeps the membership snapshot and reason, as other deletions do. The site owner acts as admin inside every project without being added to its personnel list.
+
+The site owner is designated only in the Firebase Console, so no one can promote themselves from the app:
+
+1. In **Authentication > Users**, sign in once with the owner account, then copy its **User UID**.
+2. In **Firestore Database > Data**, create the collection `siteOwners` and a document whose ID is that UID. Fields are optional; for example, add `email` with a string value as a reminder.
+3. Reload the site. The project selection screen shows a **Site owner** badge and the access control panel.
+
+Delete that document to remove the designation. You can designate more than one site owner.
+
 
 ## Tech stack
 
 - **Frontend:** React 19, React Router 7, Vite 7, Tailwind CSS 3, lucide-react
-- **Backend services:** Firebase Authentication (Google), Cloud Firestore with offline persistence, Firebase Storage
+- **Backend services:** Firebase Authentication (Google, email), Cloud Firestore with offline persistence
 - **Quality tooling:** ESLint 9, Node test runner, Playwright with axe-core, Firebase emulator rules tests
 - **Hosting configuration:** Vercel (`vercel.json`) and Firebase (`firebase.json`)
 
@@ -106,16 +119,13 @@ cd ProximaStruc
 npm install
 ```
 
-Create a `.env` file in the project root with your Firebase web app settings:
+Copy the template and fill in your Firebase web app settings (Firebase Console, Project settings, Your apps):
 
 ```bash
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-VITE_FIREBASE_APP_ID=
+cp .env.example .env
 ```
+
+`.env` is ignored by git. Do not commit it.
 
 Then start the development server:
 
@@ -141,7 +151,7 @@ npm run dev
 - **Browser tests** run against isolated component fixtures with no Firebase connection. They cover role visibility, the planning board, save and failed-save handling, diary, BBS receipt, observations, account controls, deletion requests, the five-stage RFI workflow, mobile navigation, axe accessibility checks and 320px reflow. Set `CHROMIUM_PATH` if Chromium is not at `/usr/bin/chromium`.
 - **Rules tests** run the Firestore emulator against the demo project `demo-proximastruc` and check reads and writes, role escalation, registration sync, organisation updates and RFI transitions. No production credentials are needed.
 
-At the last recorded verification, lint and build passed with 29 unit tests, 34 browser tests and 42 Firestore rules tests.
+At the last recorded verification, lint and build passed with 34 unit tests and 46 Firestore rules tests. In the browser suite, 35 tests passed and 17 failed, all on pre-existing axe findings (`label-content-name-mismatch`, `landmark-unique`).
 
 ## Deployment
 
@@ -154,6 +164,12 @@ At the last recorded verification, lint and build passed with 29 unit tests, 34 
    ```
 
    Never use the demo test project for deployment.
+4. Deploy `storage.rules` (deny all; the app does not use Cloud Storage) with `npx firebase deploy --only storage --project <your-project-id>`.
+5. `vercel.json` sets a Content Security Policy and other security headers. If you add a new external service, add its origin to the policy.
+
+6. Designate the site owner (see [Site owner](#site-owner)). Until one exists, nobody can create or delete projects.
+
+See [SECURITY.md](SECURITY.md) for the production hardening checklist.
 
 ### Migrating an existing project
 
@@ -180,6 +196,8 @@ ProximaStruc/
 │   └── rules/          Firestore emulator rules tests
 ├── docs/               Workflow and policy documentation
 ├── firestore.rules     Backend role enforcement
+├── storage.rules       Cloud Storage lockdown (deny all)
+├── vercel.json         SPA rewrites and security headers
 └── AGENTS.md           Project requirements for contributors and tooling
 ```
 
@@ -195,6 +213,7 @@ ProximaStruc/
 ## Further documentation
 
 - [Site workflows](docs/site-workflows.md): full workflow, role, deletion and migration notes
+- [SECURITY.md](SECURITY.md): production hardening checklist and vulnerability reporting
 - [AGENTS.md](AGENTS.md): product requirements and contribution constraints
 
 ## Licence

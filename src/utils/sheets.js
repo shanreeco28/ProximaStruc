@@ -10,6 +10,7 @@ export const SHEETS = {
   lifting: { code: 'WSH-05', area: 'Risk · workplace safety & health', ref: 'MOM WSH · lifting permit-to-work' },
   users: { code: 'STK-06', area: 'Stakeholders & access', ref: 'Appointed parties · bizSAFE · CSOC' },
   monitoring: { code: 'ADM-07', area: 'Site observations', ref: 'Admin-confirmed readings' },
+  access: { code: 'ADM-00', area: 'Site administration', ref: 'Site owner project access' },
 };
 
 export const sheetFor = id => SHEETS[id] || { code: 'PRJ', area: 'Project workspace', ref: '' };

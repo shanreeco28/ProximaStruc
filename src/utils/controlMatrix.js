@@ -36,7 +36,7 @@ export function controlMatrix({ tasks = [], inspections = [], materials = [], di
   const certs = users.map(u => certificateStatus(u.certExpiry, today));
   const expired = certs.filter(s => s === 'expired').length;
   const expiring = certs.filter(s => s === 'expiring').length;
-  const unassigned = users.filter(u => !u.systemRole || u.systemRole === 'guest').length;
+  const unassigned = users.filter(u => !u.systemRole || ['guest', 'pending'].includes(u.systemRole)).length;
   return [
     row('calendar', tasks.length, blocked, blocked ? 'action' : 'clear',
       `${tasks.length} activities · ${progress === null ? 'progress not recorded' : `${progress.toFixed(1)}% recorded progress`}`, 'blocked'),

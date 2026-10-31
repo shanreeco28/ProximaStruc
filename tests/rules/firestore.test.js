@@ -7,6 +7,7 @@ import { createMemberProfile, INSPECTION_STAGES, canAdvanceInspection } from '..
 import { synchronizeProjectMembership } from '../../src/services/projectMembership.js';
 import { submitRecordDeletion, reviewRecordDeletion } from '../../src/services/recordDeletion.js';
 import { saveOwnProjectProfile } from '../../src/services/personalProfile.js';
+import { grantProjectAccess, setProjectAccessRole, revokeProjectAccess } from '../../src/services/projectAccess.js';
 let env;
 const project='demo-proximastruc';
 const audit = email => ({createdBy:email,createdAt:'2026-01-01T00:00:00Z'});
@@ -18,6 +19,7 @@ before(async () => {
     const db=ctx.firestore();
     await setDoc(doc(db,'projects/p'),{name:'Test project',ownerId:'owner'});
     await setDoc(doc(db,'projects/other'),{name:'Other project',ownerId:'otherOwner'});
+    await setDoc(doc(db,'siteOwners/siteowner'),{note:'Designated in the Firebase Console'});
     for(const role of ['admin','manager','engineer','supervisor','guest','RE','RTO']) await setDoc(doc(db,`artifacts/p/users/${role.toLowerCase()}@example.test`),{email:`${role}@example.test`,systemRole:role});
     await setDoc(doc(db,'artifacts/p/tasks/existing'),task('admin@example.test'));
   });
@@ -40,6 +42,15 @@ for(const role of ['admin','manager','engineer','supervisor','guest','RE','RTO']
     await check(setDoc(doc(db,`artifacts/p/users/invite-${role}@example.test`),{email:`invite-${role}@example.test`,systemRole:'engineer',...audit(email)}));
   });
 }
+test('only the site owner can create projects, using the expected workspace fields',async()=>{
+  await assertFails(setDoc(doc(client('creator'),'projects/created'),{name:'New workspace',id:'created',ownerId:'creator',...audit('creator@example.test')}));
+  await assertFails(setDoc(doc(client('admin'),'projects/created'),{name:'New workspace',id:'created',ownerId:'admin',...audit('admin@example.test')}));
+  const db=client('siteowner'),base={name:'New workspace',id:'created',ownerId:'siteowner',...audit('siteowner@example.test')};
+  await assertFails(setDoc(doc(db,'projects/created'),{...base,extra:'x'.repeat(10)}));
+  await assertFails(setDoc(doc(db,'projects/created'),{...base,name:''}));
+  await assertFails(setDoc(doc(db,'projects/created'),{...base,id:'someone-else'}));
+  await assertSucceeds(setDoc(doc(db,'projects/created'),base));
+});
 test('project creator can bootstrap admin, but cannot take over an existing project',async()=>{
   const db=client('owner');
   await assertSucceeds(setDoc(doc(db,'artifacts/p/monitoring/owner'),{weather:'Rain',confirmedBy:'owner@example.test',confirmedAt:'2026-01-01',...audit('owner@example.test')}));
@@ -69,15 +80,22 @@ test('observation confirmations cannot be silently overwritten',async()=>{
 
 const changed = role => ({updatedBy:`${role}@example.test`,updatedAt:'2026-10-26T00:00:00Z'});
 const seed = async (path, data) => env.withSecurityRulesDisabled(ctx=>setDoc(doc(ctx.firestore(),path),data));
-test('verified new registrations can read and create only their own guest profile',async()=>{
+test('verified new registrations can read and create only their own pending access request',async()=>{
   const db=client('newcomer');
   const ref=doc(db,'artifacts/p/users/newcomer@example.test');
   await assertSucceeds(getDoc(ref));
   const profile=createMemberProfile({email:'newcomer@example.test',displayName:'New person'},{designation:'Site supervisor'},false,'2026-10-26');
   await assertFails(setDoc(ref,{...profile,systemRole:'admin'}));
+  await assertFails(setDoc(ref,{...profile,systemRole:'guest'}));
   await assertFails(setDoc(ref,{...profile,certExpiry:'2028-12-31'}));
   await assertSucceeds(synchronizeProjectMembership(db,{email:'newcomer@example.test',uid:'newcomer',displayName:'New person'},'p','owner',{designation:'Site supervisor'}));
   await assertFails(updateDoc(ref,{systemRole:'admin',...changed('newcomer')}));
+  await assertFails(updateDoc(ref,{systemRole:'guest',...changed('newcomer')}));
+  await assertFails(getDoc(doc(db,'artifacts/p/tasks/existing')));
+  await assertFails(getDoc(doc(db,'artifacts/p/users/admin@example.test')));
+  await assertFails(updateDoc(doc(db,'artifacts/p/inspections/any'),{comments:arrayUnion({text:'Hi'}),...changed('newcomer')}));
+  await assertSucceeds(updateDoc(doc(client('admin'),'artifacts/p/users/newcomer@example.test'),{systemRole:'guest',...changed('admin')}));
+  await assertSucceeds(getDoc(doc(db,'artifacts/p/tasks/existing')));
   await assertFails(setDoc(doc(db,'artifacts/p/users/someoneelse@example.test'),{...profile,email:'someoneelse@example.test'}));
   await assertFails(getDoc(doc(client('unknown'),'artifacts/p/users/admin@example.test')));
   const unverifiedProfile=createMemberProfile({email:'unverified-new@example.test'}, {},false,'2026-10-26');
@@ -220,14 +238,52 @@ test('forged admin actors and correctly shaped approvals without deletion cannot
   await assertFails(updateDoc(ref,{status:'approved',reviewedBy:'manager@example.test',reviewedByUid:'manager',reviewedAt:serverTimestamp(),reviewReason:'No deletion in this transaction',history:[...request.history,{status:'approved',by:'manager@example.test',byUid:'manager',at:Timestamp.now(),reason:'No deletion in this transaction'}]}));
   assert.equal((await getDoc(doc(client('admin'),path))).exists(),true);
 });
-test('project admin deletion retains linked site data and verification history',async()=>{
+test('site owner project deletion retains linked site data and verification history',async()=>{
   await seed('projects/project-delete',{name:'Project',ownerId:'admin',createdBy:'admin@example.test'});
   await seed('artifacts/project-delete/tasks/retained',{activity:'Retained site record',createdBy:'engineer@example.test'});
-  await assertSucceeds(submitRecordDeletion(client('admin'),'project-delete',actor('admin'),'projects','project-delete','Close duplicate workspace entry'));
+  await assert.rejects(submitRecordDeletion(client('admin'),'project-delete',actor('admin'),'projects','project-delete','Project owner, not site owner'));
+  await assertFails(deleteDoc(doc(client('admin'),'projects/project-delete')));
+  await assert.rejects(submitRecordDeletion(client('engineer'),'project-delete',actor('engineer'),'projects','project-delete','Request instead'));
+  await assertSucceeds(submitRecordDeletion(client('siteowner'),'project-delete',{...actor('siteowner'),systemRole:'admin'},'projects','project-delete','Close duplicate workspace entry'));
   await env.withSecurityRulesDisabled(async context=>{
     const db=context.firestore();
     assert.equal((await getDoc(doc(db,'projects/project-delete'))).exists(),false);
     assert.equal((await getDoc(doc(db,'artifacts/project-delete/tasks/retained'))).exists(),true);
     assert.equal((await getDoc(doc(db,'artifacts/project-delete/deletionRequests/projects:project-delete'))).data().status,'deleted');
   });
+});
+test('site owner designation can only be read by its own account and never written from the app',async()=>{
+  await assertSucceeds(getDoc(doc(client('siteowner'),'siteOwners/siteowner')));
+  await assertFails(getDoc(doc(client('admin'),'siteOwners/siteowner')));
+  await assertSucceeds(getDoc(doc(client('admin'),'siteOwners/admin')));
+  await assertFails(setDoc(doc(client('admin'),'siteOwners/admin'),{note:'Self-promotion'}));
+  await assertFails(setDoc(doc(client('owner'),'siteOwners/owner'),{}));
+  await assertFails(deleteDoc(doc(client('siteowner'),'siteOwners/siteowner')));
+  await assertFails(setDoc(doc(client('siteowner'),'siteOwners/admin'),{}));
+});
+test('site owner assigns, changes and removes access in any project',async()=>{
+  const db=client('siteowner'),owner={email:'siteowner@example.test',uid:'siteowner'};
+  await assertSucceeds(getDoc(doc(db,'artifacts/other/users/anyone@example.test')));
+  await assert.rejects(grantProjectAccess(client('admin'),actor('admin'),'other',{email:'assigned@example.test',systemRole:'engineer'}));
+  assert.equal(await grantProjectAccess(db,owner,'other',{email:' Assigned@Example.test ',name:'Assigned person',systemRole:'engineer'}),'created');
+  await assertSucceeds(setDoc(doc(client('assigned'),'artifacts/other/tasks/assigned'),task('assigned@example.test')));
+  await synchronizeProjectMembership(client('requester'),{email:'requester@example.test',uid:'requester'},'other','otherOwner');
+  await assertFails(getDoc(doc(client('requester'),'artifacts/other/tasks/assigned')));
+  assert.equal(await grantProjectAccess(db,owner,'other',{email:'requester@example.test',systemRole:'supervisor'}),'updated');
+  await assertSucceeds(getDoc(doc(client('requester'),'artifacts/other/tasks/assigned')));
+  await assertSucceeds(setProjectAccessRole(db,owner,'other','assigned@example.test','guest'));
+  await assertFails(setDoc(doc(client('assigned'),'artifacts/other/tasks/assigned-again'),task('assigned@example.test')));
+  await assert.rejects(setProjectAccessRole(db,owner,'other','assigned@example.test','pending'),/role/);
+  await assertSucceeds(revokeProjectAccess(db,owner,'other','assigned@example.test','Left the project'));
+  await assertFails(getDoc(doc(client('assigned'),'artifacts/other/tasks/assigned')));
+  await env.withSecurityRulesDisabled(async context=>{
+    const request=(await getDoc(doc(context.firestore(),'artifacts/other/deletionRequests/users:assigned@example.test'))).data();
+    assert.equal(request.status,'deleted'); assert.equal(request.targetSnapshot.systemRole,'guest'); assert.equal(request.reason,'Left the project');
+  });
+});
+test('site owner opening a project acts as admin without joining its roster',async()=>{
+  const db=client('siteowner');
+  await assertSucceeds(setDoc(doc(db,'artifacts/other/monitoring/siteowner'),{noise:60,confirmedBy:'siteowner@example.test',confirmedAt:'2026-01-01',...audit('siteowner@example.test')}));
+  await assertSucceeds(updateDoc(doc(db,'projects/other'),{name:'Renamed by site owner'}));
+  await assertFails(updateDoc(doc(db,'projects/other'),{ownerId:'siteowner'}));
 });

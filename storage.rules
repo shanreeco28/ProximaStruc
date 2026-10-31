@@ -1,0 +1,10 @@
+rules_version = '2';
+// ProximaStruc does not store files in Cloud Storage. Deny all access so the
+// project's default bucket cannot be read or written from client apps.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

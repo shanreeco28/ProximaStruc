@@ -84,7 +84,7 @@ test('registration sync uses supplied identity and never seeds readings, expiry 
   const user={email:'Person@example.test',displayName:'Person'};
   const profile=createMemberProfile(user,{designation:'Engineer',birthday:'1990-01-01'},false,'now');
   assert.equal(profile.email,'person@example.test'); assert.equal(profile.role,'Engineer');
-  assert.equal(profile.systemRole,'guest'); assert.equal(profile.certExpiry,''); assert.equal(profile.bizSafe,'');
+  assert.equal(profile.systemRole,'pending'); assert.equal(profile.certExpiry,''); assert.equal(profile.bizSafe,'');
   assert.equal(profile.organization,''); assert.deepEqual(profile.ptwAuthority,[]);
   assert.equal(createMemberProfile(user,{},true).systemRole,'admin');
 });

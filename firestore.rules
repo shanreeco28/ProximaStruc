@@ -5,6 +5,12 @@ service cloud.firestore {
     function owner(projectId) {
       return signedIn() && get(/databases/$(database)/documents/projects/$(projectId)).data.get('ownerId', '') == request.auth.uid;
     }
+    // Site owners (website masters) are designated only through the Firebase Console or Admin SDK:
+    // siteOwners/{uid} cannot be written from the app. They create and delete projects and act as admin everywhere.
+    function siteOwner() {
+      return signedIn() && exists(/databases/$(database)/documents/siteOwners/$(request.auth.uid));
+    }
+    function superuser(projectId) { return owner(projectId) || siteOwner(); }
     function verifiedEmail() {
       return signedIn() && request.auth.token.get('email_verified', false) && request.auth.token.get('email', '') != '';
     }
@@ -12,10 +18,10 @@ service cloud.firestore {
       return verifiedEmail() && exists(/databases/$(database)/documents/artifacts/$(projectId)/users/$(request.auth.token.email.lower()))
         ? get(/databases/$(database)/documents/artifacts/$(projectId)/users/$(request.auth.token.email.lower())).data.get('systemRole', 'guest') : '';
     }
-    function admin(projectId) { return owner(projectId) || role(projectId) == 'admin'; }
-    function planner(projectId) { return owner(projectId) || role(projectId) in ['admin', 'manager', 'engineer']; }
+    function admin(projectId) { return superuser(projectId) || role(projectId) == 'admin'; }
+    function planner(projectId) { return superuser(projectId) || role(projectId) in ['admin', 'manager', 'engineer']; }
     function siteRecorder(projectId) { return planner(projectId) || role(projectId) == 'supervisor'; }
-    function member(projectId) { return owner(projectId) || role(projectId) in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin']; }
+    function member(projectId) { return superuser(projectId) || role(projectId) in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin']; }
     function auditCreate() {
       return request.resource.data.createdBy == request.auth.token.email && request.resource.data.createdAt is string;
     }
@@ -42,7 +48,7 @@ service cloud.firestore {
     function selfProfile(projectId, recordId) {
       let d = request.resource.data;
       return verifiedEmail() && recordId == request.auth.token.email.lower() && d.email == recordId
-        && d.systemRole == 'guest'
+        && d.systemRole == 'pending'
         && d.keys().hasOnly(['name', 'email', 'role', 'birthday', 'organization', 'category', 'statutoryReg', 'certExpiry', 'bizSafe', 'cdePermission', 'ptwAuthority', 'systemRole', 'createdBy', 'createdAt'])
         && d.organization == '' && d.category == '' && d.statutoryReg == '' && d.certExpiry == '' && d.bizSafe == ''
         && d.cdePermission == 'Project member' && d.ptwAuthority == []
@@ -55,7 +61,7 @@ service cloud.firestore {
     }
     function validDiscussionAuthor(projectId, entry) {
       return entry.email == request.auth.token.email && entry.timestamp is string
-        && entry.role == (owner(projectId) ? 'admin' : role(projectId));
+        && entry.role == (superuser(projectId) ? 'admin' : role(projectId));
     }
     function inspectionComment(projectId) {
       let changes = request.resource.data.diff(resource.data).affectedKeys();
@@ -114,7 +120,7 @@ service cloud.firestore {
       let d = request.resource.data;
       return d.keys().hasOnly(['targetCollection', 'targetId', 'targetLabel', 'targetSnapshot', 'reason', 'requestedBy', 'requestedByUid', 'requestedAt', 'status', 'reviewedBy', 'reviewedByUid', 'reviewedAt', 'reviewReason', 'history'])
         && deletable(d.targetCollection) && d.targetId is string && d.targetId.size() > 0
-        && key == d.targetCollection + ':' + d.targetId && (d.targetCollection != 'projects' || d.targetId == projectId)
+        && key == d.targetCollection + ':' + d.targetId && (d.targetCollection != 'projects' || d.targetId == projectId && siteOwner())
         && d.targetLabel is string && d.targetSnapshot is map && d.reason is string && d.reason.size() > 0 && d.reason.size() <= 2000
         && d.reviewReason is string && d.reviewReason.size() <= 2000 && validDeletionEvent();
     }
@@ -153,11 +159,17 @@ service cloud.firestore {
         || (resource.data.status == 'rejected' || admin(projectId)) && newDeletionRequest(projectId, key));
       // Retain verification history after the operational record is deleted.
     }
+    match /siteOwners/{uid} {
+      allow read: if signedIn() && uid == request.auth.uid;
+    }
     match /projects/{projectId} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && auditCreate();
-      allow update: if owner(projectId) && request.resource.data.ownerId == resource.data.ownerId;
-      allow delete: if admin(projectId) || verifiedRecordDelete(projectId, 'projects', projectId);
+      allow create: if siteOwner() && request.resource.data.ownerId == request.auth.uid && auditCreate()
+        && request.resource.data.keys().hasOnly(['name', 'id', 'ownerId', 'createdBy', 'createdAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200
+        && request.resource.data.get('id', projectId) == projectId;
+      allow update: if superuser(projectId) && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if siteOwner();
     }
     match /artifacts/{projectId}/{collectionName}/{recordId} {
       allow read: if member(projectId) || collectionName == 'users' && verifiedEmail() && recordId == request.auth.token.email.lower();
@@ -169,8 +181,9 @@ service cloud.firestore {
         (collectionName in ['zones', 'lifts'] && planner(projectId)) ||
         (collectionName == 'inspections' && siteRecorder(projectId) && request.resource.data.stage == 0 && request.resource.data.get('history', []) == [] && request.resource.data.get('comments', []) == []) ||
         (collectionName == 'monitoring' && admin(projectId) && request.resource.data.confirmedBy == request.auth.token.email && request.resource.data.confirmedAt is string) ||
-        (collectionName == 'users' && (selfProfile(projectId, recordId) || admin(projectId)) && recordId == request.resource.data.email.lower()
-          && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin'])
+        // Self-registration only files a pending access request; an admin assigns the role that grants access.
+        (collectionName == 'users' && recordId == request.resource.data.email.lower() && (selfProfile(projectId, recordId)
+          || admin(projectId) && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin']))
       );
       allow update: if auditUpdate() && (
         (collectionName == 'tasks' && planner(projectId) && validTask()) ||

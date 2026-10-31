@@ -42,7 +42,7 @@ service cloud.firestore {
     function selfProfile(projectId, recordId) {
       let d = request.resource.data;
       return verifiedEmail() && recordId == request.auth.token.email.lower() && d.email == recordId
-        && d.systemRole == 'guest'
+        && d.systemRole == 'pending'
         && d.keys().hasOnly(['name', 'email', 'role', 'birthday', 'organization', 'category', 'statutoryReg', 'certExpiry', 'bizSafe', 'cdePermission', 'ptwAuthority', 'systemRole', 'createdBy', 'createdAt'])
         && d.organization == '' && d.category == '' && d.statutoryReg == '' && d.certExpiry == '' && d.bizSafe == ''
         && d.cdePermission == 'Project member' && d.ptwAuthority == []
@@ -155,7 +155,10 @@ service cloud.firestore {
     }
     match /projects/{projectId} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && auditCreate();
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && auditCreate()
+        && request.resource.data.keys().hasOnly(['name', 'id', 'ownerId', 'createdBy', 'createdAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200
+        && request.resource.data.get('id', projectId) == projectId;
       allow update: if owner(projectId) && request.resource.data.ownerId == resource.data.ownerId;
       allow delete: if admin(projectId) || verifiedRecordDelete(projectId, 'projects', projectId);
     }
@@ -169,8 +172,9 @@ service cloud.firestore {
         (collectionName in ['zones', 'lifts'] && planner(projectId)) ||
         (collectionName == 'inspections' && siteRecorder(projectId) && request.resource.data.stage == 0 && request.resource.data.get('history', []) == [] && request.resource.data.get('comments', []) == []) ||
         (collectionName == 'monitoring' && admin(projectId) && request.resource.data.confirmedBy == request.auth.token.email && request.resource.data.confirmedAt is string) ||
-        (collectionName == 'users' && (selfProfile(projectId, recordId) || admin(projectId)) && recordId == request.resource.data.email.lower()
-          && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin'])
+        // Self-registration only files a pending access request; an admin assigns the role that grants access.
+        (collectionName == 'users' && recordId == request.resource.data.email.lower() && (selfProfile(projectId, recordId)
+          || admin(projectId) && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin']))
       );
       allow update: if auditUpdate() && (
         (collectionName == 'tasks' && planner(projectId) && validTask()) ||

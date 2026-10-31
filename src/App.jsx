@@ -373,7 +373,7 @@ export default function App() {
           <p role="status" className="sr-only">{deletionStatus}</p>
           {(operationError || registration.error || Object.values(records).some(r => r.error)) && <div role="alert" data-tone="danger" className="alert mb-5"><span className="flex-1 min-w-0">{operationError || registration.error || Object.values(records).find(r => r.error)?.error}</span><button onClick={() => setOperationError('')}>Dismiss</button></div>}
           {user && !user.emailVerified && liveProject?.ownerId !== user.uid && <p data-tone="warning" className="alert mb-5"><span className="flex-1 min-w-0">Verify your email to use assigned project access.</span><button onClick={async () => { try { await sendEmailVerification(user); setOperationError('Verification email sent. Follow its link, then sign in again.'); } catch (e) { setOperationError(e.message); } }}>Send verification email</button></p>}
-          {!currentUser && <p data-tone="info" className="alert mb-5">Project records require an admin-assigned role for your verified sign-in email.</p>}
+          {!currentUser && <p data-tone="info" className="alert mb-5">{registration.pending ? 'Access requested. A project admin must assign your role before project records are shown.' : 'Project records require an admin-assigned role for your verified sign-in email.'}</p>}
           {activeTab === 'dashboard' && (
             <PMCommandDashboard
               onNavigate={setActiveTab}

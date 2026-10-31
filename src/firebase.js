@@ -13,7 +13,6 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
 } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -41,7 +40,6 @@ try {
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
-const storage = getStorage(app);
 
 /**
  * Smart Google Sign-In:
@@ -66,5 +64,5 @@ export async function signInWithGoogleSmart() {
   }
 }
 
-export { app, db, auth, googleProvider, storage, getRedirectResult };
+export { app, db, auth, googleProvider, getRedirectResult };
 export default app;

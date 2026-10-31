@@ -27,3 +27,15 @@ dist-ssr
 test-results/
 playwright-report/
 .firebase/
+.firebase-local/
+
+# Environment files (keep the blank template)
+.env
+.env.*
+*.env
+!.env.example
+
+# Firebase emulator and debug output
+firebase-debug*.log
+firestore-debug.log
+ui-debug.log

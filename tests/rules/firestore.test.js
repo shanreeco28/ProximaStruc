@@ -40,6 +40,13 @@ for(const role of ['admin','manager','engineer','supervisor','guest','RE','RTO']
     await check(setDoc(doc(db,`artifacts/p/users/invite-${role}@example.test`),{email:`invite-${role}@example.test`,systemRole:'engineer',...audit(email)}));
   });
 }
+test('project creation records only the expected workspace fields',async()=>{
+  const db=client('creator'),base={name:'New workspace',id:'created',ownerId:'creator',...audit('creator@example.test')};
+  await assertFails(setDoc(doc(db,'projects/created'),{...base,extra:'x'.repeat(10)}));
+  await assertFails(setDoc(doc(db,'projects/created'),{...base,name:''}));
+  await assertFails(setDoc(doc(db,'projects/created'),{...base,id:'someone-else'}));
+  await assertSucceeds(setDoc(doc(db,'projects/created'),base));
+});
 test('project creator can bootstrap admin, but cannot take over an existing project',async()=>{
   const db=client('owner');
   await assertSucceeds(setDoc(doc(db,'artifacts/p/monitoring/owner'),{weather:'Rain',confirmedBy:'owner@example.test',confirmedAt:'2026-01-01',...audit('owner@example.test')}));
@@ -69,15 +76,22 @@ test('observation confirmations cannot be silently overwritten',async()=>{
 
 const changed = role => ({updatedBy:`${role}@example.test`,updatedAt:'2026-10-26T00:00:00Z'});
 const seed = async (path, data) => env.withSecurityRulesDisabled(ctx=>setDoc(doc(ctx.firestore(),path),data));
-test('verified new registrations can read and create only their own guest profile',async()=>{
+test('verified new registrations can read and create only their own pending access request',async()=>{
   const db=client('newcomer');
   const ref=doc(db,'artifacts/p/users/newcomer@example.test');
   await assertSucceeds(getDoc(ref));
   const profile=createMemberProfile({email:'newcomer@example.test',displayName:'New person'},{designation:'Site supervisor'},false,'2026-10-26');
   await assertFails(setDoc(ref,{...profile,systemRole:'admin'}));
+  await assertFails(setDoc(ref,{...profile,systemRole:'guest'}));
   await assertFails(setDoc(ref,{...profile,certExpiry:'2028-12-31'}));
   await assertSucceeds(synchronizeProjectMembership(db,{email:'newcomer@example.test',uid:'newcomer',displayName:'New person'},'p','owner',{designation:'Site supervisor'}));
   await assertFails(updateDoc(ref,{systemRole:'admin',...changed('newcomer')}));
+  await assertFails(updateDoc(ref,{systemRole:'guest',...changed('newcomer')}));
+  await assertFails(getDoc(doc(db,'artifacts/p/tasks/existing')));
+  await assertFails(getDoc(doc(db,'artifacts/p/users/admin@example.test')));
+  await assertFails(updateDoc(doc(db,'artifacts/p/inspections/any'),{comments:arrayUnion({text:'Hi'}),...changed('newcomer')}));
+  await assertSucceeds(updateDoc(doc(client('admin'),'artifacts/p/users/newcomer@example.test'),{systemRole:'guest',...changed('admin')}));
+  await assertSucceeds(getDoc(doc(db,'artifacts/p/tasks/existing')));
   await assertFails(setDoc(doc(db,'artifacts/p/users/someoneelse@example.test'),{...profile,email:'someoneelse@example.test'}));
   await assertFails(getDoc(doc(client('unknown'),'artifacts/p/users/admin@example.test')));
   const unverifiedProfile=createMemberProfile({email:'unverified-new@example.test'}, {},false,'2026-10-26');

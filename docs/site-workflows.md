@@ -45,8 +45,9 @@ Each confirmation is a complete observation: blank fields remain unrecorded, rat
 | Edit organisation details | Yes | Yes | No | No | No | No | No |
 | Add / edit planning activities | Yes | Yes | Yes | No | No | No | No |
 | Add / edit diary and material records | Yes | Yes | Yes | Yes | No | No | No |
-| Create RFIs / advance site-team stages | Yes | Yes | Yes | Yes | No | No | No |
-| Advance RE-review / closure stages | Yes | No | No | No | Yes | No | No |
+| Draft/open RFIs, attach PDFs, submit for RE review, apply for closure | Yes | Yes | Yes | No | No | No | No |
+| Allow site inspection / approve RFI closure | Yes | No | No | No | Yes | No | No |
+| Allow next work after site inspection | Yes | No | No | No | No | Yes | No |
 | Record lifting permits | Yes | Yes | Yes | No | No | No | No |
 | Delete operational records directly | Yes | No | No | No | No | No | No |
 | Request deletion of own records | Direct deletion | Yes | Yes | Yes | Yes | Yes | Yes |
@@ -54,7 +55,30 @@ Each confirmation is a complete observation: blank fields remain unrecorded, rat
 
 Only the site owner (an account with a `siteOwners/{uid}` document, created in the Firebase Console and never from the app) can create or delete projects. The site owner acts as admin in every project without joining its roster, and assigns project access from the **Project access control** panel on the project selection screen. A new project's creator is its owner/admin. Do not infer admin access from an empty personnel list. Verified accounts synchronize a **pending** access request when opening a project, using their supplied sign-up details and leaving organisation/certificate fields blank. A pending membership can read only its own profile; it cannot read project records, personnel or comment until an admin assigns a role (Guest or above). Existing guest memberships created before this change keep guest access, so admins should review them. An existing invited membership and assigned role are preserved. Only the project's recorded owner receives admin through synchronization; other roles require explicit admin assignment. The job title is descriptive and does not grant access. Role assignments are bound to a verified sign-in email; unverified users can request verification from the project screen. Owner access uses the authenticated UID.
 
-RFIs retain the five-stage process: Created, Under RE Review, Site Inspection, Applying for Closure, Closed. Site-team roles advance stages 1 and 3; REs advance stages 2 and 4; admins can advance either. Only the final Closed stage (stored index 4) clears a linked planning hold point. Existing records at index 3 are not automatically treated as closed; an RE or admin must review and advance them through the current workflow. RTOs retain review/comment access. The creator (while still a site-team member) or an admin can edit inspection details; deletion follows the verification policy above. Stage transitions use a transaction to reject stale updates and append audit history. Comments append atomically. Forms cannot bypass stage permissions or overwrite discussion history. Manager organisation updates are limited to that field and audit metadata; they cannot change roles.
+Manager organisation updates are limited to that field and audit metadata; they cannot change roles.
+
+## RFI (inspection) workflow
+
+| # | Status | Action that reaches it | Who |
+| --- | --- | --- | --- |
+| 0 | Draft | Save as draft | Engineer / manager |
+| 1 | Opened | Open RFI | Engineer / manager |
+| 2 | Under RE Review | Submit for RE review | Engineer / manager |
+| 3 | Site Inspection (RTO) | Allow site inspection | RE |
+| 4 | Next Work Allowed | Allow next work | RTO |
+| 5 | Closure Applied | Apply for RFI closure | Engineer / manager |
+| 6 | Closed | Approve RFI closure | RE |
+
+Admins can perform any step. Supervisors no longer create RFIs or perform engineer/manager steps; they keep read and comment access. Each step is a transaction that rejects stale updates and appends an audit-history entry whose text the Firestore rules check. Only Closed clears a linked planning hold point; drafts are not counted as open RFIs.
+
+**RFI ID.** New RFIs are numbered automatically as `Project Name_Zone-Discipline-###`, for example `Marina Tower_Zone A-STR-001`. Discipline codes are STR (Structural), AR (Architectural) and ME (M&E Sleeve / Conduit). Slashes and unsupported characters in project or zone names become `-`. Each prefix has a counter document (`artifacts/{projectId}/rfiCounters/{prefix}`) that advances in the same transaction as the RFI, so concurrent users never receive the same number and numbers of deleted RFIs are not reused. Counters cannot be deleted. Zone and discipline are fixed once an RFI is numbered; the creator (engineer/manager) or an admin can still edit the element, RTO/RE, target cast and linked BBS.
+
+**PDF attachments.** While an RFI is Draft or Opened, engineers, managers and admins can upload PDFs (up to 20 MB each, 20 per RFI) marked as an *Inspection file* or a *Reference*. Files are stored in Cloud Storage at `projects/{projectId}/inspections/{rfiId}/{uuid}.pdf` and linked in the RFI's `attachments` list. After submission for RE review, the list is locked. Uploaded objects are immutable: removing a PDF from a draft only unlinks it (by the uploader, the RFI creator or an admin), so submitted documents cannot be altered. Every project member can open the PDFs.
+
+**Existing records.** RFIs created under the earlier five-stage process keep their numeric `stage` and free-form ID. They map to the new statuses as Created → Opened, Under RE Review → Under RE Review, Site Inspection → Site Inspection (RTO), Applying for Closure → Closure Applied and Closed → Closed. Their first new transition adds a `status` field. Nothing is migrated automatically.
+
+RTOs keep comment access. Deletion follows the verification policy above. Comments append atomically. Forms cannot bypass stage permissions or overwrite discussion history.
+
 
 ## Planning and progress
 
@@ -91,8 +115,8 @@ No live data migrations, account creation or production deployments are performe
 ## Validation
 
 - `npm test`: date helpers and domain logic (permissions, progress math, Gantt data, dependencies, validation).
-- `npm run test:browser`: isolated workflow component fixtures, including role visibility, the existing board layout/statuses, save/edit, failed saves, diary, BBS receipt, observation confirmation, header dropdown/profile/logout controls, deletion requests and verification, automated accessibility/320px reflow, five-stage RFI review/comment/delete permissions, manager organisation edits and mobile navigation. Uses `/usr/bin/chromium` by default; set `CHROMIUM_PATH` to a compatible local browser elsewhere. Fixtures have no Firebase connection and are not part of the production build.
-- `npm run test:rules`: starts the Firestore emulator for `demo-proximastruc`, then checks direct reads/writes, role escalation, pending registration synchronization, project creation shape, manager-only organisation updates and five-stage RFI transitions/discussion integrity. Requires Java and access to `storage.googleapis.com` for the official emulator download. Local runtime state goes under `.firebase-local/` (git-ignored); no production credentials are needed.
+- `npm run test:browser`: isolated workflow component fixtures, including role visibility, the existing board layout/statuses, save/edit, failed saves, diary, BBS receipt, observation confirmation, header dropdown/profile/logout controls, deletion requests and verification, automated accessibility/320px reflow, seven-stage RFI ownership, draft creation with automatic IDs, PDF upload/unlink/lock, review/comment/delete permissions, manager organisation edits and mobile navigation. Uses `/usr/bin/chromium` by default; set `CHROMIUM_PATH` to a compatible local browser elsewhere. Fixtures have no Firebase connection and are not part of the production build.
+- `npm run test:rules`: starts the Firestore emulator for `demo-proximastruc`, together with the Storage emulator, then checks direct reads/writes, role escalation, pending registration synchronization, project creation shape, manager-only organisation updates, RFI numbering/counters, seven-stage transitions, legacy-stage continuation, attachment links, discussion integrity and the Storage rules for RFI PDFs. Requires Java and access to `storage.googleapis.com` for the official emulator download. Local runtime state goes under `.firebase-local/` (git-ignored); no production credentials are needed.
 - `npm run lint` and `npm run build`.
 
-Current verification after the security hardening update: lint and the production build pass, along with 34 unit tests and 46 Firestore emulator tests. In the browser suite, 35 tests pass and 17 fail, all on pre-existing axe findings (`label-content-name-mismatch` on KPI/navigation buttons, `landmark-unique`) that predate this update. The official emulator download is now accessible and backend permission tests complete successfully. Production rules remain undeployed; authenticated production operations and legacy data migration have not been performed.
+Current verification after the RFI workflow update: lint and the production build pass, along with 40 unit tests and 50 Firestore emulator tests. The Storage rules tests need the Storage emulator to reach the Firestore emulator for membership lookups; in a sandbox whose HTTPS proxy intercepts those local calls they cannot pass, so their non-membership logic was verified separately. In the browser suite, 37 tests pass and 17 fail, all on pre-existing axe findings (`label-content-name-mismatch` on KPI/navigation buttons, `landmark-unique`) that predate this update. The official emulator download is now accessible and backend permission tests complete successfully. Production rules remain undeployed; authenticated production operations and legacy data migration have not been performed.

@@ -70,20 +70,95 @@ service cloud.firestore {
         && appendOnly('comments') && validDiscussionAuthor(projectId, comments[comments.size() - 1])
         && comments[comments.size() - 1].text is string && comments[comments.size() - 1].text.size() > 0;
     }
+    // RFI workflow. Statuses: draft → opened → re_review → site_inspection → next_work → closure_applied → closed.
+    // Records from the earlier five-stage workflow keep a numeric `stage` until their first transition.
+    function rfiStatusOf(data) {
+      return data.get('status', ['opened', 're_review', 'site_inspection', 'closure_applied', 'closed'][data.get('stage', 4)]);
+    }
+    function rfiNext() {
+      return {'draft': 'opened', 'opened': 're_review', 're_review': 'site_inspection', 'site_inspection': 'next_work', 'next_work': 'closure_applied', 'closure_applied': 'closed'};
+    }
+    function rfiHistoryText() {
+      return {'opened': 'Opened RFI', 're_review': 'Submitted for RE review', 'site_inspection': 'RE allowed site inspection (RTO)', 'next_work': 'RTO allowed next work', 'closure_applied': 'Applied for RFI closure', 'closed': 'RE approved closure — RFI closed'};
+    }
+    function rfiDisciplineCodes() { return {'Structural': 'STR', 'Architectural': 'AR', 'M&E Sleeve / Conduit': 'ME'}; }
+    // Engineers, managers and admins raise RFIs, submit them and apply for closure.
+    function rfiRaiser(projectId) { return planner(projectId); }
+    function rfiCounterPath(projectId, prefix) {
+      return /databases/$(database)/documents/artifacts/$(projectId)/rfiCounters/$(prefix);
+    }
+    // New RFIs are numbered <Project>_<Zone>-<Discipline>-### and must advance that prefix's counter in the same write.
+    function newInspection(projectId, recordId) {
+      let d = request.resource.data;
+      let parts = recordId.split('-');
+      let seq = parts[parts.size() - 1];
+      return rfiRaiser(projectId) && d.status in ['draft', 'opened'] && !d.keys().hasAny(['stage'])
+        && d.get('history', []) == [] && d.get('comments', []) == [] && d.get('attachments', []) == []
+        && d.discipline in rfiDisciplineCodes() && d.zone is string && d.zone.size() > 0
+        && d.element is string && d.element.size() > 0
+        && d.rfiPrefix is string && d.rfiPrefix.size() <= 300 && d.rfiPrefix.matches('^[^/]+_[^/]+-' + rfiDisciplineCodes()[d.discipline] + '$')
+        && seq.matches('^[0-9]{3,6}$') && recordId == d.rfiPrefix + '-' + seq && d.rfiNumber is int && d.rfiNumber == int(seq)
+        && getAfter(rfiCounterPath(projectId, d.rfiPrefix)).data.lastId == recordId
+        && getAfter(rfiCounterPath(projectId, d.rfiPrefix)).data.last == d.rfiNumber;
+    }
+    function rfiCounterWrite(projectId, prefix, previous) {
+      let d = request.resource.data;
+      let rfi = /databases/$(database)/documents/artifacts/$(projectId)/inspections/$(d.lastId);
+      return rfiRaiser(projectId) && d.last is int && d.last > previous && d.lastId is string
+        && !exists(rfi) && existsAfter(rfi) && getAfter(rfi).data.rfiPrefix == prefix && getAfter(rfi).data.rfiNumber == d.last;
+    }
+    // Effective project role, resolved once per check to stay within the rules expression limit.
+    function effectiveRole(projectId) { return superuser(projectId) ? 'admin' : role(projectId); }
     function inspectionAdvance(projectId) {
       let d = request.resource.data;
-      let stage = resource.data.get('stage', -1);
+      let from = rfiStatusOf(resource.data);
       let history = d.get('history', []);
-      let labels = ['Created (Creator)', 'Under RE Review (RE)', 'Site Inspection (Creator)', 'Applying for Closure (RE)', 'Closed'];
-      return stage is int && stage >= 0 && stage < 4 && d.stage == stage + 1
-        && d.diff(resource.data).affectedKeys().hasOnly(['stage', 'history', 'updatedBy', 'updatedAt'])
-        && (stage in [0, 2] ? siteRecorder(projectId) : admin(projectId) || role(projectId) == 'RE')
-        && appendOnly('history') && validDiscussionAuthor(projectId, history[history.size() - 1])
-        && history[history.size() - 1].action == 'Advanced to ' + labels[d.stage];
+      let entry = history[history.size() - 1];
+      let r = effectiveRole(projectId);
+      return from in rfiNext() && d.status == rfiNext()[from]
+        && d.diff(resource.data).affectedKeys().hasOnly(['status', 'history', 'updatedBy', 'updatedAt'])
+        && r in (from in ['draft', 'opened', 'next_work'] ? ['admin', 'manager', 'engineer']
+          : from == 'site_inspection' ? ['admin', 'RTO'] : ['admin', 'RE'])
+        && appendOnly('history') && entry.email == request.auth.token.email && entry.timestamp is string && entry.role == r
+        && entry.action == rfiHistoryText()[d.status];
     }
     function inspectionDetails(projectId) {
-      return (admin(projectId) || siteRecorder(projectId) && resource.data.createdBy == request.auth.token.email)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['zone', 'discipline', 'element', 'rtoName', 'reName', 'targetCast', 'bbsLinked', 'updatedBy', 'updatedAt']);
+      // Zone and discipline are part of an automatic RFI reference, so they are fixed once numbered.
+      let editable = resource.data.keys().hasAny(['rfiPrefix'])
+        ? ['element', 'rtoName', 'reName', 'targetCast', 'bbsLinked', 'updatedBy', 'updatedAt']
+        : ['zone', 'discipline', 'element', 'rtoName', 'reName', 'targetCast', 'bbsLinked', 'updatedBy', 'updatedAt'];
+      let r = effectiveRole(projectId);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(editable)
+        && (r == 'admin' || r in ['manager', 'engineer'] && resource.data.createdBy == request.auth.token.email);
+    }
+    function validAttachment(projectId, recordId, a) {
+      return a is map && a.keys().hasOnly(['fileId', 'name', 'path', 'size', 'contentType', 'category', 'uploadedBy', 'uploadedAt'])
+        && a.fileId is string && a.fileId.matches('^[A-Za-z0-9-]{8,64}$')
+        && a.path == 'projects/' + projectId + '/inspections/' + recordId + '/' + a.fileId + '.pdf'
+        && a.name is string && a.name.size() > 0 && a.name.size() <= 200
+        && a.size is int && a.size > 0 && a.size <= 20971520
+        && a.contentType == 'application/pdf' && a.category in ['Inspection file', 'Reference']
+        && a.uploadedBy == request.auth.token.email && a.uploadedAt is string;
+    }
+    // PDFs are attached or unlinked only before the RFI is submitted for RE review.
+    function inspectionAttachments(projectId, recordId) {
+      let before = resource.data.get('attachments', []);
+      let after = request.resource.data.get('attachments', []);
+      let removed = before.removeAll(after);
+      let r = effectiveRole(projectId);
+      return rfiStatusOf(resource.data) in ['draft', 'opened']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attachments', 'updatedBy', 'updatedAt'])
+        && after is list && after.size() <= 20 && r in ['admin', 'manager', 'engineer']
+        && (after.size() == before.size() + 1 && after.hasAll(before) && validAttachment(projectId, recordId, after[after.size() - 1])
+          || after.size() == before.size() - 1 && before.hasAll(after) && removed.size() == 1
+            && (r == 'admin' || resource.data.createdBy == request.auth.token.email || removed[0].uploadedBy == request.auth.token.email));
+    }
+    function inspectionUpdate(projectId, recordId) {
+      let keys = request.resource.data.diff(resource.data).affectedKeys();
+      return keys.hasAny(['comments']) ? inspectionComment(projectId)
+        : keys.hasAny(['status', 'history']) ? inspectionAdvance(projectId)
+        : keys.hasAny(['attachments']) ? inspectionAttachments(projectId, recordId)
+        : inspectionDetails(projectId);
     }
     function organizationUpdate(projectId) {
       return (admin(projectId) || role(projectId) == 'manager') && request.resource.data.organization is string
@@ -159,6 +234,13 @@ service cloud.firestore {
         || (resource.data.status == 'rejected' || admin(projectId)) && newDeletionRequest(projectId, key));
       // Retain verification history after the operational record is deleted.
     }
+    match /artifacts/{projectId}/rfiCounters/{prefix} {
+      // Read access comes from the project-records match below; counters are never deleted so numbers are not reused.
+      allow create: if auditCreate() && rfiCounterWrite(projectId, prefix, 0)
+        && request.resource.data.keys().hasOnly(['last', 'lastId', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt']);
+      allow update: if auditUpdate() && rfiCounterWrite(projectId, prefix, resource.data.last)
+        && request.resource.data.keys().hasOnly(['last', 'lastId', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt']);
+    }
     match /siteOwners/{uid} {
       allow read: if signedIn() && uid == request.auth.uid;
     }
@@ -179,7 +261,7 @@ service cloud.firestore {
         (collectionName == 'materials' && siteRecorder(projectId) && validMaterial()) ||
         (collectionName == 'weatherLogs' && siteRecorder(projectId) && request.resource.data.details is string) ||
         (collectionName in ['zones', 'lifts'] && planner(projectId)) ||
-        (collectionName == 'inspections' && siteRecorder(projectId) && request.resource.data.stage == 0 && request.resource.data.get('history', []) == [] && request.resource.data.get('comments', []) == []) ||
+        (collectionName == 'inspections' && newInspection(projectId, recordId)) ||
         (collectionName == 'monitoring' && admin(projectId) && request.resource.data.confirmedBy == request.auth.token.email && request.resource.data.confirmedAt is string) ||
         // Self-registration only files a pending access request; an admin assigns the role that grants access.
         (collectionName == 'users' && recordId == request.resource.data.email.lower() && (selfProfile(projectId, recordId)
@@ -190,7 +272,7 @@ service cloud.firestore {
         (collectionName == 'materials' && siteRecorder(projectId) && validMaterial()) ||
         (collectionName == 'weatherLogs' && siteRecorder(projectId) && request.resource.data.details is string) ||
         (collectionName in ['zones', 'lifts'] && planner(projectId)) ||
-        (collectionName == 'inspections' && (inspectionComment(projectId) || inspectionAdvance(projectId) || inspectionDetails(projectId))) ||
+        (collectionName == 'inspections' && inspectionUpdate(projectId, recordId)) ||
         (collectionName == 'users' && (organizationUpdate(projectId) || personalProfileUpdate(recordId))) ||
         (collectionName == 'users' && admin(projectId) && recordId == request.resource.data.email.lower()
           && request.resource.data.systemRole in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin'])

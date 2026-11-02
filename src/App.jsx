@@ -20,9 +20,11 @@ import useSelfRegistration from './hooks/useSelfRegistration';
 import useSiteOwner from './hooks/useSiteOwner';
 import useProjectMembers from './hooks/useProjectMembers';
 import { grantProjectAccess, revokeProjectAccess, setProjectAccessRole } from './services/projectAccess';
-import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canAdvanceInspection, canEditInspection, canCommentInspection, isInspectionClosed, INSPECTION_STAGES, taskStatus } from './utils/siteData';
+import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canCommentInspection, isInspectionClosed, isInspectionOpen, taskStatus } from './utils/siteData';
+import { createInspection, updateInspectionDetails, advanceInspection, attachInspectionFile, removeInspectionFile } from './services/inspections';
 
-import { auth, db } from './firebase';
+import { auth, db, storage } from './firebase';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged, signOut, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { collection, onSnapshot, doc, updateDoc, runTransaction, arrayUnion } from 'firebase/firestore';
 import LoginView from './components/LoginView';
@@ -143,8 +145,7 @@ export default function App() {
   };
   const updateRecord = async (collectionName, id, updates) => {
     assertPermission(collectionName);
-    if (collectionName === 'inspections' && !canEditInspection(currentUser, inspections.find(r => r.id === id))) throw new Error('Only the creator or an admin can edit this inspection.');
-    if (collectionName === 'inspections' && ['stage', 'comments', 'history'].some(key => key in updates)) throw new Error('Use the inspection workflow to change its stage or discussion.');
+    if (collectionName === 'inspections') throw new Error('Use the inspection workflow to change RFIs.');
     const { id: ignoredId, createdBy: ignoredCreator, createdAt: ignoredDate, ...fields } = updates;
     void ignoredId; void ignoredCreator; void ignoredDate;
     await updateDoc(doc(db, `artifacts/${selectedProject.id}/${collectionName}`, id), {
@@ -205,21 +206,20 @@ export default function App() {
       organization: organization.trim(), updatedBy: user.email, updatedAt: new Date().toISOString()
     });
   };
-  const handleAdvanceInspection = async (id, expectedStage) => {
-    const ref = doc(db, `artifacts/${selectedProject.id}/inspections`, id);
-    await runTransaction(db, async transaction => {
-      const snapshot = await transaction.get(ref);
-      if (!snapshot.exists()) throw new Error('This inspection no longer exists.');
-      const inspection = snapshot.data();
-      if (inspection.stage !== expectedStage) throw new Error('The inspection changed. Review its current stage and retry.');
-      if (!canAdvanceInspection(currentUser, inspection)) throw new Error('Your role cannot advance this inspection stage.');
-      const timestamp = new Date().toISOString();
-      transaction.update(ref, {
-        stage: inspection.stage + 1,
-        history: [...(inspection.history || []), { action: `Advanced to ${INSPECTION_STAGES[inspection.stage + 1]}`, user: currentUser.name || user.email, email: user.email, role: currentUser.systemRole, timestamp }],
-        updatedBy: user.email, updatedAt: timestamp
-      });
-    });
+  const inspectionContext = () => {
+    if (!selectedProject || !user) throw new Error('Select a project first.');
+    return { projectId: selectedProject.id, currentUser, email: user.email };
+  };
+  const handleCreateInspection = (details, status) => createInspection(db, {
+    ...inspectionContext(), projectName: liveProject?.name || selectedProject.name, details, status, knownIds: inspections.map(i => i.id),
+  });
+  const handleUpdateInspection = (id, details) => updateInspectionDetails(db, { ...inspectionContext(), id, details });
+  const handleAdvanceInspection = (id, expectedStatus) => advanceInspection(db, { ...inspectionContext(), id, expectedStatus });
+  const handleAttachInspectionFile = (id, file, category) => attachInspectionFile(db, { storage, ref: storageRef, uploadBytes }, { ...inspectionContext(), id, file, category });
+  const handleRemoveInspectionFile = (id, fileId) => removeInspectionFile(db, { ...inspectionContext(), id, fileId });
+  const handleOpenInspectionFile = async attachment => {
+    const url = await getDownloadURL(storageRef(storage, attachment.path));
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
   const handleCommentInspection = async (id, text) => {
     if (!canCommentInspection(currentUser) || !text.trim()) throw new Error('Enter a comment using an assigned project account.');
@@ -237,7 +237,7 @@ export default function App() {
   };
   const progress = projectProgress(filteredTasks);
 
-  const pendingInspections = filteredInspections.filter(i => !isInspectionClosed(i)).length;
+  const pendingInspections = filteredInspections.filter(isInspectionOpen).length;
   const delayedMaterials = filteredMaterials.filter((m) => m.status?.includes('Delay')).length;
   const activeLifts = filteredLifts.filter((l) => l.status === 'ACTIVE').length;
 
@@ -356,7 +356,7 @@ export default function App() {
             title="RE / RTO Inspections"
             icon="inspections"
             value={`${filteredInspections.filter(i => isInspectionClosed(i)).length} Cleared`}
-            sub={`${filteredInspections.filter(i => !isInspectionClosed(i)).length} Awaiting Sign-off`}
+            sub={`${filteredInspections.filter(isInspectionOpen).length} Awaiting Sign-off`}
             status={filteredInspections.length && filteredInspections.every(i => isInspectionClosed(i)) ? 'success' : 'neutral'}
             onClick={() => setActiveTab('inspections')}
           />
@@ -404,10 +404,15 @@ export default function App() {
           {activeTab === 'inspections' && (
             <InspectionsView
               inspections={filteredInspections}
+              allInspectionIds={inspections.map(i => i.id)}
+              projectName={liveProject?.name || selectedProject.name}
               onAdvance={handleAdvanceInspection}
               onComment={handleCommentInspection}
-              onAdd={(t) => addRecord('inspections', t)}
-              onUpdate={(id, t) => updateRecord('inspections', id, t)}
+              onAdd={handleCreateInspection}
+              onUpdate={handleUpdateInspection}
+              onAttachFile={handleAttachInspectionFile}
+              onRemoveFile={handleRemoveInspectionFile}
+              onOpenFile={handleOpenInspectionFile}
               currentUser={currentUser}
               zones={zones}
             />

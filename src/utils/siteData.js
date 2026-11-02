@@ -6,7 +6,7 @@ export const canRecordSite = user => SITE_ROLES.includes(user?.systemRole);
 export const canWrite = (user, collection) => collection === 'monitoring' || collection === 'users'
   ? user?.systemRole === 'admin'
   : collection === 'weatherLogs' || collection === 'materials'
-    ? canRecordSite(user) : collection === 'inspections' ? canRecordSite(user) : ['tasks', 'zones', 'lifts'].includes(collection) && canPlan(user);
+    ? canRecordSite(user) : collection === 'inspections' ? canRaiseRfi(user) : ['tasks', 'zones', 'lifts'].includes(collection) && canPlan(user);
 export const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 export const dayNumber = value => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
@@ -52,7 +52,7 @@ export function taskConstraints(task, { inspections = [], materials = [], tasks 
 export function scheduleRows({ tasks = [], inspections = [], materials = [], diary = [], lifts = [] }) {
   return [
     ...tasks.map(t => ({ id: `task-${t.id}`, label: t.activity || t.wbs || t.id, start: t.startDate, end: t.endDate, progress: taskProgress(t), kind: 'Activity', detail: `${t.zone || 'No zone'} · ${t.status || 'Not recorded'}` })),
-    ...inspections.map(i => ({ id: `rfi-${i.id}`, label: i.element || i.id, start: i.targetCast?.slice(0, 10), kind: 'Inspection', detail: isInspectionClosed(i) ? 'Closed' : 'Pending' })),
+    ...inspections.map(i => ({ id: `rfi-${i.id}`, label: i.element || i.id, start: i.targetCast?.slice(0, 10), kind: 'Inspection', detail: isInspectionClosed(i) ? 'Closed' : inspectionStatusLabel(i) })),
     ...materials.flatMap(m => [
       ...(m.deliveryDate ? [{ id: `material-target-${m.id}`, label: m.reference || m.id, start: m.deliveryDate, kind: `${m.type || 'Material'} delivery target`, detail: m.status || 'Not recorded' }] : []),
       ...(m.actualDate ? [{ id: `material-receipt-${m.id}`, label: m.reference || m.id, start: m.actualDate, kind: `${m.type || 'Material'} receipt`, detail: m.status || 'Not recorded' }] : []),
@@ -98,16 +98,85 @@ export function taskStatus(task) {
   const legacy = { Backlog: 'lookahead', Ready: 'make_ready', 'In progress': 'in_progress', Blocked: 'blocked', Done: 'done' };
   return legacy[task.status] || (TASK_STATUSES.some(([id]) => id === task.status) ? task.status : 'lookahead');
 }
-export const INSPECTION_STAGES = ['Created (Creator)', 'Under RE Review (RE)', 'Site Inspection (Creator)', 'Applying for Closure (RE)', 'Closed'];
-export const isInspectionClosed = inspection => inspection?.stage === 4;
+// RFI workflow: Draft → Opened → RE review → RTO site inspection → next work allowed → closure applied → closed.
+export const RFI_RAISER_ROLES = PLANNING_ROLES;
+export const canRaiseRfi = user => RFI_RAISER_ROLES.includes(user?.systemRole);
+export const RFI_STATUSES = [
+  { id: 'draft', label: 'Draft', owner: 'Engineer / Manager' },
+  { id: 'opened', label: 'Opened', owner: 'Engineer / Manager' },
+  { id: 're_review', label: 'Under RE Review', owner: 'RE' },
+  { id: 'site_inspection', label: 'Site Inspection (RTO)', owner: 'RTO' },
+  { id: 'next_work', label: 'Next Work Allowed', owner: 'Engineer / Manager' },
+  { id: 'closure_applied', label: 'Closure Applied', owner: 'RE' },
+  { id: 'closed', label: 'Closed', owner: '' },
+];
+export const INSPECTION_STAGES = RFI_STATUSES.map(s => s.label);
+// Each transition: who may perform it, the button label and the audit-history text (mirrored in firestore.rules).
+export const RFI_TRANSITIONS = {
+  draft: { to: 'opened', actor: 'site', action: 'Open RFI', history: 'Opened RFI' },
+  opened: { to: 're_review', actor: 'site', action: 'Submit for RE review', history: 'Submitted for RE review' },
+  re_review: { to: 'site_inspection', actor: 'RE', action: 'Allow site inspection', history: 'RE allowed site inspection (RTO)' },
+  site_inspection: { to: 'next_work', actor: 'RTO', action: 'Allow next work', history: 'RTO allowed next work' },
+  next_work: { to: 'closure_applied', actor: 'site', action: 'Apply for RFI closure', history: 'Applied for RFI closure' },
+  closure_applied: { to: 'closed', actor: 'RE', action: 'Approve RFI closure', history: 'RE approved closure — RFI closed' },
+};
+// Records from the earlier five-stage workflow stored a numeric `stage`; map them onto the current statuses.
+const LEGACY_STAGE_STATUS = ['opened', 're_review', 'site_inspection', 'closure_applied', 'closed'];
+export function inspectionStatus(inspection) {
+  if (RFI_STATUSES.some(s => s.id === inspection?.status)) return inspection.status;
+  return Number.isInteger(inspection?.stage) ? LEGACY_STAGE_STATUS[inspection.stage] || null : null;
+}
+export const inspectionStatusIndex = inspection => RFI_STATUSES.findIndex(s => s.id === inspectionStatus(inspection));
+export const inspectionStatusLabel = inspection => RFI_STATUSES.find(s => s.id === inspectionStatus(inspection))?.label || 'Stage not recorded';
+export const isInspectionClosed = inspection => inspectionStatus(inspection) === 'closed';
+export const isInspectionDraft = inspection => inspectionStatus(inspection) === 'draft';
+export const isInspectionOpen = inspection => !!inspectionStatus(inspection) && !['draft', 'closed'].includes(inspectionStatus(inspection));
+export const nextInspectionTransition = inspection => RFI_TRANSITIONS[inspectionStatus(inspection)] || null;
 export function canAdvanceInspection(user, inspection) {
-  if (!inspection || !Number.isInteger(inspection.stage) || inspection.stage < 0 || inspection.stage >= 4) return false;
+  const transition = nextInspectionTransition(inspection);
+  if (!transition) return false;
   if (user?.systemRole === 'admin') return true;
-  if ([1, 3].includes(inspection.stage)) return user?.systemRole === 'RE';
-  return canRecordSite(user);
+  return transition.actor === 'site' ? canRaiseRfi(user) : user?.systemRole === transition.actor;
 }
 export const canEditInspection = (user, inspection) => user?.systemRole === 'admin'
-  || canRecordSite(user) && inspection?.createdBy === user?.email;
+  || canRaiseRfi(user) && inspection?.createdBy === user?.email;
+// PDFs can be attached while the RFI is a draft or opened, i.e. before it is submitted for RE review.
+export const canManageInspectionFiles = (user, inspection) => canRaiseRfi(user) && ['draft', 'opened'].includes(inspectionStatus(inspection));
+export const canRemoveInspectionFile = (user, inspection, file) => canManageInspectionFiles(user, inspection)
+  && (user?.systemRole === 'admin' || inspection?.createdBy === user?.email || file?.uploadedBy === user?.email);
+export const RFI_FILE_CATEGORIES = ['Inspection file', 'Reference'];
+export const RFI_MAX_FILE_BYTES = 20 * 1024 * 1024;
+export const RFI_MAX_FILES = 20;
+export function validateRfiFile(file, existingCount = 0) {
+  if (!file) return 'Choose a PDF file.';
+  if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) return 'Only PDF files can be attached.';
+  if (!file.size) return 'The selected PDF is empty.';
+  if (file.size > RFI_MAX_FILE_BYTES) return 'PDFs must be 20 MB or smaller.';
+  if (existingCount >= RFI_MAX_FILES) return `An RFI can hold up to ${RFI_MAX_FILES} PDFs.`;
+  return '';
+}
+
+// Automatic RFI references: <Project Name>_<Zone>-<Discipline code>-### (e.g. Marina Tower_Zone A-STR-001).
+export const RFI_DISCIPLINES = [
+  { name: 'Structural', code: 'STR' },
+  { name: 'Architectural', code: 'AR' },
+  { name: 'M&E Sleeve / Conduit', code: 'ME' },
+];
+export const disciplineCode = discipline => RFI_DISCIPLINES.find(d => d.name === discipline)?.code || '';
+// Firestore/Storage path segments cannot hold slashes; keep names readable but strip unsafe characters.
+export const rfiIdSegment = value => String(value || '').normalize('NFKC').replace(/[^\p{L}\p{N} ._()&+-]+/gu, '-').replace(/\s+/g, ' ').trim();
+export function rfiPrefix(projectName, zone, discipline) {
+  const project = rfiIdSegment(projectName), zoneName = rfiIdSegment(zone), code = disciplineCode(discipline);
+  return project && zoneName && code ? `${project}_${zoneName}-${code}` : '';
+}
+export const formatRfiId = (prefix, number) => `${prefix}-${String(number).padStart(3, '0')}`;
+export function highestRfiNumber(ids, prefix) {
+  return ids.reduce((max, id) => {
+    if (typeof id !== 'string' || !id.startsWith(`${prefix}-`)) return max;
+    const seq = id.slice(prefix.length + 1);
+    return /^\d{3,6}$/.test(seq) ? Math.max(max, Number(seq)) : max;
+  }, 0);
+}
 export const canCommentInspection = user => ROLES.includes(user?.systemRole);
 export function createMemberProfile(user, details = {}, isOwner = false, timestamp = new Date().toISOString()) {
   return {

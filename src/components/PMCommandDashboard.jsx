@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowRight } from 'lucide-react';
-import { isInspectionClosed, today } from '../utils/siteData';
+import { isInspectionClosed, inspectionStatusLabel, today } from '../utils/siteData';
 import { controlMatrix, MATRIX_RULES, STATUS_LABEL, STATUS_TONE } from '../utils/controlMatrix';
 import { sheetCode, sheetFor } from '../utils/sheets';
 
@@ -65,7 +65,7 @@ export default function PMCommandDashboard({ onNavigate, inspections, lifts, mat
                   <span className="font-semibold text-sm block truncate">{rfi.id}: {rfi.element}</span>
                   <span className="text-xs text-muted font-mono">Target pour {rfi.targetCast || 'not recorded'}</span>
                 </div>
-                <span className="badge shrink-0" data-tone={closed ? 'success' : 'warning'}>{closed ? 'Approved' : 'Awaiting closure'}</span>
+                <span className="badge shrink-0" data-tone={closed ? 'success' : 'warning'}>{closed ? 'Closed' : inspectionStatusLabel(rfi)}</span>
               </div>;
             })}
             {inspections.length === 0 && <p className="empty-state">No active RFIs.</p>}

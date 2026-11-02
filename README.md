@@ -41,7 +41,7 @@ ProximaStruc gives site teams, resident engineers and project managers a single 
 | --- | --- |
 | **Control Centre** | Project dashboard with a KPI ribbon: recorded plan progress, RE/RTO inspections, active permits, BBS and concrete records, and registered personnel. Filter the whole workspace by zone. |
 | **Schedule and Lookahead** | Four-column planning board (Lookahead, Make-Ready, In Progress, Done) plus a Gantt that combines activities with inspection targets, material deliveries, diary dates and lifting permits. Activities support predecessors, hold points, required material and constraints. |
-| **Quality: RE/RTO Inspections** | Five-stage request-for-inspection workflow: Created, Under RE Review, Site Inspection, Applying for Closure, Closed. Role-gated stage changes, append-only comments and history. Only the final Closed stage clears a linked planning hold point. |
+| **Quality: RE/RTO Inspections** | Request-for-inspection workflow: Draft → Opened → Under RE Review → Site Inspection (RTO) → Next Work Allowed → Closure Applied → Closed. RFI IDs are generated as `Project Name_Zone-Discipline-###` (STR, AR, ME). Engineers/managers attach inspection-file and reference PDFs before submitting for RE review. Role-gated stage changes, append-only comments and history. Only the final Closed stage clears a linked planning hold point. |
 | **Materials: BBS and DOs** | Separate records for bar bending schedules, concrete batches and delivery orders. Receipt, installation and pour states require a DO reference and actual date. Test results are never assumed to pass. |
 | **Site Diary** | Dated entries for progress, manpower, equipment, deliveries, inspections, safety, environment, weather, instructions, visitors and delays, optionally linked to a task. |
 | **Lifting and Permit-to-Work** | Lifting permit register with active and suspended states. Manual records never imply statutory compliance or authorisation to lift. |
@@ -74,8 +74,9 @@ Access is bound to a verified sign-in email and enforced in the UI and in Firest
 | Edit organisation details | Yes | Yes | | | | | |
 | Add and edit planning activities | Yes | Yes | Yes | | | | |
 | Add and edit diary and material records | Yes | Yes | Yes | Yes | | | |
-| Create RFIs and advance site-team stages | Yes | Yes | Yes | Yes | | | |
-| Advance RE review and closure stages | Yes | | | | Yes | | |
+| Draft/open RFIs, attach PDFs, submit for RE review, apply for closure | Yes | Yes | Yes | | | | |
+| Allow site inspection, approve RFI closure | Yes | | | | Yes | | |
+| Allow next work after site inspection | Yes | | | | | Yes | |
 | Record lifting permits | Yes | Yes | Yes | | | | |
 | Delete operational records directly | Yes | | | | | | |
 | Request deletion of own records | n/a | Yes | Yes | Yes | Yes | Yes | Yes |
@@ -148,8 +149,8 @@ npm run dev
 ## Testing
 
 - **Unit tests** cover date helpers, permissions, progress maths, Gantt data, dependencies, deletion logic and validation.
-- **Browser tests** run against isolated component fixtures with no Firebase connection. They cover role visibility, the planning board, save and failed-save handling, diary, BBS receipt, observations, account controls, deletion requests, the five-stage RFI workflow, mobile navigation, axe accessibility checks and 320px reflow. Set `CHROMIUM_PATH` if Chromium is not at `/usr/bin/chromium`.
-- **Rules tests** run the Firestore emulator against the demo project `demo-proximastruc` and check reads and writes, role escalation, registration sync, organisation updates and RFI transitions. No production credentials are needed.
+- **Browser tests** run against isolated component fixtures with no Firebase connection. They cover role visibility, the planning board, save and failed-save handling, diary, BBS receipt, observations, account controls, deletion requests, the seven-stage RFI workflow (drafts, automatic IDs, PDF attachments), mobile navigation, axe accessibility checks and 320px reflow. Set `CHROMIUM_PATH` if Chromium is not at `/usr/bin/chromium`.
+- **Rules tests** run the Firestore emulator against the demo project `demo-proximastruc` and check reads and writes, role escalation, registration sync, organisation updates, RFI numbering, transitions and attachment links, plus the Cloud Storage rules for RFI PDFs. No production credentials are needed.
 
 At the last recorded verification, lint and build passed with 34 unit tests and 46 Firestore rules tests. In the browser suite, 35 tests passed and 17 failed, all on pre-existing axe findings (`label-content-name-mismatch`, `landmark-unique`).
 
@@ -164,7 +165,7 @@ At the last recorded verification, lint and build passed with 34 unit tests and 
    ```
 
    Never use the demo test project for deployment.
-4. Deploy `storage.rules` (deny all; the app does not use Cloud Storage) with `npx firebase deploy --only storage --project <your-project-id>`.
+4. Enable Cloud Storage for the Firebase project (Build → Storage; new default buckets need the Blaze plan) and set `VITE_FIREBASE_STORAGE_BUCKET`. Deploy `storage.rules` with `npx firebase deploy --only storage --project <your-project-id>`. The rules only allow PDF uploads (≤ 20 MB) under `projects/{projectId}/inspections/…` and read the project's Firestore membership; accept the console prompt that lets Storage rules read Firestore. Uploaded PDFs cannot be overwritten or deleted from the app.
 5. `vercel.json` sets a Content Security Policy and other security headers. If you add a new external service, add its origin to the policy.
 
 6. Designate the site owner (see [Site owner](#site-owner)). Until one exists, nobody can create or delete projects.
@@ -197,7 +198,7 @@ ProximaStruc/
 │   └── rules/          Firestore emulator rules tests
 ├── docs/               Workflow and policy documentation
 ├── firestore.rules     Backend role enforcement
-├── storage.rules       Cloud Storage lockdown (deny all)
+├── storage.rules       Cloud Storage rules (RFI PDFs only)
 ├── vercel.json         SPA rewrites and security headers
 └── AGENTS.md           Project requirements for contributors and tooling
 ```

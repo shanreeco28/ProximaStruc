@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "ProximaStruc",
+  "short_name": "ProximaStruc",
+  "description": "Site monitoring and progress management for construction projects: schedule, quality inspections, materials, lifting permits and site diary.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#14202b",
+  "theme_color": "#14202b",
+  "categories": ["business", "productivity"],
+  "lang": "en",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/proximastruc.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

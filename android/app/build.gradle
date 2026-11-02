@@ -1,0 +1,80 @@
+plugins {
+    id 'com.android.application'
+}
+
+// ---------------------------------------------------------------------------
+// ProximaStruc for Android: a Trusted Web Activity (TWA) that opens the live
+// ProximaStruc site full-screen in Chrome. Change the site address here only.
+// The same host must serve /.well-known/assetlinks.json (see docs/google-play.md).
+// ---------------------------------------------------------------------------
+def twa = [
+    hostName       : 'REPLACE_WITH_YOUR_DOMAIN',   // e.g. proximastruc.vercel.app (no https://, no path)
+    launchUrl      : '/',
+    name           : 'ProximaStruc',
+    launcherName   : 'ProximaStruc',
+    themeColor     : '#14202B',
+    navigationColor: '#14202B',
+    backgroundColor: '#14202B',
+]
+
+android {
+    namespace 'com.proximastruc.app'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.proximastruc.app'
+        minSdk 23
+        targetSdk 36
+        // Raise versionCode by 1 for every upload to Google Play.
+        versionCode 1
+        versionName '1.0.0'
+
+        resValue 'string', 'hostName', twa.hostName
+        resValue 'string', 'launchUrl', 'https://' + twa.hostName + twa.launchUrl
+        resValue 'string', 'appName', twa.name
+        resValue 'string', 'launcherName', twa.launcherName
+        resValue 'color', 'colorPrimary', twa.themeColor
+        resValue 'color', 'navigationColor', twa.navigationColor
+        resValue 'color', 'backgroundColor', twa.backgroundColor
+        manifestPlaceholders = [hostName: twa.hostName]
+    }
+
+    // Upload key. Supplied by CI secrets or a local keystore.properties file
+    // (never committed). Google Play re-signs the app with its own key.
+    def keystorePropsFile = rootProject.file('keystore.properties')
+    def keystoreProps = new Properties()
+    if (keystorePropsFile.exists()) keystorePropsFile.withInputStream { keystoreProps.load(it) }
+    def prop = { String key, String env -> keystoreProps.getProperty(key) ?: System.getenv(env) }
+    def storeFilePath = prop('storeFile', 'ANDROID_KEYSTORE_PATH')
+
+    signingConfigs {
+        if (storeFilePath) {
+            upload {
+                storeFile file(storeFilePath)
+                storePassword prop('storePassword', 'ANDROID_KEYSTORE_PASSWORD')
+                keyAlias prop('keyAlias', 'ANDROID_KEY_ALIAS')
+                keyPassword prop('keyPassword', 'ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (storeFilePath) signingConfig signingConfigs.upload
+        }
+    }
+
+    buildFeatures {
+        resValues true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.6.2'
+}

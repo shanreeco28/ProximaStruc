@@ -168,6 +168,7 @@ At the last recorded verification, lint and build passed with 34 unit tests and 
 5. `vercel.json` sets a Content Security Policy and other security headers. If you add a new external service, add its origin to the policy.
 
 6. Designate the site owner (see [Site owner](#site-owner)). Until one exists, nobody can create or delete projects.
+7. To publish the Android app on Google Play, follow [docs/google-play.md](docs/google-play.md).
 
 See [SECURITY.md](SECURITY.md) for the production hardening checklist.
 
@@ -213,6 +214,7 @@ ProximaStruc/
 ## Further documentation
 
 - [Site workflows](docs/site-workflows.md): full workflow, role, deletion and migration notes
+- [Publishing on Google Play](docs/google-play.md): Android app (TWA) build, signing, store listing and policy forms
 - [SECURITY.md](SECURITY.md): production hardening checklist and vulnerability reporting
 - [AGENTS.md](AGENTS.md): product requirements and contribution constraints
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, FileText, FolderOpen, LogOut, Menu, Moon, Sun } from 'lucide-react';
+import { ChevronDown, FileText, FolderOpen, LogOut, Menu, Moon, ShieldCheck, Sun, UserX } from 'lucide-react';
 import useTheme, { SHOW_THEME_SHORTCUT } from '../hooks/useTheme';
 import ProfileEditor from './ProfileEditor';
 import { RecordModal } from './RecordForm';
@@ -61,6 +61,9 @@ export default function AccountControls({ user, profile, projectName, onSaveProf
       <button type="button" role="menuitem" tabIndex={-1} onClick={() => action(() => { toggleTheme(); window.dispatchEvent(new Event(SHOW_THEME_SHORTCUT)); })} className="menu-item">
         {isDark ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}{isDark ? 'Light mode' : 'Dark mode'}
       </button>
+      <div role="separator" className="my-1.5 border-t" style={{ borderColor: 'var(--border)' }} />
+      <a href="/privacy.html" role="menuitem" tabIndex={-1} className="menu-item"><ShieldCheck size={16} aria-hidden="true" />Privacy policy</a>
+      <a href="/delete-account.html" role="menuitem" tabIndex={-1} className="menu-item"><UserX size={16} aria-hidden="true" />Delete account</a>
     </div>}
     {onSaveProfile && <button ref={profileButton} type="button" aria-label="Edit profile" title="Edit profile" disabled={loggingOut} onClick={() => { setError(''); setMenuOpen(false); setProfileOpen(true); }}
       className="btn btn-ghost px-1.5 sm:pl-1.5 sm:pr-3">

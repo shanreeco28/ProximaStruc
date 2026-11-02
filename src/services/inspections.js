@@ -1,8 +1,8 @@
-import { doc, getDoc, runTransaction } from 'firebase/firestore';
+import { Bytes, deleteDoc, doc, getDoc, runTransaction, setDoc } from 'firebase/firestore';
 import {
   canAdvanceInspection, canEditInspection, canManageInspectionFiles, canRaiseRfi, canRemoveInspectionFile,
   disciplineCode, formatRfiId, highestRfiNumber, inspectionStatus, nextInspectionTransition, rfiPrefix,
-  RFI_FILE_CATEGORIES, RFI_MAX_FILES, validateRfiFile,
+  RFI_CHUNK_BYTES, RFI_FILE_CATEGORIES, RFI_MAX_FILES, validateRfiFile,
 } from '../utils/siteData.js';
 
 const DETAIL_FIELDS = ['zone', 'discipline', 'element', 'rtoName', 'reName', 'targetCast', 'bbsLinked'];
@@ -77,41 +77,68 @@ export async function advanceInspection(db, { projectId, id, expectedStatus, cur
   });
 }
 
+const chunkRef = (db, projectId, fileId, index) => doc(db, `artifacts/${projectId}/rfiFileChunks`, `${fileId}_${index}`);
+async function deleteChunks(db, projectId, fileId, total) {
+  // Best effort: frees quota for files that were never linked or were unlinked from a draft.
+  await Promise.allSettled(Array.from({ length: total }, (_, index) => deleteDoc(chunkRef(db, projectId, fileId, index))));
+}
+
 /**
- * Uploads a PDF to Cloud Storage, then links it to the RFI. Uploaded objects are immutable;
- * removing an attachment only unlinks it so submitted evidence cannot be altered.
+ * Stores a PDF inside Firestore as binary chunks (each below the 1 MiB document limit), then
+ * links it to the RFI. Chunks are written before the link, so a linked PDF is always complete.
  */
-export async function attachInspectionFile(db, storageApi, { projectId, id, file, category, currentUser, email }) {
-  const { storage, ref: storageRef, uploadBytes } = storageApi;
+export async function attachInspectionFile(db, { projectId, id, file, category, currentUser, email, onProgress }) {
   const ref = doc(db, `artifacts/${projectId}/inspections`, id);
   if (!RFI_FILE_CATEGORIES.includes(category)) throw new Error('Choose whether the PDF is an inspection file or a reference.');
-  const fileId = crypto.randomUUID();
-  const path = `projects/${projectId}/inspections/${id}/${fileId}.pdf`;
-  const name = (file.name || 'document.pdf').slice(0, 200);
   const current = await getDoc(ref);
   if (!current.exists()) throw new Error('This inspection no longer exists.');
   const preCheck = current.data();
   if (!canManageInspectionFiles(currentUser, preCheck)) throw new Error('PDFs can only be attached before the RFI is submitted for RE review.');
   const fileError = validateRfiFile(file, (preCheck.attachments || []).length);
   if (fileError) throw new Error(fileError);
-  await uploadBytes(storageRef(storage, path), file, { contentType: 'application/pdf', customMetadata: { uploadedBy: email, rfiId: id } });
-  await runTransaction(db, async transaction => {
-    const snapshot = await transaction.get(ref);
-    if (!snapshot.exists()) throw new Error('This inspection no longer exists.');
-    const inspection = snapshot.data();
-    if (!canManageInspectionFiles(currentUser, inspection)) throw new Error('The RFI was submitted while the PDF uploaded. It was not attached.');
-    if ((inspection.attachments || []).length >= RFI_MAX_FILES) throw new Error(`An RFI can hold up to ${RFI_MAX_FILES} PDFs.`);
-    const timestamp = new Date().toISOString();
-    transaction.update(ref, {
-      attachments: [...(inspection.attachments || []), { fileId, name, path, size: file.size, contentType: 'application/pdf', category, uploadedBy: email, uploadedAt: timestamp }],
-      updatedBy: email, updatedAt: timestamp,
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const total = Math.ceil(bytes.length / RFI_CHUNK_BYTES);
+  const fileId = crypto.randomUUID();
+  const name = (file.name || 'document.pdf').slice(0, 200);
+  const createdAt = new Date().toISOString();
+  try {
+    for (let index = 0; index < total; index++) {
+      await setDoc(chunkRef(db, projectId, fileId, index), {
+        rfiId: id, fileId, index, total, createdBy: email, createdAt,
+        data: Bytes.fromUint8Array(bytes.subarray(index * RFI_CHUNK_BYTES, (index + 1) * RFI_CHUNK_BYTES)),
+      });
+      onProgress?.(index + 1, total);
+    }
+    await runTransaction(db, async transaction => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists()) throw new Error('This inspection no longer exists.');
+      const inspection = snapshot.data();
+      if (!canManageInspectionFiles(currentUser, inspection)) throw new Error('The RFI was submitted while the PDF uploaded. It was not attached.');
+      if ((inspection.attachments || []).length >= RFI_MAX_FILES) throw new Error(`An RFI can hold up to ${RFI_MAX_FILES} PDFs.`);
+      const timestamp = new Date().toISOString();
+      transaction.update(ref, {
+        attachments: [...(inspection.attachments || []), { fileId, name, size: bytes.length, chunks: total, contentType: 'application/pdf', category, uploadedBy: email, uploadedAt: timestamp }],
+        updatedBy: email, updatedAt: timestamp,
+      });
     });
-  });
+  } catch (error) {
+    await deleteChunks(db, projectId, fileId, total);
+    throw error;
+  }
+}
+
+/** Reassembles a linked PDF from its Firestore chunks. */
+export async function readInspectionFile(db, { projectId, attachment }) {
+  const total = attachment?.chunks;
+  if (!Number.isInteger(total) || total < 1) throw new Error('This PDF record is incomplete.');
+  const snapshots = await Promise.all(Array.from({ length: total }, (_, index) => getDoc(chunkRef(db, projectId, attachment.fileId, index))));
+  if (snapshots.some(snapshot => !snapshot.exists())) throw new Error('Part of this PDF is missing. Ask the uploader to attach it again.');
+  return new Blob(snapshots.map(snapshot => snapshot.data().data.toUint8Array()), { type: 'application/pdf' });
 }
 
 export async function removeInspectionFile(db, { projectId, id, fileId, currentUser, email }) {
   const ref = doc(db, `artifacts/${projectId}/inspections`, id);
-  await runTransaction(db, async transaction => {
+  const removed = await runTransaction(db, async transaction => {
     const snapshot = await transaction.get(ref);
     if (!snapshot.exists()) throw new Error('This inspection no longer exists.');
     const inspection = snapshot.data();
@@ -120,5 +147,8 @@ export async function removeInspectionFile(db, { projectId, id, fileId, currentU
     if (!canRemoveInspectionFile(currentUser, inspection, file)) throw new Error('Only the uploader, RFI creator or an admin can remove PDFs before RE submission.');
     const timestamp = new Date().toISOString();
     transaction.update(ref, { attachments: inspection.attachments.filter(a => a.fileId !== fileId), updatedBy: email, updatedAt: timestamp });
+    return file;
   });
+  // The RFI is still a draft or opened here, so its chunks can be deleted to free Firestore storage.
+  await deleteChunks(db, projectId, fileId, removed.chunks || 0);
 }

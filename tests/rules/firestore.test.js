@@ -2,9 +2,9 @@ import { before, after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, getDoc, deleteDoc, arrayUnion, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getDoc, deleteDoc, arrayUnion, serverTimestamp, Timestamp, Bytes } from 'firebase/firestore';
 import { createMemberProfile, canAdvanceInspection, RFI_STATUSES, RFI_TRANSITIONS } from '../../src/utils/siteData.js';
-import { createInspection, advanceInspection, removeInspectionFile } from '../../src/services/inspections.js';
+import { createInspection, advanceInspection, removeInspectionFile, attachInspectionFile, readInspectionFile } from '../../src/services/inspections.js';
 import { synchronizeProjectMembership } from '../../src/services/projectMembership.js';
 import { submitRecordDeletion, reviewRecordDeletion } from '../../src/services/recordDeletion.js';
 import { saveOwnProjectProfile } from '../../src/services/personalProfile.js';
@@ -123,7 +123,10 @@ const rfiDetails = {zone:'Zone A',discipline:'Structural',element:'Level 2 slab'
 const createRfi = (role,details=rfiDetails,status='draft') => createInspection(client(role),{projectId:'p',projectName:'Test project',currentUser:rfiUser(role),email:`${role}@example.test`,details,status});
 const historyText = status => Object.values(RFI_TRANSITIONS).find(t=>t.to===status)?.history || 'none';
 const historyEntry = (role,status) => ({email:`${role}@example.test`,user:role,role,timestamp:'2026-10-26',action:historyText(status)});
-const attachment = (role,id,extra={}) => ({fileId:'0b5c1d2e-aaaa-bbbb-cccc-000000000001',name:'Inspection.pdf',path:`projects/p/inspections/${id}/0b5c1d2e-aaaa-bbbb-cccc-000000000001.pdf`,size:2048,contentType:'application/pdf',category:'Inspection file',uploadedBy:`${role}@example.test`,uploadedAt:'2026-10-26',...extra});
+const FILE_ID='0b5c1d2e-aaaa-bbbb-cccc-000000000001';
+const attachment = (role,extra={}) => ({fileId:FILE_ID,name:'Inspection.pdf',size:2048,chunks:1,contentType:'application/pdf',category:'Inspection file',uploadedBy:`${role}@example.test`,uploadedAt:'2026-10-26',...extra});
+const chunk = (role,rfiId,extra={}) => ({rfiId,fileId:FILE_ID,index:0,total:1,data:Bytes.fromUint8Array(new Uint8Array(2048).fill(37)),createdBy:`${role}@example.test`,createdAt:'2026-10-26',...extra});
+const pdfFile = (size,name='Inspection.pdf') => { const bytes=new Uint8Array(size); bytes.set([37,80,68,70]); return Object.assign(new Blob([bytes],{type:'application/pdf'}),{name}); };
 
 test('only engineers, managers and admins raise RFIs, numbered Project_Zone-Discipline-###',async()=>{
   for(const role of ['supervisor','RE','RTO','guest']) await assertFails(createInspection(client(role),{projectId:'p',projectName:'Test project',currentUser:{...rfiUser(role),systemRole:'engineer'},email:`${role}@example.test`,details:{...rfiDetails,zone:`Role ${role}`}}));
@@ -180,25 +183,50 @@ test('RFIs cannot skip stages, forge discussion identity or erase existing histo
   await assertFails(updateDoc(doc(client('guest'),path),{comments:arrayUnion({...comment,text:'Forged'}),...changed('guest')}));
   await assertFails(updateDoc(doc(client('RTO'),path),{comments:[],...changed('RTO')}));
 });
-test('PDF links are added or removed only before RE submission, with a valid storage path',async()=>{
+test('PDF chunks are written only by engineers/managers/admins before RE submission',async()=>{
+  const id='chunk-rfi', path=`artifacts/p/inspections/${id}`, chunkPath=`artifacts/p/rfiFileChunks/${FILE_ID}_0`;
+  await seed(path,{status:'draft',history:[],comments:[],attachments:[],...audit('engineer@example.test')});
+  for(const role of ['supervisor','RE','RTO','guest']) await assertFails(setDoc(doc(client(role),chunkPath),chunk(role,id)));
+  await assertFails(setDoc(doc(client('engineer'),chunkPath),chunk('engineer',id,{data:Bytes.fromUint8Array(new Uint8Array(921601))})));
+  await assertFails(setDoc(doc(client('engineer'),chunkPath),chunk('engineer',id,{index:1})));
+  await assertFails(setDoc(doc(client('engineer'),chunkPath),chunk('engineer',id,{data:'not bytes'})));
+  await assertFails(setDoc(doc(client('engineer'),chunkPath),chunk('manager',id)));
+  await assertSucceeds(setDoc(doc(client('engineer'),chunkPath),chunk('engineer',id)));
+  await assertFails(setDoc(doc(client('engineer'),chunkPath),chunk('engineer',id,{createdAt:'changed'})));
+  await assertSucceeds(getDoc(doc(client('guest'),chunkPath)));
+  await seed('artifacts/p/inspections/submitted-rfi',{status:'re_review',history:[],comments:[],attachments:[],...audit('engineer@example.test')});
+  await assertFails(setDoc(doc(client('engineer'),`artifacts/p/rfiFileChunks/${FILE_ID.replace('0001','0009')}_0`),chunk('engineer','submitted-rfi',{fileId:FILE_ID.replace('0001','0009')})));
+});
+test('PDF links require a complete upload and lock after RE submission',async()=>{
   const id='attach-rfi', path=`artifacts/p/inspections/${id}`;
   await seed(path,{status:'draft',history:[],comments:[],attachments:[],element:'Slab',...audit('engineer@example.test')});
-  await assertFails(updateDoc(doc(client('supervisor'),path),{attachments:[attachment('supervisor',id)],...changed('supervisor')}));
-  await assertFails(updateDoc(doc(client('RE'),path),{attachments:[attachment('RE',id)],...changed('RE')}));
-  await assertFails(updateDoc(doc(client('engineer'),path),{attachments:[attachment('engineer',id,{path:'projects/other/inspections/x/y.pdf'})],...changed('engineer')}));
-  await assertFails(updateDoc(doc(client('engineer'),path),{attachments:[attachment('engineer',id,{contentType:'image/png'})],...changed('engineer')}));
-  await assertFails(updateDoc(doc(client('engineer'),path),{attachments:[attachment('manager',id)],...changed('engineer')}));
-  await assertSucceeds(updateDoc(doc(client('manager'),path),{attachments:[attachment('manager',id)],...changed('manager')}));
-  const second=attachment('engineer',id,{fileId:'0b5c1d2e-aaaa-bbbb-cccc-000000000002',path:`projects/p/inspections/${id}/0b5c1d2e-aaaa-bbbb-cccc-000000000002.pdf`,category:'Reference'});
-  await assertSucceeds(updateDoc(doc(client('engineer'),path),{attachments:[attachment('manager',id),second],...changed('engineer')}));
-  // Another engineer cannot unlink a file they neither uploaded nor own; the RFI creator can.
+  // No chunks yet: the link is refused.
+  await assertFails(updateDoc(doc(client('manager'),path),{attachments:[attachment('manager')],...changed('manager')}));
+  await seed(`artifacts/p/rfiFileChunks/${FILE_ID}_0`,chunk('manager',id));
+  await assertFails(updateDoc(doc(client('RE'),path),{attachments:[attachment('RE')],...changed('RE')}));
+  await assertFails(updateDoc(doc(client('manager'),path),{attachments:[attachment('manager',{chunks:2})],...changed('manager')}));
+  await assertFails(updateDoc(doc(client('manager'),path),{attachments:[attachment('manager',{size:921601})],...changed('manager')}));
+  await assertFails(updateDoc(doc(client('manager'),path),{attachments:[attachment('manager',{contentType:'image/png'})],...changed('manager')}));
+  await assertFails(updateDoc(doc(client('engineer'),path),{attachments:[attachment('manager')],...changed('engineer')}));
+  await assertSucceeds(updateDoc(doc(client('manager'),path),{attachments:[attachment('manager')],...changed('manager')}));
+  // The full service path: a 2 MB PDF is split into three chunks, linked and read back intact.
+  await assertSucceeds(attachInspectionFile(client('engineer'),{projectId:'p',id,file:pdfFile(2_000_000,'Drawing.pdf'),category:'Reference',currentUser:rfiUser('engineer'),email:'engineer@example.test'}));
+  const linked=(await getDoc(doc(client('guest'),path))).data().attachments;
+  assert.equal(linked.length,2); assert.equal(linked[1].chunks,3); assert.equal(linked[1].size,2_000_000);
+  const blob=await readInspectionFile(client('RTO'),{projectId:'p',attachment:linked[1]});
+  assert.equal(blob.size,2_000_000); assert.deepEqual([...new Uint8Array(await blob.arrayBuffer()).slice(0,4)],[37,80,68,70]);
+  // Another engineer cannot unlink or delete a file they neither uploaded nor own; the RFI creator can.
   await seed('artifacts/p/users/engineer2@example.test',{email:'engineer2@example.test',systemRole:'engineer'});
-  await assertFails(updateDoc(doc(client('engineer2'),path),{attachments:[second],...changed('engineer2')}));
-  await assertSucceeds(removeInspectionFile(client('engineer'),{projectId:'p',id,fileId:'0b5c1d2e-aaaa-bbbb-cccc-000000000001',currentUser:rfiUser('engineer'),email:'engineer@example.test'}));
+  await assertFails(updateDoc(doc(client('engineer2'),path),{attachments:[linked[1]],...changed('engineer2')}));
+  await assertFails(deleteDoc(doc(client('engineer2'),`artifacts/p/rfiFileChunks/${FILE_ID}_0`)));
+  await assertSucceeds(removeInspectionFile(client('engineer'),{projectId:'p',id,fileId:FILE_ID,currentUser:rfiUser('engineer'),email:'engineer@example.test'}));
+  assert.equal((await getDoc(doc(client('guest'),`artifacts/p/rfiFileChunks/${FILE_ID}_0`))).exists(),false);
   await assertSucceeds(advanceInspection(client('engineer'),{projectId:'p',id,expectedStatus:'draft',currentUser:rfiUser('engineer'),email:'engineer@example.test'}));
   await assertSucceeds(advanceInspection(client('manager'),{projectId:'p',id,expectedStatus:'opened',currentUser:rfiUser('manager'),email:'manager@example.test'}));
+  // After RE submission the list and the stored chunks are locked, even for admins.
   await assertFails(updateDoc(doc(client('engineer'),path),{attachments:[],...changed('engineer')}));
-  await assertFails(updateDoc(doc(client('admin'),path),{attachments:[second,attachment('admin',id)],...changed('admin')}));
+  await assertFails(deleteDoc(doc(client('engineer'),`artifacts/p/rfiFileChunks/${linked[1].fileId}_0`)));
+  await assertFails(deleteDoc(doc(client('admin'),`artifacts/p/rfiFileChunks/${linked[1].fileId}_1`)));
 });
 test('inspection metadata edits cannot overwrite discussion, renumber RFIs or bypass stage permissions',async()=>{
   const path='artifacts/p/inspections/creator-edit';

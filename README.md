@@ -150,7 +150,7 @@ npm run dev
 
 - **Unit tests** cover date helpers, permissions, progress maths, Gantt data, dependencies, deletion logic and validation.
 - **Browser tests** run against isolated component fixtures with no Firebase connection. They cover role visibility, the planning board, save and failed-save handling, diary, BBS receipt, observations, account controls, deletion requests, the seven-stage RFI workflow (drafts, automatic IDs, PDF attachments), mobile navigation, axe accessibility checks and 320px reflow. Set `CHROMIUM_PATH` if Chromium is not at `/usr/bin/chromium`.
-- **Rules tests** run the Firestore emulator against the demo project `demo-proximastruc` and check reads and writes, role escalation, registration sync, organisation updates, RFI numbering, transitions and attachment links, plus the Cloud Storage rules for RFI PDFs. No production credentials are needed.
+- **Rules tests** run the Firestore emulator against the demo project `demo-proximastruc` and check reads and writes, role escalation, registration sync, organisation updates, RFI numbering, transitions, PDF chunk storage and attachment links. No production credentials are needed.
 
 At the last recorded verification, lint and build passed with 34 unit tests and 46 Firestore rules tests. In the browser suite, 35 tests passed and 17 failed, all on pre-existing axe findings (`label-content-name-mismatch`, `landmark-unique`).
 
@@ -165,7 +165,7 @@ At the last recorded verification, lint and build passed with 34 unit tests and 
    ```
 
    Never use the demo test project for deployment.
-4. Enable Cloud Storage for the Firebase project (Build → Storage; new default buckets need the Blaze plan) and set `VITE_FIREBASE_STORAGE_BUCKET`. Deploy `storage.rules` with `npx firebase deploy --only storage --project <your-project-id>`. The rules only allow PDF uploads (≤ 20 MB) under `projects/{projectId}/inspections/…` and read the project's Firestore membership; accept the console prompt that lets Storage rules read Firestore. Uploaded PDFs cannot be overwritten or deleted from the app.
+4. RFI PDFs are stored in Firestore, so the free Spark plan is enough and Cloud Storage is not needed. If the project does have a Cloud Storage bucket, lock it down by deploying `storage.rules` (deny all) with `npx firebase deploy --only storage --project <your-project-id>`.
 5. `vercel.json` sets a Content Security Policy and other security headers. If you add a new external service, add its origin to the policy.
 
 6. Designate the site owner (see [Site owner](#site-owner)). Until one exists, nobody can create or delete projects.
@@ -198,7 +198,7 @@ ProximaStruc/
 │   └── rules/          Firestore emulator rules tests
 ├── docs/               Workflow and policy documentation
 ├── firestore.rules     Backend role enforcement
-├── storage.rules       Cloud Storage rules (RFI PDFs only)
+├── storage.rules       Cloud Storage lockdown (deny all)
 ├── vercel.json         SPA rewrites and security headers
 └── AGENTS.md           Project requirements for contributors and tooling
 ```

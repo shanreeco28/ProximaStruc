@@ -131,14 +131,44 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(editable)
         && (r == 'admin' || r in ['manager', 'engineer'] && resource.data.createdBy == request.auth.token.email);
     }
+    // RFI PDFs are stored in Firestore as binary chunks of up to 900 KiB (10 MB / 12 chunks per file).
+    function rfiChunkPath(projectId, fileId, index) {
+      return /databases/$(database)/documents/artifacts/$(projectId)/rfiFileChunks/$(fileId + '_' + string(index));
+    }
     function validAttachment(projectId, recordId, a) {
-      return a is map && a.keys().hasOnly(['fileId', 'name', 'path', 'size', 'contentType', 'category', 'uploadedBy', 'uploadedAt'])
+      return a is map && a.keys().hasOnly(['fileId', 'name', 'size', 'chunks', 'contentType', 'category', 'uploadedBy', 'uploadedAt'])
         && a.fileId is string && a.fileId.matches('^[A-Za-z0-9-]{8,64}$')
-        && a.path == 'projects/' + projectId + '/inspections/' + recordId + '/' + a.fileId + '.pdf'
         && a.name is string && a.name.size() > 0 && a.name.size() <= 200
-        && a.size is int && a.size > 0 && a.size <= 20971520
+        && a.chunks is int && a.chunks >= 1 && a.chunks <= 12
+        && a.size is int && a.size > (a.chunks - 1) * 921600 && a.size <= a.chunks * 921600 && a.size <= 10485760
         && a.contentType == 'application/pdf' && a.category in ['Inspection file', 'Reference']
-        && a.uploadedBy == request.auth.token.email && a.uploadedAt is string;
+        && a.uploadedBy == request.auth.token.email && a.uploadedAt is string
+        // The upload must be complete: the first and last chunks exist and belong to this RFI.
+        && get(rfiChunkPath(projectId, a.fileId, 0)).data.rfiId == recordId
+        && get(rfiChunkPath(projectId, a.fileId, a.chunks - 1)).data.total == a.chunks
+        && get(rfiChunkPath(projectId, a.fileId, a.chunks - 1)).data.createdBy == request.auth.token.email;
+    }
+    function rfiOf(projectId, rfiId) {
+      return get(/databases/$(database)/documents/artifacts/$(projectId)/inspections/$(rfiId)).data;
+    }
+    function newRfiFileChunk(projectId, chunkId) {
+      let d = request.resource.data;
+      return effectiveRole(projectId) in ['admin', 'manager', 'engineer']
+        && d.keys().hasOnly(['rfiId', 'fileId', 'index', 'total', 'data', 'createdBy', 'createdAt'])
+        && d.fileId is string && d.fileId.matches('^[A-Za-z0-9-]{8,64}$')
+        && d.total is int && d.total >= 1 && d.total <= 12 && d.index is int && d.index >= 0 && d.index < d.total
+        && chunkId == d.fileId + '_' + string(d.index)
+        && d.data is bytes && d.data.size() > 0 && d.data.size() <= 921600
+        && d.createdBy == request.auth.token.email && d.createdAt is string
+        && d.rfiId is string && rfiStatusOf(rfiOf(projectId, d.rfiId)) in ['draft', 'opened'];
+    }
+    // Chunks can be removed only before RE submission, by their uploader, the RFI creator or an admin.
+    // After submission they are immutable, so documents the RE reviews cannot change.
+    function rfiFileChunkDelete(projectId) {
+      let rfi = rfiOf(projectId, resource.data.rfiId);
+      return rfiStatusOf(rfi) in ['draft', 'opened']
+        && (resource.data.createdBy == request.auth.token.email || rfi.createdBy == request.auth.token.email
+          || effectiveRole(projectId) == 'admin');
     }
     // PDFs are attached or unlinked only before the RFI is submitted for RE review.
     function inspectionAttachments(projectId, recordId) {
@@ -240,6 +270,11 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['last', 'lastId', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt']);
       allow update: if auditUpdate() && rfiCounterWrite(projectId, prefix, resource.data.last)
         && request.resource.data.keys().hasOnly(['last', 'lastId', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt']);
+    }
+    match /artifacts/{projectId}/rfiFileChunks/{chunkId} {
+      // Read access comes from the project-records match below.
+      allow create: if newRfiFileChunk(projectId, chunkId);
+      allow delete: if rfiFileChunkDelete(projectId);
     }
     match /siteOwners/{uid} {
       allow read: if signedIn() && uid == request.auth.uid;

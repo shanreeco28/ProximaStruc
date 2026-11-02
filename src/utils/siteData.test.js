@@ -103,7 +103,8 @@ test('PDFs can be attached only before RE submission and removed by the uploader
   assert.equal(canRemoveInspectionFile({systemRole:'manager',email:'c'},rfi,{uploadedBy:'x'}),true);
   assert.equal(validateRfiFile({name:'a.pdf',type:'application/pdf',size:10}),'');
   assert.match(validateRfiFile({name:'a.docx',type:'application/msword',size:10}),/PDF/);
-  assert.match(validateRfiFile({name:'a.pdf',type:'application/pdf',size:21*1024*1024}),/20 MB/);
+  assert.match(validateRfiFile({name:'a.pdf',type:'application/pdf',size:10*1024*1024+1}),/10 MB/);
+  assert.equal(validateRfiFile({name:'a.pdf',type:'application/pdf',size:10*1024*1024}),'');
   assert.match(validateRfiFile({name:'a.pdf',type:'application/pdf',size:10},20),/up to 20/);
 });
 test('RFI references follow Project Name_Zone-Discipline-###', () => {

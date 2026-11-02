@@ -145,13 +145,16 @@ export const canManageInspectionFiles = (user, inspection) => canRaiseRfi(user) 
 export const canRemoveInspectionFile = (user, inspection, file) => canManageInspectionFiles(user, inspection)
   && (user?.systemRole === 'admin' || inspection?.createdBy === user?.email || file?.uploadedBy === user?.email);
 export const RFI_FILE_CATEGORIES = ['Inspection file', 'Reference'];
-export const RFI_MAX_FILE_BYTES = 20 * 1024 * 1024;
+// PDFs are stored inside Firestore (free Spark plan) as binary chunks below the 1 MiB document limit.
+export const RFI_MAX_FILE_BYTES = 10 * 1024 * 1024;
+export const RFI_CHUNK_BYTES = 900 * 1024;
+export const RFI_MAX_CHUNKS = Math.ceil(RFI_MAX_FILE_BYTES / RFI_CHUNK_BYTES);
 export const RFI_MAX_FILES = 20;
 export function validateRfiFile(file, existingCount = 0) {
   if (!file) return 'Choose a PDF file.';
   if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) return 'Only PDF files can be attached.';
   if (!file.size) return 'The selected PDF is empty.';
-  if (file.size > RFI_MAX_FILE_BYTES) return 'PDFs must be 20 MB or smaller.';
+  if (file.size > RFI_MAX_FILE_BYTES) return 'PDFs must be 10 MB or smaller.';
   if (existingCount >= RFI_MAX_FILES) return `An RFI can hold up to ${RFI_MAX_FILES} PDFs.`;
   return '';
 }

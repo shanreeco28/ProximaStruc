@@ -21,10 +21,9 @@ import useSiteOwner from './hooks/useSiteOwner';
 import useProjectMembers from './hooks/useProjectMembers';
 import { grantProjectAccess, revokeProjectAccess, setProjectAccessRole } from './services/projectAccess';
 import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canCommentInspection, isInspectionClosed, isInspectionOpen, taskStatus } from './utils/siteData';
-import { createInspection, updateInspectionDetails, advanceInspection, attachInspectionFile, removeInspectionFile } from './services/inspections';
+import { createInspection, updateInspectionDetails, advanceInspection, attachInspectionFile, readInspectionFile, removeInspectionFile } from './services/inspections';
 
-import { auth, db, storage } from './firebase';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { collection, onSnapshot, doc, updateDoc, runTransaction, arrayUnion } from 'firebase/firestore';
 import LoginView from './components/LoginView';
@@ -215,11 +214,17 @@ export default function App() {
   });
   const handleUpdateInspection = (id, details) => updateInspectionDetails(db, { ...inspectionContext(), id, details });
   const handleAdvanceInspection = (id, expectedStatus) => advanceInspection(db, { ...inspectionContext(), id, expectedStatus });
-  const handleAttachInspectionFile = (id, file, category) => attachInspectionFile(db, { storage, ref: storageRef, uploadBytes }, { ...inspectionContext(), id, file, category });
+  const handleAttachInspectionFile = (id, file, category, onProgress) => attachInspectionFile(db, { ...inspectionContext(), id, file, category, onProgress });
   const handleRemoveInspectionFile = (id, fileId) => removeInspectionFile(db, { ...inspectionContext(), id, fileId });
   const handleOpenInspectionFile = async attachment => {
-    const url = await getDownloadURL(storageRef(storage, attachment.path));
-    window.open(url, '_blank', 'noopener,noreferrer');
+    // Open the tab during the click so pop-up blockers allow it, then load the reassembled PDF.
+    const viewer = window.open('', '_blank');
+    try {
+      const url = URL.createObjectURL(await readInspectionFile(db, { projectId: selectedProject.id, attachment }));
+      if (viewer) { viewer.opener = null; viewer.location.href = url; }
+      else { const link = document.createElement('a'); link.href = url; link.download = attachment.name || 'document.pdf'; link.click(); }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) { viewer?.close(); throw error; }
   };
   const handleCommentInspection = async (id, text) => {
     if (!canCommentInspection(currentUser) || !text.trim()) throw new Error('Enter a comment using an assigned project account.');

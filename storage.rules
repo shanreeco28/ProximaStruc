@@ -1,34 +1,8 @@
 rules_version = '2';
-// ProximaStruc stores only RFI PDFs (inspection files and references) in Cloud Storage.
-// Access is decided from the project's Firestore membership (cross-service rules).
-// Uploaded PDFs are immutable: they cannot be overwritten or deleted from client apps, so
-// documents submitted for RE review remain intact. Unlinking a PDF from a draft only edits the RFI record.
+// ProximaStruc does not store files in Cloud Storage (RFI PDFs are kept in Firestore).
+// Deny all access so the project's default bucket cannot be read or written from client apps.
 service firebase.storage {
   match /b/{bucket}/o {
-    function verifiedEmail() {
-      return request.auth != null && request.auth.token.get('email_verified', false) == true && request.auth.token.get('email', '') != '';
-    }
-    function memberPath(projectId) {
-      return /databases/(default)/documents/artifacts/$(projectId)/users/$(request.auth.token.email.lower());
-    }
-    // A single membership lookup covers most requests (Storage allows few Firestore lookups per request).
-    function role(projectId) {
-      return verifiedEmail() && firestore.exists(memberPath(projectId)) ? firestore.get(memberPath(projectId)).data.get('systemRole', '') : '';
-    }
-    function siteOwner() {
-      return request.auth != null && firestore.exists(/databases/(default)/documents/siteOwners/$(request.auth.uid));
-    }
-
-    match /projects/{projectId}/inspections/{rfiId}/{fileName} {
-      allow read: if role(projectId) in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin'] || siteOwner();
-      allow create: if (role(projectId) in ['engineer', 'manager', 'admin'] || siteOwner())
-        // Storage treats overwriting an object as a create, so require that the object is new.
-        && resource == null && fileName.matches('^[A-Za-z0-9-]{8,64}[.]pdf$')
-        && request.resource.contentType == 'application/pdf'
-        && request.resource.size > 0 && request.resource.size <= 20 * 1024 * 1024
-        && request.resource.metadata.uploadedBy == request.auth.token.email;
-      allow update, delete: if false;
-    }
     match /{allPaths=**} {
       allow read, write: if false;
     }

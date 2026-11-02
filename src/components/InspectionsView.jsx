@@ -20,7 +20,7 @@ function FormField({ label, ariaLabel, children }) {
   return <label className="field-label">{label}{React.cloneElement(children, { 'aria-label': ariaLabel || label, className: 'field-control' })}</label>;
 }
 
-function RfiDocuments({ rfi, currentUser, busy, onUpload, onRemove, onOpen }) {
+function RfiDocuments({ rfi, currentUser, busy, progress, onUpload, onRemove, onOpen }) {
   const [category, setCategory] = useState(RFI_FILE_CATEGORIES[0]);
   const files = rfi.attachments || [];
   const editable = canManageInspectionFiles(currentUser, rfi);
@@ -51,7 +51,7 @@ function RfiDocuments({ rfi, currentUser, busy, onUpload, onRemove, onOpen }) {
             </li>
           ))}
         </ul>
-      ) : <p className="text-xs text-muted italic">No PDFs attached.{editable ? ' Upload inspection files or references before submitting for RE review.' : ''}</p>}
+      ) : <p className="text-xs text-muted italic">No PDFs attached.{editable ? ' Upload inspection files or references (PDF, up to 10 MB each) before submitting for RE review.' : ''}</p>}
       {editable && (
         <div className="flex flex-wrap items-end gap-3">
           <label className="field-label !mb-0">Document type
@@ -60,7 +60,7 @@ function RfiDocuments({ rfi, currentUser, busy, onUpload, onRemove, onOpen }) {
             </select>
           </label>
           <label className={`btn btn-secondary cursor-pointer focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 ${busy ? 'opacity-60 pointer-events-none' : ''}`}>
-            <Paperclip size={14} aria-hidden="true" />{busy ? 'Uploading…' : 'Upload PDF'}
+            <Paperclip size={14} aria-hidden="true" />{progress || (busy ? 'Working…' : 'Upload PDF')}
             <input type="file" accept="application/pdf,.pdf" multiple className="sr-only" disabled={busy} aria-label={`Upload PDF to ${rfi.id}`}
               onChange={e => { const chosen = Array.from(e.target.files || []); e.target.value = ''; if (chosen.length) onUpload(rfi, chosen, category); }} />
           </label>
@@ -75,6 +75,7 @@ export default function InspectionsView({ inspections, allInspectionIds, project
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState('');
+  const [uploadProgress, setUploadProgress] = useState('');
   const [filterDiscipline, setFilterDiscipline] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [search, setSearch] = useState('');
@@ -110,12 +111,12 @@ export default function InspectionsView({ inspections, allInspectionIds, project
       for (const file of files) {
         const problem = validateRfiFile(file, count);
         if (problem) throw new Error(`${file.name}: ${problem}`);
-        await onAttachFile(rfi.id, file, category);
+        await onAttachFile(rfi.id, file, category, (part, total) => setUploadProgress(`Uploading ${file.name.length > 24 ? `${file.name.slice(0, 21)}…` : file.name} ${Math.round(part / total * 100)}%`));
         count += 1; done += 1;
       }
       setNotice(`${done} PDF${done === 1 ? '' : 's'} attached to ${rfi.id}.`);
     } catch (e) { setError(done ? `${done} attached; ${e.message}` : e.message); }
-    finally { setUploading(''); }
+    finally { setUploading(''); setUploadProgress(''); }
   };
   const handleRemoveFile = async (id, fileId) => {
     if (saving) return;
@@ -226,7 +227,7 @@ export default function InspectionsView({ inspections, allInspectionIds, project
                   <div><span className="meta-label">Linked BBS</span><span className="meta-value">{rfi.bbsLinked || 'Not recorded'}</span></div>
                 </div>
 
-                <RfiDocuments rfi={rfi} currentUser={currentUser} busy={uploading === rfi.id || saving} onUpload={handleUpload} onRemove={handleRemoveFile} onOpen={onOpenFile ? handleOpenFile : null} />
+                <RfiDocuments rfi={rfi} currentUser={currentUser} busy={uploading === rfi.id || saving} progress={uploading === rfi.id ? uploadProgress : ''} onUpload={handleUpload} onRemove={handleRemoveFile} onOpen={onOpenFile ? handleOpenFile : null} />
 
                 <ol className="stepper" data-steps={RFI_STATUSES.length} style={{ '--steps': RFI_STATUSES.length }} aria-label={`${rfi.id} review stages`}>
                   {RFI_STATUSES.map(({ id, label }, idx) => {

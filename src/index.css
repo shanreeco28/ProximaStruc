@@ -589,3 +589,7 @@ input[readonly] { background-color: var(--surface-3); color: var(--muted); }
   body:has(.executive-report-content) #root { display: none !important; }
   .dialog-panel > div:first-child > button { display: none !important; }
 }
+
+/* "Update available" prompt: top of the screen, clear of the mobile nav. */
+.update-prompt { top: calc(12px + env(safe-area-inset-top, 0px)); }
+@media print { .update-prompt { display: none !important; } }

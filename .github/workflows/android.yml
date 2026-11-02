@@ -1,8 +1,11 @@
-name: Android (Google Play)
+name: Android
 
-# Builds the ProximaStruc Android App Bundle (.aab) for Google Play.
-# Download it from the run's "Artifacts" section and upload it in Play Console.
-# Signing uses the upload key stored in repository secrets (see docs/google-play.md).
+# Builds ProximaStruc for Android:
+#   - proximastruc-apk: install directly on a phone (sideload) for testing.
+#   - proximastruc-aab: upload to Google Play.
+# Download them from the run's "Artifacts" section.
+# Website deploys update the installed app directly; rebuild only when android/ changes.
+# Setup (site address, signing key): docs/android.md
 
 on:
   workflow_dispatch:
@@ -15,11 +18,13 @@ permissions:
   contents: read
 
 jobs:
-  bundle:
+  build:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: android
+    env:
+      TWA_HOST_NAME: ${{ vars.TWA_HOST_NAME }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,30 +37,49 @@ jobs:
 
       - name: Check site address
         run: |
-          if grep -q "REPLACE_WITH_YOUR_DOMAIN" app/build.gradle; then
-            echo "::warning file=android/app/build.gradle::hostName is still a placeholder. Set it to the live ProximaStruc domain before uploading to Google Play."
+          if [ -z "$TWA_HOST_NAME" ] && grep -q "REPLACE_WITH_YOUR_DOMAIN" app/build.gradle; then
+            echo "::warning::No site address. Set the TWA_HOST_NAME repository variable (e.g. proximastruc.vercel.app) or hostName in android/app/build.gradle."
           fi
 
-      - name: Restore upload key
+      - name: Restore signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
             echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+            SHA=$(keytool -list -v -keystore "$RUNNER_TEMP/upload.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" | sed -n 's/^[[:space:]]*SHA256: //p')
+            {
+              echo "### Signing key fingerprint"
+              echo "Put this in \`public/.well-known/assetlinks.json\` so the sideloaded app opens without an address bar:"
+              echo '```'
+              echo "$SHA"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, so the bundle is unsigned. Google Play only accepts a signed bundle."
+            echo "ALLOW_DEBUG_SIGNING=true" >> "$GITHUB_ENV"
+            echo "::warning::No signing key secrets. The APK uses a throwaway test key: it installs, but shows an address bar and each build needs an uninstall first. The AAB will not be accepted by Google Play. See docs/android.md."
           fi
 
-      - name: Build release bundle
+      - name: Build APK and app bundle
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon bundleRelease
+        run: |
+          ./gradlew --no-daemon assembleRelease bundleRelease
+          mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/proximastruc.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: proximastruc-release-aab
+          name: proximastruc-apk
+          path: android/app/build/outputs/apk/release/proximastruc.apk
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proximastruc-aab
           path: android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error

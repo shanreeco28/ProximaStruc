@@ -4,11 +4,14 @@ plugins {
 
 // ---------------------------------------------------------------------------
 // ProximaStruc for Android: a Trusted Web Activity (TWA) that opens the live
-// ProximaStruc site full-screen in Chrome. Change the site address here only.
-// The same host must serve /.well-known/assetlinks.json (see docs/google-play.md).
+// ProximaStruc site full-screen in Chrome. Website deploys update the app
+// directly (it offers a restart); a new APK is only needed if this shell changes.
+// The same host must serve /.well-known/assetlinks.json (see docs/android.md).
 // ---------------------------------------------------------------------------
 def twa = [
-    hostName       : 'REPLACE_WITH_YOUR_DOMAIN',   // e.g. proximastruc.vercel.app (no https://, no path)
+    // Live site domain, e.g. proximastruc.vercel.app (no https://, no path).
+    // CI uses the TWA_HOST_NAME repository variable when it is set.
+    hostName       : System.getenv('TWA_HOST_NAME') ?: 'REPLACE_WITH_YOUR_DOMAIN',
     launchUrl      : '/',
     name           : 'ProximaStruc',
     launcherName   : 'ProximaStruc',
@@ -61,7 +64,12 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            if (storeFilePath) signingConfig signingConfigs.upload
+            if (storeFilePath) {
+                signingConfig signingConfigs.upload
+            } else if (System.getenv('ALLOW_DEBUG_SIGNING') == 'true') {
+                // Test builds only: installable, but signed with a throwaway key.
+                signingConfig signingConfigs.debug
+            }
         }
     }
 

@@ -5,10 +5,10 @@ import AppLogo from './AppLogo';
 import useTheme from '../hooks/useTheme';
 import { SHEETS } from '../utils/sheets';
 import { auth } from '../firebase';
+import { isIOSApp, isNativeApp } from '../native/platform';
+import { APPLE, GOOGLE, signInWithProvider } from '../services/socialAuth';
 import {
   signInWithEmailLink,
-  GoogleAuthProvider,
-  signInWithPopup,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendSignInLinkToEmail,
@@ -24,6 +24,17 @@ function GoogleMark() {
     <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.2-.1-2.4-.4-3.5z" />
   </svg>;
 }
+
+function AppleMark() {
+  return <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true" focusable="false" fill="currentColor">
+    <path d="M16.37 12.62c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.47.83-.72 0-1.82-.81-3-.79-1.54.02-2.96.9-3.75 2.27-1.6 2.78-.41 6.89 1.15 9.14.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74 1.38 0 1.77.74 2.98.72 1.23-.02 2.01-1.12 2.76-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.01-2.4-.92-2.42-3.66zM14.1 5.86c.63-.77 1.06-1.83.94-2.89-.91.04-2.01.61-2.66 1.37-.58.67-1.09 1.75-.96 2.79 1.02.08 2.05-.52 2.68-1.27z" />
+  </svg>;
+}
+
+// Sign in with Apple is offered in the iOS app (App Store Guideline 4.8). Email-link
+// sign-in needs a browser URL to return to, so the app keeps to password, Google and Apple.
+const showApple = isIOSApp();
+const showEmailLink = !isNativeApp();
 
 const inputClass = 'field-control';
 const labelClass = 'field-label';
@@ -50,13 +61,16 @@ const LoginView = ({ initialMode = 'login' }) => {
     finally { setLoading(false); }
   };
 
-  const handleGoogle = async () => {
+  const handleProvider = providerId => async () => {
     setLoading(true); setError('');
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
+      await signInWithProvider(providerId);
       // Auth only - user profile syncs in App
       navigate('/');
-    } catch (err) { setError(err.message); } finally { setLoading(false); }
+    } catch (err) {
+      const message = String(err?.message || err || '');
+      if (!/cancel|error 1001/i.test(message)) setError(message || 'Sign-in failed. Please try again.');
+    } finally { setLoading(false); }
   };
   const handleEmailLogin = async (e) => { e.preventDefault(); setLoading(true); setError(''); try { await signInWithEmailAndPassword(auth, formData.email, formData.password); navigate('/'); } catch (err) { setError(err.message); } finally { setLoading(false); } };
   const handleRegister = async (e) => {
@@ -127,8 +141,9 @@ const LoginView = ({ initialMode = 'login' }) => {
                 </form>
                 <div className="auth-divider">OR</div>
                 <div className="space-y-2.5">
-                  <button onClick={handleGoogle} className="btn btn-secondary btn-block"><GoogleMark /> Sign in with Google</button>
-                  <button onClick={() => setMode('magic')} className="btn btn-secondary btn-block"><Mail size={17} aria-hidden="true" /> Sign in via Email Link</button>
+                  {showApple && <button onClick={handleProvider(APPLE)} disabled={loading} className="btn btn-secondary btn-block"><AppleMark /> Sign in with Apple</button>}
+                  <button onClick={handleProvider(GOOGLE)} disabled={loading} className="btn btn-secondary btn-block"><GoogleMark /> Sign in with Google</button>
+                  {showEmailLink && <button onClick={() => setMode('magic')} className="btn btn-secondary btn-block"><Mail size={17} aria-hidden="true" /> Sign in via Email Link</button>}
                 </div>
               </>)}
 

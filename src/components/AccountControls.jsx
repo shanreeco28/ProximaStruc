@@ -1,16 +1,18 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, FileText, FolderOpen, LogOut, Menu, Moon, Sun } from 'lucide-react';
+import { ChevronDown, FileText, FolderOpen, LogOut, Menu, Moon, Sun, UserX } from 'lucide-react';
 import useTheme, { SHOW_THEME_SHORTCUT } from '../hooks/useTheme';
 import ProfileEditor from './ProfileEditor';
+import DeleteAccountDialog from './DeleteAccountDialog';
 import { RecordModal } from './RecordForm';
 
 const initialsOf = value => (value || '').split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('') || '?';
 
-export default function AccountControls({ user, profile, projectName, onSaveProfile, onLogout, onProjects, onExecutiveBrief }) {
+export default function AccountControls({ user, profile, projectName, onSaveProfile, onLogout, onProjects, onExecutiveBrief, onDeleteAccount }) {
   const { isDark, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState('');
   const root = useRef(null), menuButton = useRef(null), profileButton = useRef(null);
@@ -61,6 +63,10 @@ export default function AccountControls({ user, profile, projectName, onSaveProf
       <button type="button" role="menuitem" tabIndex={-1} onClick={() => action(() => { toggleTheme(); window.dispatchEvent(new Event(SHOW_THEME_SHORTCUT)); })} className="menu-item">
         {isDark ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}{isDark ? 'Light mode' : 'Dark mode'}
       </button>
+      {onDeleteAccount && <>
+        <div role="separator" className="my-1.5 border-t" style={{ borderColor: 'var(--border)' }} />
+        <button type="button" role="menuitem" tabIndex={-1} onClick={() => action(() => setDeleteOpen(true))} className="menu-item" style={{ color: 'var(--danger)' }}><UserX size={16} aria-hidden="true" />Delete account</button>
+      </>}
     </div>}
     {onSaveProfile && <button ref={profileButton} type="button" aria-label="Edit profile" title="Edit profile" disabled={loggingOut} onClick={() => { setError(''); setMenuOpen(false); setProfileOpen(true); }}
       className="btn btn-ghost px-1.5 sm:pl-1.5 sm:pr-3">
@@ -74,6 +80,7 @@ export default function AccountControls({ user, profile, projectName, onSaveProf
       <LogOut size={16} aria-hidden="true" /><span className="hidden sm:inline">{loggingOut ? 'Logging out…' : 'Log out'}</span>
     </button>
     {error && <p role="alert" className="form-error absolute right-0 top-full mt-2 w-64 z-30 shadow-lg">{error}</p>}
+    {deleteOpen && createPortal(<DeleteAccountDialog user={user} onDelete={onDeleteAccount} onClose={() => { setDeleteOpen(false); menuButton.current?.focus(); }} />, document.body)}
     {profileOpen && createPortal(profile ? <ProfileEditor user={user} profile={profile} projectName={projectName} onSave={onSaveProfile} onClose={closeProfile} />
       : <RecordModal title="Edit profile" onClose={closeProfile}><p role="status" className="text-sm text-muted">{user.emailVerified ? 'Your project profile is still loading. If it does not load, check project access and try again.' : 'Verify your sign-in email to edit your project profile.'}</p></RecordModal>, document.body)}
   </div>;

@@ -272,3 +272,28 @@ test('failed access changes keep the form and show an error', async ({page}) => 
   await expect(panel.getByRole('alert')).toHaveText('Test write rejected');
   await expect(panel.getByLabel('Sign-in email')).toHaveValue('someone@example.test');
 });
+test('account deletion is reachable from the actions menu and needs explicit confirmation', async ({page}) => {
+  await open(page,'account','guest','&fail=1');
+  await page.getByRole('button',{name:'Actions',exact:true}).click();
+  await page.getByRole('menuitem',{name:'Delete account',exact:true}).click();
+  const dialog = page.getByRole('dialog',{name:'Delete account'});
+  await expect(dialog).toBeVisible();
+  const submit = dialog.getByRole('button',{name:'Delete account',exact:true});
+  await expect(submit).toBeDisabled();
+  await dialog.getByLabel('Current password').fill('secret-pass');
+  await expect(submit).toBeDisabled();
+  await dialog.getByLabel('Type DELETE to confirm').fill('delete');
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  await expect(dialog.getByRole('alert')).toHaveText('Test write rejected');
+  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Actions',exact:true})).toBeFocused();
+  await open(page,'account','guest');
+  await page.getByRole('button',{name:'Actions',exact:true}).click();
+  await page.getByRole('menuitem',{name:'Delete account',exact:true}).click();
+  await page.getByLabel('Current password').fill('secret-pass');
+  await page.getByLabel('Type DELETE to confirm').fill('DELETE');
+  await page.getByRole('dialog',{name:'Delete account'}).getByRole('button',{name:'Delete account',exact:true}).click();
+  await expect(page.getByRole('status')).toHaveText('Account deletion confirmed with password secret-pass');
+});

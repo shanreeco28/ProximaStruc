@@ -9,7 +9,7 @@ import { observationValue } from '../utils/monitoring';
 import { sheetCode, sheetFor } from '../utils/sheets';
 import { today } from '../utils/siteData';
 
-export default function WorkspaceShell({ project, navGroups, activeTab, onNavigate, zones, selectedZone, onZoneChange, onAddZone, canAddZone, observation, user, profile, isAdmin, onSaveProfile, onLogout, onProjects, onExecutiveBrief, metrics, children }) {
+export default function WorkspaceShell({ project, navGroups, activeTab, onNavigate, zones, selectedZone, onZoneChange, onAddZone, canAddZone, observation, user, profile, isAdmin, onSaveProfile, onLogout, onDeleteAccount, onProjects, onExecutiveBrief, metrics, children }) {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('proxima-sidebar-collapsed') === 'true'; } catch { return false; }
   });
@@ -75,7 +75,7 @@ export default function WorkspaceShell({ project, navGroups, activeTab, onNaviga
         <div className="tb-cell hidden 2xl:flex flex-col max-w-[220px]" title={observation ? `Observed ${observation.observedAt.replace('T', ' ')}` : undefined}><span className="tb-label">Weather · last record</span><span className="tb-value">{observationValue(observation, 'weather')}</span></div>
         <div className="tb-cell hidden min-[1800px]:flex flex-col"><span className="tb-label">Date</span><span className="tb-value font-mono">{today()}</span></div>
         <div className="tb-cell flex items-center pl-2 pr-3 sm:pl-3 sm:pr-4">
-          <AccountControls user={user} profile={profile} projectName={project?.name} onSaveProfile={onSaveProfile} onLogout={onLogout} onProjects={onProjects} onExecutiveBrief={onExecutiveBrief} />
+          <AccountControls user={user} profile={profile} projectName={project?.name} onSaveProfile={onSaveProfile} onLogout={onLogout} onDeleteAccount={onDeleteAccount} onProjects={onProjects} onExecutiveBrief={onExecutiveBrief} />
         </div>
       </header>
 

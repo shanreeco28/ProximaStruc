@@ -9,7 +9,7 @@ import AccountControls from './AccountControls';
 import ProjectAccessPanel from './ProjectAccessPanel';
 
 // Only the site owner adds or deletes projects and assigns project access; the rules enforce the same.
-const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user, isSiteOwner = false, accessControl }) => {
+const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, onDeleteAccount, user, isSiteOwner = false, accessControl }) => {
   const [newProjectName, setNewProjectName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState('');
@@ -34,7 +34,7 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user,
             <AppLogo className="w-8 h-8 shrink-0" />
             <span className="display text-xl font-bold tracking-wide truncate">PROXIMA<span style={{ color: 'var(--accent-text)' }}>STRUC</span></span>
           </div>
-          <AccountControls user={user} onLogout={onLogout} />
+          <AccountControls user={user} onLogout={onLogout} onDeleteAccount={onDeleteAccount} />
         </div>
       </div>
       <FloatingThemeControl />

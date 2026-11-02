@@ -59,7 +59,7 @@ export default function Harness() {
     },
   };
   const common={currentUser,zones:data.zones,tasks:data.tasks};
-  const accountProps={user:accountUser,profile:accountProfile,projectName:'Test project',onProjects:()=>setAccountAction('Project selection opened'),onExecutiveBrief:()=>{setAccountAction('Executive brief opened');setBrief(true);},onLogout:async()=>{fail();setAccountAction('Logged out');},onSaveProfile:async updates=>{fail();setAccountProfile(prev=>({...prev,...updates}));}};
+  const accountProps={user:accountUser,profile:accountProfile,projectName:'Test project',onProjects:()=>setAccountAction('Project selection opened'),onExecutiveBrief:()=>{setAccountAction('Executive brief opened');setBrief(true);},onLogout:async()=>{fail();setAccountAction('Logged out');},onSaveProfile:async updates=>{fail();setAccountProfile(prev=>({...prev,...updates}));},onDeleteAccount:async({password})=>{fail();setAccountAction(`Account deletion confirmed with password ${password}`);}};
   const views=<>
     {view==='dashboard'&&<PMCommandDashboard onNavigate={setView} inspections={data.inspections} materials={data.materials} lifts={data.lifts}/>}
     {view==='calendar'&&<CalendarView {...common} onAdd={add('tasks')} onUpdate={update('tasks')} materials={data.materials} diary={data.diary} inspections={data.inspections}/>}

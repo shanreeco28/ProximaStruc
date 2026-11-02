@@ -1,6 +1,7 @@
 import React from 'react';
 import { Printer } from 'lucide-react';
 import { RecordModal } from './RecordForm';
+import { printPage } from '../native/platform';
 import { projectProgress, today, isInspectionClosed, taskStatus } from '../utils/siteData';
 
 export default function ExecutiveReportModal({ onClose, projectName, tasks = [], inspections = [], weatherLogs = [], materials = [], lifts = [] }) {
@@ -33,7 +34,7 @@ export default function ExecutiveReportModal({ onClose, projectName, tasks = [],
         </div>
         <p className="form-hint">Progress is duration-weighted across activities with valid planned dates. Missing records do not establish compliance or clearance.</p>
       </div>
-      <div className="form-actions no-print"><button onClick={() => window.print()} className="btn btn-primary"><Printer size={15} aria-hidden="true" />Print / Export PDF</button></div>
+      <div className="form-actions no-print"><button onClick={() => printPage('ProximaStruc Executive Brief').catch(() => {})} className="btn btn-primary"><Printer size={15} aria-hidden="true" />Print / Export PDF</button></div>
     </div>
   </RecordModal>;
 }

@@ -7,6 +7,7 @@ import DeletionReviewPanel from './components/DeletionReviewPanel';
 import { submitRecordDeletion, reviewRecordDeletion } from './services/recordDeletion';
 import { isDeletionReviewer } from './utils/deletions';
 import { saveOwnProjectProfile } from './services/personalProfile';
+import { deleteOwnAccount } from './services/accountDeletion';
 import CalendarView from './components/CalendarView';
 import InspectionsView from './components/InspectionsView';
 import LiftingView from './components/LiftingView';
@@ -110,6 +111,13 @@ export default function App() {
     setIsExecModalOpen(false); setOperationError('');
     localStorage.removeItem('sb-selected-project');
     localStorage.removeItem('temp_user_data');
+  };
+
+  const handleDeleteAccount = async ({ password }) => {
+    await deleteOwnAccount({ auth, db, user, projectIds: projects.map(p => p.id), password });
+    setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard');
+    setIsExecModalOpen(false); setOperationError('');
+    ['sb-selected-project', 'temp_user_data', 'emailForSignIn'].forEach(key => localStorage.removeItem(key));
   };
 
   const handleAddZone = async () => {
@@ -315,6 +323,7 @@ export default function App() {
           await submitRecordDeletion(db, id, { uid: user.uid, email: user.email, systemRole: 'admin' }, 'projects', id, reason);
         }}
         onLogout={handleLogout}
+        onDeleteAccount={handleDeleteAccount}
       />
     );
   }
@@ -341,7 +350,7 @@ export default function App() {
     <RecordDeletionContext.Provider value={deletionContext}>
     <WorkspaceShell project={liveProject} navGroups={dynamicNavGroups} activeTab={activeTab} onNavigate={setActiveTab}
       zones={zones} selectedZone={selectedZone} onZoneChange={setSelectedZone} onAddZone={handleAddZone} canAddZone={isPrivileged}
-      observation={observation} user={user} profile={ownProfile} isAdmin={isAdmin} onSaveProfile={handleSaveProfile} onLogout={handleLogout}
+      observation={observation} user={user} profile={ownProfile} isAdmin={isAdmin} onSaveProfile={handleSaveProfile} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount}
       onProjects={() => { setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard'); setOperationError(''); setIsExecModalOpen(false); }}
       onExecutiveBrief={() => setIsExecModalOpen(true)} metrics={<>
           <KpiPill

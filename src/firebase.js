@@ -1,7 +1,10 @@
 // src/firebase.js
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import { Capacitor } from '@capacitor/core';
 import {
   getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
@@ -37,7 +40,16 @@ try {
   db = getFirestore(app);
 }
 
-const auth = getAuth(app);
+// In the iOS app the web view cannot load Google's popup/redirect helpers, which makes
+// getAuth() wait on them indefinitely. Native builds use IndexedDB persistence only, and
+// social sign-in goes through the native plugin (see services/socialAuth.js).
+let auth;
+if (Capacitor.isNativePlatform()) {
+  try { auth = initializeAuth(app, { persistence: indexedDBLocalPersistence }); }
+  catch { auth = getAuth(app); }
+} else {
+  auth = getAuth(app);
+}
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 

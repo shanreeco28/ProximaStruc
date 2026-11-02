@@ -173,7 +173,9 @@ service cloud.firestore {
     }
     match /artifacts/{projectId}/{collectionName}/{recordId} {
       allow read: if member(projectId) || collectionName == 'users' && verifiedEmail() && recordId == request.auth.token.email.lower();
-      allow delete: if deletable(collectionName) && (admin(projectId) || verifiedRecordDelete(projectId, collectionName, recordId));
+      allow delete: if deletable(collectionName) && (admin(projectId) || verifiedRecordDelete(projectId, collectionName, recordId))
+        // Account deletion: a signed-in user may remove only their own personnel profile.
+        || collectionName == 'users' && verifiedEmail() && recordId == request.auth.token.email.lower();
       allow create: if auditCreate() && (
         (collectionName == 'tasks' && planner(projectId) && validTask()) ||
         (collectionName == 'materials' && siteRecorder(projectId) && validMaterial()) ||

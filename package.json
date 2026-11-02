@@ -1,7 +1,7 @@
 {
   "name": "proximastruc",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,9 +10,14 @@
     "preview": "vite preview",
     "test": "node --test src/utils/*.test.js",
     "test:browser": "playwright test",
-    "test:rules": "XDG_CONFIG_HOME=.firebase-local/config FIREBASE_EMULATORS_PATH=.firebase-local/emulators firebase emulators:exec --project demo-proximastruc --only firestore \"node --test tests/rules/firestore.test.js\""
+    "test:rules": "XDG_CONFIG_HOME=.firebase-local/config FIREBASE_EMULATORS_PATH=.firebase-local/emulators firebase emulators:exec --project demo-proximastruc --only firestore \"node --test tests/rules/firestore.test.js\"",
+    "ios:sync": "vite build && cap sync ios",
+    "ios:configure": "./scripts/ios-configure.sh"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
     "firebase": "^12.8.0",
     "lucide-react": "^0.563.0",
     "react": "^19.2.0",
@@ -21,6 +26,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
+    "@capacitor/cli": "^8.6.0",
     "@eslint/js": "^9.39.2",
     "@firebase/rules-unit-testing": "^5.0.2",
     "@playwright/test": "^1.64.1",

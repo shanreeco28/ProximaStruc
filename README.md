@@ -48,7 +48,7 @@ ProximaStruc gives site teams, resident engineers and project managers a single 
 | **Stakeholders and Access** | Personnel register, organisation details, role assignment and the deletion-verification queue. |
 | **Site Observations** | Admin-only confirmed observations (weather, noise, TSS, wind, headcount and similar) with source, confirmer and confirmation time. Each confirmation is a complete observation, so older values are never silently inherited. |
 | **Executive Brief** | Printable summary of progress, inspections, permits, diary and materials for the selected project or zone. |
-| **Accounts** | Google sign-in and email verification, project selection, editable personal profile (name, title, phone, birthday) and logout that clears local project state. |
+| **Accounts** | Google sign-in (plus Sign in with Apple in the iOS app) and email verification, project selection, editable personal profile (name, title, phone, birthday), logout that clears local project state, and self-service account deletion. |
 
 ### Progress calculation
 
@@ -102,6 +102,7 @@ Delete that document to remove the designation. You can designate more than one 
 - **Backend services:** Firebase Authentication (Google, email), Cloud Firestore with offline persistence
 - **Quality tooling:** ESLint 9, Node test runner, Playwright with axe-core, Firebase emulator rules tests
 - **Hosting configuration:** Vercel (`vercel.json`) and Firebase (`firebase.json`)
+- **iOS app:** Capacitor 8 (`capacitor.config.json`, `ios/`), native Google and Apple sign-in, built and uploaded by Codemagic (`codemagic.yaml`)
 
 ## Getting started
 
@@ -144,6 +145,8 @@ npm run dev
 | `npm test` | Unit tests for domain logic |
 | `npm run test:browser` | Playwright workflow and accessibility tests |
 | `npm run test:rules` | Firestore security rules tests in the emulator |
+| `npm run ios:sync` | Build and copy the web app into the iOS project |
+| `npm run ios:configure` | Write Firebase iOS settings into the iOS project (macOS) |
 
 ## Testing
 
@@ -170,6 +173,10 @@ At the last recorded verification, lint and build passed with 34 unit tests and 
 6. Designate the site owner (see [Site owner](#site-owner)). Until one exists, nobody can create or delete projects.
 
 See [SECURITY.md](SECURITY.md) for the production hardening checklist.
+
+### iOS App Store
+
+The iOS app wraps the same build in a Capacitor shell, and Codemagic builds it in the cloud, so no Mac is needed. [docs/ios-app-store.md](docs/ios-app-store.md) has the full step-by-step guide: Apple Developer account, Firebase iOS app, Codemagic secrets, TestFlight, store listing and review.
 
 ### Migrating an existing project
 
@@ -214,6 +221,7 @@ ProximaStruc/
 
 - [Site workflows](docs/site-workflows.md): full workflow, role, deletion and migration notes
 - [SECURITY.md](SECURITY.md): production hardening checklist and vulnerability reporting
+- [iOS App Store](docs/ios-app-store.md): building and publishing the iOS app without a Mac
 - [AGENTS.md](AGENTS.md): product requirements and contribution constraints
 
 ## Licence

@@ -287,3 +287,21 @@ test('site owner opening a project acts as admin without joining its roster',asy
   await assertSucceeds(updateDoc(doc(db,'projects/other'),{name:'Renamed by site owner'}));
   await assertFails(updateDoc(doc(db,'projects/other'),{ownerId:'siteowner'}));
 });
+test('account deletion removes only the signed-in user\'s own profile, and needs a verified email',async()=>{
+  await env.withSecurityRulesDisabled(async ctx => {
+    const db=ctx.firestore();
+    await setDoc(doc(db,'artifacts/p/users/leaver@example.test'),{email:'leaver@example.test',systemRole:'engineer',name:'Leaver',phone:'+65 6000 0000'});
+    await setDoc(doc(db,'artifacts/other/users/leaver@example.test'),{email:'leaver@example.test',systemRole:'pending',name:'Leaver'});
+    await setDoc(doc(db,'artifacts/p/tasks/leaver-task'),task('leaver@example.test'));
+  });
+  await assertFails(deleteDoc(doc(client('leaver',false),'artifacts/p/users/leaver@example.test')));
+  const db=client('leaver');
+  await assertFails(deleteDoc(doc(db,'artifacts/p/users/guest@example.test')));
+  await assertFails(deleteDoc(doc(db,'artifacts/p/tasks/leaver-task')));
+  await assertSucceeds(deleteDoc(doc(db,'artifacts/p/users/leaver@example.test')));
+  await assertSucceeds(deleteDoc(doc(db,'artifacts/other/users/leaver@example.test')));
+  await env.withSecurityRulesDisabled(async ctx => {
+    assert.equal((await getDoc(doc(ctx.firestore(),'artifacts/p/users/leaver@example.test'))).exists(),false);
+    assert.equal((await getDoc(doc(ctx.firestore(),'artifacts/p/tasks/leaver-task'))).exists(),true);
+  });
+});

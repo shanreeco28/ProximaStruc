@@ -1,0 +1,62 @@
+# Codemagic builds, signs and uploads the iOS app on a cloud Mac. No local Mac is needed.
+# Setup steps: docs/ios-app-store.md
+workflows:
+  ios-app-store:
+    name: iOS · App Store / TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      groups:
+        # APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_IDENTIFIER,
+        # APP_STORE_CONNECT_PRIVATE_KEY, CERTIFICATE_PRIVATE_KEY
+        - app_store_credentials
+        # VITE_FIREBASE_* (same values as Vercel) and GOOGLE_SERVICE_INFO_PLIST (base64)
+        - firebase
+      vars:
+        BUNDLE_ID: com.proximastruc.app
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+      node: 22
+      xcode: latest
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'ios-v*'
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+      - name: Check web app
+        script: |
+          npm run lint
+          npm test
+      - name: Build web app
+        script: npm run build
+      - name: Copy web app into the iOS project
+        script: npx cap sync ios
+      - name: Configure Firebase for iOS
+        script: ./scripts/ios-configure.sh
+      - name: Set up code signing
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles --project "$XCODE_PROJECT"
+      - name: Set version and build number
+        script: |
+          # App version comes from package.json; each Codemagic build gets a higher build number.
+          VERSION=$(node -p "require('./package.json').version")
+          sed -i '' "s/MARKETING_VERSION = [0-9.]*;/MARKETING_VERSION = $VERSION;/g" "$XCODE_PROJECT/project.pbxproj"
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*;/CURRENT_PROJECT_VERSION = $BUILD_NUMBER;/g" "$XCODE_PROJECT/project.pbxproj"
+          echo "Building version $VERSION ($BUILD_NUMBER)"
+      - name: Build IPA
+        script: xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true

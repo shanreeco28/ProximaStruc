@@ -3,12 +3,15 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import UpdatePrompt from './components/UpdatePrompt.jsx'
+import AppErrorBoundary from './components/AppErrorBoundary.jsx'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <AppErrorBoundary>
+        <App />
+      </AppErrorBoundary>
       <UpdatePrompt />
     </BrowserRouter>
   </React.StrictMode>,

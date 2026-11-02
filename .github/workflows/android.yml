@@ -39,11 +39,16 @@ jobs:
         run: |
           HOST="${TWA_HOST_NAME:-$(sed -n "s/.*getenv('TWA_HOST_NAME') ?: '\([^']*\)'.*/\1/p" app/build.gradle)}"
           echo "### Site: https://$HOST" >> "$GITHUB_STEP_SUMMARY"
-          for path in / /manifest.webmanifest /version.json /.well-known/assetlinks.json; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "https://$HOST$path" || true)
-            echo "- \`$path\`: HTTP $code" >> "$GITHUB_STEP_SUMMARY"
-            [ "$code" = "200" ] || echo "::warning::https://$HOST$path returned HTTP $code. The app needs it publicly reachable (deploy this branch's web changes; turn off Vercel Deployment Protection for this domain)."
-          done
+          check() { # path, text the real file contains
+            body=$(curl -sf --max-time 20 "https://$HOST$1" || true)
+            if printf '%s' "$body" | grep -q "$2"; then echo "- \`$1\`: OK" >> "$GITHUB_STEP_SUMMARY"
+            else echo "- \`$1\`: missing" >> "$GITHUB_STEP_SUMMARY"
+              echo "::warning::https://$HOST$1 is missing or not public. Deploy the web changes from this branch to that domain, and turn off Vercel Deployment Protection for it."; fi
+          }
+          check / '<div id="root">'
+          check /manifest.webmanifest '"short_name"'
+          check /version.json '"build"'
+          check /.well-known/assetlinks.json 'com.proximastruc.app'
           if curl -s --max-time 20 "https://$HOST/.well-known/assetlinks.json" | grep -q REPLACE_WITH; then
             echo "::warning::assetlinks.json still has the placeholder fingerprint, so the app shows an address bar. See docs/android.md, step A4."
           fi

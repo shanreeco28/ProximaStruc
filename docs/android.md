@@ -79,7 +79,7 @@ From then on, deploying the website is enough. Testers see the Restart prompt.
 ## 1. Fill in the placeholders
 
 1. Set the production domain in the `TWA_HOST_NAME` repository variable (see A1), or in `hostName` in `android/app/build.gradle`.
-2. In `public/privacy.html` and `public/delete-account.html`, replace `[OPERATOR NAME]` and `[CONTACT EMAIL]` with your name or company and a support email you monitor. Review the wording so it matches how you run the service.
+2. Review `public/privacy.html` and `public/delete-account.html` (operator: Shan Reeco, contact: shanreecosocorro@gmail.com) so the wording matches how you run the service.
 3. Deploy the website (merge to `main` so Vercel deploys it). Check that these load:
    - `https://<your-domain>/manifest.webmanifest`
    - `https://<your-domain>/privacy.html`

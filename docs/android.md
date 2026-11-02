@@ -25,12 +25,11 @@ Package name: **`com.proximastruc.app`**. It is permanent once the app is upload
 
 # Part A: Sideload the APK for testing
 
-### A1. Set the site address
+### A1. Site address
 
-GitHub → Settings → Secrets and variables → Actions → **Variables** tab → **New repository variable**:
+The app opens **`proximastruc.vercel.app`** (set in `hostName` in `android/app/build.gradle`). To build for a different domain without editing code, set a repository variable `TWA_HOST_NAME` (Settings → Secrets and variables → Actions → Variables) to the domain, with no `https://` and no path.
 
-- Name: `TWA_HOST_NAME`
-- Value: the test site's domain with no `https://` and no path, for example `proximastruc-test.vercel.app`
+Each build's run summary checks the live site and lists whether the pages the app needs respond.
 
 The site must be reachable by phones without a login screen in front of it. If Vercel **Deployment Protection** is on for that URL, the app can't open it or verify `assetlinks.json`. Use a domain where protection is off, such as the production domain or one with protection disabled.
 

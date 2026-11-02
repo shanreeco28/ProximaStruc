@@ -11,7 +11,7 @@ plugins {
 def twa = [
     // Live site domain, e.g. proximastruc.vercel.app (no https://, no path).
     // CI uses the TWA_HOST_NAME repository variable when it is set.
-    hostName       : System.getenv('TWA_HOST_NAME') ?: 'REPLACE_WITH_YOUR_DOMAIN',
+    hostName       : System.getenv('TWA_HOST_NAME') ?: 'proximastruc.vercel.app',
     launchUrl      : '/',
     name           : 'ProximaStruc',
     launcherName   : 'ProximaStruc',

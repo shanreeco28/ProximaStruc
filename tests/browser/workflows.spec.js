@@ -55,10 +55,66 @@ test('supervisor records a general diary entry and guests cannot add entries', a
   await page.getByLabel('Zone',{exact:true}).selectOption('East');
   await page.getByLabel('Title / activity').fill('Formwork installation');
   await page.getByLabel('What happened on site').fill('Installed and checked formwork in the eastern work area.');
-  await page.getByRole('button',{name:'Save site entry'}).click();
+  await page.getByRole('button',{name:'Submit site entry'}).click();
   await expect(page.getByRole('heading',{name:'Formwork installation'})).toBeVisible();
   await expect(page.getByText('Installed and checked formwork in the eastern work area.')).toBeVisible();
   await open(page,'diary','guest'); await expect(page.getByRole('button',{name:'+ Add site entry'})).toHaveCount(0);
+});
+// A small valid PNG is enough to exercise the in-browser resize to JPEG.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAADCAIAAAA7ljmRAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==','base64');
+test('engineers save a diary draft with photos, then submit it and the photos lock', async ({page}) => {
+  await open(page,'diary','engineer');
+  await page.getByRole('button',{name:'+ Add site entry'}).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button',{name:'Save as draft'}).click();
+  await expect(dialog.getByRole('alert')).toHaveText('Enter a title to save the draft.');
+  await dialog.getByLabel('Title / activity').fill('Slab pour preparation');
+  await dialog.getByLabel('Add site photos').setInputFiles([{name:'pour-1.png',mimeType:'image/png',buffer:PNG},{name:'pour-2.png',mimeType:'image/png',buffer:PNG}]);
+  await expect(dialog.getByText('Site photos (2/10)')).toBeVisible();
+  await expect(dialog.getByRole('img',{name:'pour-1.jpg (not yet uploaded)'})).toBeVisible();
+  await dialog.getByRole('button',{name:'Remove pour-2.jpg'}).click();
+  await expect(dialog.getByText('Site photos (1/10)')).toBeVisible();
+  await dialog.getByRole('button',{name:'Save as draft'}).click();
+  await expect(page.getByRole('status').filter({hasText:'Draft saved with 1 new photo'})).toBeVisible();
+  const item = page.getByRole('listitem').filter({has:page.getByRole('heading',{name:'Slab pour preparation'})});
+  await expect(item.getByText('Draft',{exact:true})).toBeVisible();
+  await item.getByRole('button',{name:'View photo 1 of 1: pour-1.jpg'}).click();
+  await expect(page.getByRole('dialog').getByRole('img',{name:'Photo 1 of 1: pour-1.jpg'})).toBeVisible();
+  await page.getByRole('dialog').getByRole('button',{name:'Close'}).click();
+
+  await page.getByLabel('Status',{exact:true}).selectOption('Submitted');
+  await expect(page.getByText('No diary entries for this selection.')).toBeVisible();
+  await page.getByLabel('Status',{exact:true}).selectOption('Drafts');
+  await page.getByRole('button',{name:'Continue draft Slab pour preparation'}).click();
+  await dialog.getByRole('button',{name:'Submit site entry'}).click();
+  // Submitting uses the browser's required-field checks; only "Save as draft" skips them.
+  expect(await dialog.getByLabel('Event date').evaluate(el => el.validity.valueMissing)).toBe(true);
+  await expect(page.getByRole('heading',{name:'Slab pour preparation'})).toBeVisible();
+  await dialog.getByLabel('Event date').fill('2026-01-01');
+  await dialog.getByLabel('Event time').fill('07:30');
+  await dialog.getByLabel('Category',{exact:true}).selectOption('Work progress');
+  await dialog.getByLabel('Zone',{exact:true}).selectOption('East');
+  await dialog.getByLabel('What happened on site').fill('Rebar checked and formwork cleaned before the pour.');
+  await dialog.getByRole('button',{name:'Submit site entry'}).click();
+  await expect(page.getByRole('status').filter({hasText:'Site entry submitted.'})).toBeVisible();
+  await page.getByLabel('Status',{exact:true}).selectOption('Submitted');
+  await expect(item.getByText('Draft',{exact:true})).toHaveCount(0);
+  await item.getByRole('button',{name:'Edit Slab pour preparation'}).click();
+  await expect(dialog.getByText('Locked after submission')).toBeVisible();
+  await expect(dialog.getByLabel('Add site photos')).toHaveCount(0);
+  await expect(dialog.getByRole('button',{name:'Remove pour-1.jpg'})).toHaveCount(0);
+  await expect(dialog.getByRole('button',{name:'Save as draft'})).toHaveCount(0);
+  await dialog.getByRole('button',{name:'Save site entry'}).click();
+  await expect(page.getByRole('status').filter({hasText:'Site entry updated.'})).toBeVisible();
+});
+test('diary drafts are visible to the site team only', async ({page}) => {
+  for (const role of ['guest','RE','RTO','supervisor','engineer','manager','admin']) {
+    await open(page,'diary',role,'&diaryDraft=1');
+    await expect(page.getByRole('heading',{name:'Submitted note'})).toBeVisible();
+    const team = ['supervisor','engineer','manager','admin'].includes(role);
+    await expect(page.getByRole('heading',{name:'Unfinished note'})).toHaveCount(team?1:0);
+    await expect(page.getByLabel('Status',{exact:true})).toHaveCount(team?1:0);
+  }
 });
 test('BBS and concrete traceability are type-specific, and receiving needs a DO', async ({page}) => {
   await open(page,'materials','supervisor');

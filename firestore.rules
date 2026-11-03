@@ -170,6 +170,75 @@ service cloud.firestore {
         && (resource.data.createdBy == request.auth.token.email || rfi.createdBy == request.auth.token.email
           || effectiveRole(projectId) == 'admin');
     }
+    // Site diary entries are drafts or submitted records (no status = an entry that predates drafts, i.e. submitted).
+    // JPEG photos of up to 900 KiB live in diaryPhotos and are linked or unlinked only while the entry is a draft;
+    // submission is one-way and locks the photo set.
+    function diaryStatusOf(data) { return data.get('status', 'submitted'); }
+    function diaryEntryPath(projectId, entryId) {
+      return /databases/$(database)/documents/artifacts/$(projectId)/weatherLogs/$(entryId);
+    }
+    function diaryPhotoPath(projectId, photoId) {
+      return /databases/$(database)/documents/artifacts/$(projectId)/diaryPhotos/$(photoId);
+    }
+    function newDiaryEntry() {
+      let d = request.resource.data;
+      return d.details is string && diaryStatusOf(d) in ['draft', 'submitted']
+        && d.get('photos', []) is list && d.get('photos', []).size() == 0
+        && !d.keys().hasAny(['submittedBy', 'submittedAt']);
+    }
+    function validDiaryPhoto(projectId, recordId, p) {
+      return p is map && p.keys().hasOnly(['photoId', 'name', 'size', 'width', 'height', 'contentType', 'thumb', 'uploadedBy', 'uploadedAt'])
+        && p.photoId is string && p.photoId.matches('^[A-Za-z0-9-]{8,64}$')
+        && p.name is string && p.name.size() > 0 && p.name.size() <= 200
+        && p.size is int && p.size > 0 && p.size <= 921600
+        && p.width is int && p.width > 0 && p.width <= 4096 && p.height is int && p.height > 0 && p.height <= 4096
+        && p.contentType == 'image/jpeg'
+        && p.thumb is string && p.thumb.size() <= 40000 && p.thumb.matches('^data:image/jpeg;base64,[A-Za-z0-9+/]+=*$')
+        && p.uploadedBy == request.auth.token.email && p.uploadedAt is string
+        // The photo must be uploaded in full, by this user, for this entry.
+        && get(diaryPhotoPath(projectId, p.photoId)).data.entryId == recordId
+        && get(diaryPhotoPath(projectId, p.photoId)).data.createdBy == request.auth.token.email
+        && get(diaryPhotoPath(projectId, p.photoId)).data.data.size() == p.size;
+    }
+    function diaryPhotoChange(projectId, recordId) {
+      let before = resource.data.get('photos', []);
+      let after = request.resource.data.get('photos', []);
+      let removed = before.removeAll(after);
+      return diaryStatusOf(resource.data) == 'draft'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photos', 'updatedBy', 'updatedAt'])
+        && after is list && after.size() <= 10
+        && (after.size() == before.size() + 1 && after.hasAll(before) && validDiaryPhoto(projectId, recordId, after[after.size() - 1])
+          || after.size() == before.size() - 1 && before.hasAll(after) && removed.size() == 1
+            && (effectiveRole(projectId) == 'admin' || resource.data.createdBy == request.auth.token.email || removed[0].uploadedBy == request.auth.token.email));
+    }
+    function diaryUpdate(projectId, recordId) {
+      let d = request.resource.data;
+      let keys = d.diff(resource.data).affectedKeys();
+      return d.details is string && (keys.hasAny(['photos']) ? diaryPhotoChange(projectId, recordId)
+        : keys.hasAny(['status', 'submittedBy', 'submittedAt'])
+          // Draft -> submitted only; a submitted entry never returns to draft.
+          ? diaryStatusOf(resource.data) == 'draft' && d.get('status', '') == 'submitted'
+            && d.get('submittedBy', '') == request.auth.token.email && d.get('submittedAt', null) is string
+          : true);
+    }
+    function newDiaryPhoto(projectId, photoId) {
+      let d = request.resource.data;
+      return siteRecorder(projectId)
+        && d.keys().hasOnly(['entryId', 'data', 'contentType', 'createdBy', 'createdAt'])
+        && photoId.matches('^[A-Za-z0-9-]{8,64}$')
+        && d.entryId is string && d.entryId.matches('^[A-Za-z0-9_-]{1,128}$')
+        && d.data is bytes && d.data.size() > 0 && d.data.size() <= 921600 && d.contentType == 'image/jpeg'
+        && d.createdBy == request.auth.token.email && d.createdAt is string
+        && exists(diaryEntryPath(projectId, d.entryId)) && diaryStatusOf(get(diaryEntryPath(projectId, d.entryId)).data) == 'draft';
+    }
+    // Photo documents can be removed while the entry is a draft (uploader, entry creator or admin),
+    // or by a site recorder once the entry itself has been deleted. Photos of submitted entries are immutable.
+    function diaryPhotoDelete(projectId) {
+      let entry = diaryEntryPath(projectId, resource.data.entryId);
+      return siteRecorder(projectId) && (!exists(entry)
+        || diaryStatusOf(get(entry).data) == 'draft' && (resource.data.createdBy == request.auth.token.email
+          || get(entry).data.get('createdBy', '') == request.auth.token.email || effectiveRole(projectId) == 'admin'));
+    }
     // PDFs are attached or unlinked only before the RFI is submitted for RE review.
     function inspectionAttachments(projectId, recordId) {
       let before = resource.data.get('attachments', []);
@@ -276,6 +345,11 @@ service cloud.firestore {
       allow create: if newRfiFileChunk(projectId, chunkId);
       allow delete: if rfiFileChunkDelete(projectId);
     }
+    match /artifacts/{projectId}/diaryPhotos/{photoId} {
+      // Read access comes from the project-records match below.
+      allow create: if newDiaryPhoto(projectId, photoId);
+      allow delete: if diaryPhotoDelete(projectId);
+    }
     match /siteOwners/{uid} {
       allow read: if signedIn() && uid == request.auth.uid;
     }
@@ -294,7 +368,7 @@ service cloud.firestore {
       allow create: if auditCreate() && (
         (collectionName == 'tasks' && planner(projectId) && validTask()) ||
         (collectionName == 'materials' && siteRecorder(projectId) && validMaterial()) ||
-        (collectionName == 'weatherLogs' && siteRecorder(projectId) && request.resource.data.details is string) ||
+        (collectionName == 'weatherLogs' && siteRecorder(projectId) && newDiaryEntry()) ||
         (collectionName in ['zones', 'lifts'] && planner(projectId)) ||
         (collectionName == 'inspections' && newInspection(projectId, recordId)) ||
         (collectionName == 'monitoring' && admin(projectId) && request.resource.data.confirmedBy == request.auth.token.email && request.resource.data.confirmedAt is string) ||
@@ -305,7 +379,7 @@ service cloud.firestore {
       allow update: if auditUpdate() && (
         (collectionName == 'tasks' && planner(projectId) && validTask()) ||
         (collectionName == 'materials' && siteRecorder(projectId) && validMaterial()) ||
-        (collectionName == 'weatherLogs' && siteRecorder(projectId) && request.resource.data.details is string) ||
+        (collectionName == 'weatherLogs' && siteRecorder(projectId) && diaryUpdate(projectId, recordId)) ||
         (collectionName in ['zones', 'lifts'] && planner(projectId)) ||
         (collectionName == 'inspections' && inspectionUpdate(projectId, recordId)) ||
         (collectionName == 'users' && (organizationUpdate(projectId) || personalProfileUpdate(recordId))) ||

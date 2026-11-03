@@ -159,6 +159,37 @@ export function validateRfiFile(file, existingCount = 0) {
   return '';
 }
 
+// Site diary: entries are saved as drafts or submitted records (entries without a status predate drafts and
+// count as submitted). JPEG photos are stored in Firestore and can be added or removed only while an entry is a
+// draft; once submitted, the photo set is locked so the diary keeps its evidential record (mirrored in firestore.rules).
+export const DIARY_STATUSES = ['draft', 'submitted'];
+export const diaryStatus = entry => entry?.status === 'draft' ? 'draft' : 'submitted';
+export const isDiaryDraft = entry => diaryStatus(entry) === 'draft';
+export const recordedDiaryEntries = entries => entries.filter(entry => !isDiaryDraft(entry));
+export const DIARY_PHOTO_MAX = 10;
+export const DIARY_PHOTO_MAX_BYTES = 900 * 1024;
+export const DIARY_PHOTO_SOURCE_MAX_BYTES = 30 * 1024 * 1024;
+export const DIARY_PHOTO_MAX_EDGE = 4096;
+export const DIARY_THUMB_MAX_CHARS = 40000;
+export const canManageDiaryPhotos = (user, entry) => canRecordSite(user) && (!entry || isDiaryDraft(entry));
+export const canRemoveDiaryPhoto = (user, entry, photo) => canManageDiaryPhotos(user, entry)
+  && (user?.systemRole === 'admin' || entry?.createdBy === user?.email || photo?.uploadedBy === user?.email);
+export function validateDiaryPhotoSource(file, existingCount = 0) {
+  if (!file) return 'Choose a photo.';
+  if (!/^image\//.test(file.type || '') && !/\.(jpe?g|png|webp|gif|bmp|heic|heif|avif)$/i.test(file.name || '')) return 'Only image files can be attached.';
+  if (!file.size) return 'The selected photo is empty.';
+  if (file.size > DIARY_PHOTO_SOURCE_MAX_BYTES) return 'Photos must be 30 MB or smaller.';
+  if (existingCount >= DIARY_PHOTO_MAX) return `A diary entry can hold up to ${DIARY_PHOTO_MAX} photos.`;
+  return '';
+}
+export function diaryEntryProblem(entry, status, todayValue = today()) {
+  const text = key => typeof entry?.[key] === 'string' ? entry[key].trim() : '';
+  if (entry?.date && entry.date > todayValue) return 'Diary entries must describe events that have occurred.';
+  if (status === 'draft') return text('title') ? '' : 'Enter a title to save the draft.';
+  if (!text('title') || !text('details') || !text('category') || !text('zone') || !text('date') || !text('time')) return 'Complete the date, time, category, zone, title and site details, or save the entry as a draft.';
+  return '';
+}
+
 // Automatic RFI references: <Project Name>_<Zone>-<Discipline code>-### (e.g. Marina Tower_Zone A-STR-001).
 export const RFI_DISCIPLINES = [
   { name: 'Structural', code: 'STR' },

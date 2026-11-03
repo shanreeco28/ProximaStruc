@@ -113,7 +113,7 @@ test('diary search handles accents, details and combined date/category filters',
     await dialog.getByLabel('Zone', { exact: true }).selectOption('East');
     await dialog.getByLabel('Title / activity').fill(title);
     await dialog.getByLabel('What happened on site').fill(details);
-    await dialog.getByRole('button', { name: 'Save site entry' }).click();
+    await dialog.getByRole('button', { name: 'Submit site entry' }).click();
   }
   const search = page.getByRole('searchbox', { name: 'Search site diary' });
   await search.fill('creme');
@@ -127,7 +127,7 @@ test('diary search handles accents, details and combined date/category filters',
   await page.getByRole('button', { name: 'Clear date', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edge protection' })).toBeVisible();
   await page.getByLabel('Category', { exact: true }).selectOption('All');
-  await expect(page.getByRole('status')).toHaveText('2 of 2 records');
+  await expect(page.getByRole('status').filter({ hasText: 'records' })).toHaveText('2 of 2 records');
 });
 
 for (const view of ['dashboard', 'calendar', 'materials', 'inspections', 'diary', 'lifting', 'users', 'monitoring', 'projects']) {

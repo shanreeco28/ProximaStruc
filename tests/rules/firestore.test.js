@@ -8,6 +8,7 @@ import { createInspection, advanceInspection, removeInspectionFile, attachInspec
 import { synchronizeProjectMembership } from '../../src/services/projectMembership.js';
 import { submitRecordDeletion, reviewRecordDeletion } from '../../src/services/recordDeletion.js';
 import { saveOwnProjectProfile } from '../../src/services/personalProfile.js';
+import { saveDiaryEntry, readDiaryPhoto, removeDiaryPhoto } from '../../src/services/siteDiary.js';
 import { grantProjectAccess, setProjectAccessRole, revokeProjectAccess } from '../../src/services/projectAccess.js';
 let env;
 const project='demo-proximastruc';
@@ -378,4 +379,81 @@ test('site owner opening a project acts as admin without joining its roster',asy
   await assertSucceeds(setDoc(doc(db,'artifacts/other/monitoring/siteowner'),{noise:60,confirmedBy:'siteowner@example.test',confirmedAt:'2026-01-01',...audit('siteowner@example.test')}));
   await assertSucceeds(updateDoc(doc(db,'projects/other'),{name:'Renamed by site owner'}));
   await assertFails(updateDoc(doc(db,'projects/other'),{ownerId:'siteowner'}));
+});
+
+// Site diary drafts and photos.
+const THUMB='data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+const diaryUser = role => ({email:`${role}@example.test`,name:role,systemRole:role});
+const diaryEntry = {date:'2026-01-01',time:'08:00',category:'Work progress',zone:'East',title:'Slab pour',details:'Poured level 3 slab',taskId:'',action:''};
+const jpeg = (size=2000,name='site.jpg') => { const bytes=new Uint8Array(size); bytes.set([255,216,255]); return {blob:new Blob([bytes],{type:'image/jpeg'}),width:1600,height:1200,thumb:THUMB,name,key:name}; };
+const diaryPhotoDoc = (role,entryId,extra={}) => ({entryId,data:Bytes.fromUint8Array(new Uint8Array([255,216,255,0])),contentType:'image/jpeg',createdBy:`${role}@example.test`,createdAt:'2026-01-01T00:00:00Z',...extra});
+const diaryPhoto = (role,photoId,extra={}) => ({photoId,name:'site.jpg',size:4,width:1600,height:1200,contentType:'image/jpeg',thumb:THUMB,uploadedBy:`${role}@example.test`,uploadedAt:'2026-01-01T00:00:00Z',...extra});
+const PHOTO_ID='00000000-0000-4000-8000-00000000d001';
+test('diary entries start as drafts or submitted records, and submission is one-way',async()=>{
+  const db=client('supervisor'), email='supervisor@example.test';
+  await assertSucceeds(setDoc(doc(db,'artifacts/p/weatherLogs/d-draft'),{title:'Draft',details:'',status:'draft',photos:[],...audit(email)}));
+  await assertFails(setDoc(doc(db,'artifacts/p/weatherLogs/d-bad-status'),{title:'Bad',details:'',status:'approved',...audit(email)}));
+  await assertFails(setDoc(doc(db,'artifacts/p/weatherLogs/d-prelinked'),{title:'Bad',details:'',status:'draft',photos:[diaryPhoto('supervisor',PHOTO_ID)],...audit(email)}));
+  await assertFails(setDoc(doc(db,'artifacts/p/weatherLogs/d-forged'),{title:'Bad',details:'',status:'submitted',submittedBy:'admin@example.test',submittedAt:'x',...audit(email)}));
+  await assertFails(setDoc(doc(client('guest'),'artifacts/p/weatherLogs/d-guest'),{title:'Guest',details:'',status:'draft',photos:[],...audit('guest@example.test')}));
+  await assertFails(updateDoc(doc(db,'artifacts/p/weatherLogs/d-draft'),{status:'submitted',submittedBy:'admin@example.test',submittedAt:'x',...changed('supervisor')}));
+  await assertSucceeds(updateDoc(doc(db,'artifacts/p/weatherLogs/d-draft'),{status:'submitted',submittedBy:email,submittedAt:'2026-01-02T00:00:00Z',...changed('supervisor')}));
+  await assertFails(updateDoc(doc(db,'artifacts/p/weatherLogs/d-draft'),{status:'draft',...changed('supervisor')}));
+  await assertFails(updateDoc(doc(db,'artifacts/p/weatherLogs/d-draft'),{submittedBy:'other@example.test',...changed('supervisor')}));
+  await assertSucceeds(updateDoc(doc(db,'artifacts/p/weatherLogs/d-draft'),{details:'Completed text',...changed('supervisor')}));
+  // Entries that predate drafts carry no status and stay editable as submitted records.
+  await seed('artifacts/p/weatherLogs/d-legacy',{event:'Legacy',impact:'Old',...audit('admin@example.test')});
+  await assertSucceeds(updateDoc(doc(db,'artifacts/p/weatherLogs/d-legacy'),{details:'Old',...changed('supervisor')}));
+  await assertFails(updateDoc(doc(db,'artifacts/p/weatherLogs/d-legacy'),{status:'draft',details:'Old',...changed('supervisor')}));
+});
+test('diary photos upload to draft entries only, must be complete to link, and lock on submission',async()=>{
+  const id='photo-entry', path=`artifacts/p/weatherLogs/${id}`, photoPath=`artifacts/p/diaryPhotos/${PHOTO_ID}`;
+  await seed(path,{...diaryEntry,status:'draft',photos:[],...audit('supervisor@example.test')});
+  await assertFails(updateDoc(doc(client('supervisor'),path),{photos:[diaryPhoto('supervisor',PHOTO_ID)],...changed('supervisor')}));
+  await assertFails(setDoc(doc(client('guest'),photoPath),diaryPhotoDoc('guest',id)));
+  await assertFails(setDoc(doc(client('RE'),photoPath),diaryPhotoDoc('RE',id)));
+  await assertFails(setDoc(doc(client('supervisor'),photoPath),diaryPhotoDoc('supervisor',id,{contentType:'image/png'})));
+  await assertFails(setDoc(doc(client('supervisor'),photoPath),diaryPhotoDoc('supervisor',id,{data:Bytes.fromUint8Array(new Uint8Array(921601))})));
+  await assertFails(setDoc(doc(client('supervisor'),photoPath),diaryPhotoDoc('supervisor','missing-entry')));
+  await assertFails(setDoc(doc(client('supervisor'),photoPath),diaryPhotoDoc('engineer',id)));
+  await assertSucceeds(setDoc(doc(client('supervisor'),photoPath),diaryPhotoDoc('supervisor',id)));
+  await assertSucceeds(getDoc(doc(client('guest'),photoPath)));
+  await assertFails(updateDoc(doc(client('engineer'),path),{photos:[diaryPhoto('engineer',PHOTO_ID)],...changed('engineer')}));
+  await assertFails(updateDoc(doc(client('supervisor'),path),{photos:[diaryPhoto('supervisor',PHOTO_ID,{size:5})],...changed('supervisor')}));
+  await assertFails(updateDoc(doc(client('supervisor'),path),{photos:[diaryPhoto('supervisor',PHOTO_ID,{thumb:'javascript:alert(1)'})],...changed('supervisor')}));
+  await assertFails(updateDoc(doc(client('supervisor'),path),{photos:[diaryPhoto('supervisor',PHOTO_ID)],title:'Changed',...changed('supervisor')}));
+  await assertSucceeds(updateDoc(doc(client('supervisor'),path),{photos:[diaryPhoto('supervisor',PHOTO_ID)],...changed('supervisor')}));
+  // The service path: an engineer adds a photo, which reads back intact; another engineer cannot remove it.
+  await assertSucceeds(saveDiaryEntry(client('engineer'),{projectId:'p',id,currentUser:diaryUser('engineer'),email:'engineer@example.test',entry:diaryEntry,intent:'draft',newPhotos:[jpeg(5000,'east.jpg')]}));
+  const linked=(await getDoc(doc(client('guest'),path))).data().photos;
+  assert.equal(linked.length,2); assert.equal(linked[1].name,'east.jpg'); assert.equal(linked[1].size,5000);
+  const blob=await readDiaryPhoto(client('RTO'),{projectId:'p',photo:linked[1]});
+  assert.equal(blob.size,5000); assert.deepEqual([...new Uint8Array(await blob.arrayBuffer()).slice(0,3)],[255,216,255]);
+  await seed('artifacts/p/users/engineer2@example.test',{email:'engineer2@example.test',systemRole:'engineer'});
+  await assertFails(updateDoc(doc(client('engineer2'),path),{photos:[linked[0]],...changed('engineer2')}));
+  await assertFails(deleteDoc(doc(client('engineer2'),`artifacts/p/diaryPhotos/${linked[1].photoId}`)));
+  await assertSucceeds(removeDiaryPhoto(client('engineer'),{projectId:'p',entryId:id,photoId:linked[1].photoId,currentUser:diaryUser('engineer'),email:'engineer@example.test'}));
+  assert.equal((await getDoc(doc(client('guest'),`artifacts/p/diaryPhotos/${linked[1].photoId}`))).exists(),false);
+  // Submitting through the service locks the photo set and photo documents, even for admins.
+  const result=await saveDiaryEntry(client('supervisor'),{projectId:'p',id,currentUser:diaryUser('supervisor'),email:'supervisor@example.test',entry:diaryEntry,intent:'submit'});
+  assert.equal(result.status,'submitted');
+  const submitted=(await getDoc(doc(client('guest'),path))).data();
+  assert.equal(submitted.status,'submitted'); assert.equal(submitted.submittedBy,'supervisor@example.test'); assert.equal(submitted.photos.length,1);
+  await assertFails(updateDoc(doc(client('admin'),path),{photos:[],...changed('admin')}));
+  await assertFails(deleteDoc(doc(client('admin'),photoPath)));
+  await assertFails(setDoc(doc(client('supervisor'),'artifacts/p/diaryPhotos/00000000-0000-4000-8000-00000000d002'),diaryPhotoDoc('supervisor',id)));
+  await assert.rejects(saveDiaryEntry(client('supervisor'),{projectId:'p',id,currentUser:diaryUser('supervisor'),email:'supervisor@example.test',entry:diaryEntry,intent:'submit',newPhotos:[jpeg()]}),/locked/);
+  // Once the entry itself is deleted, a site recorder can clean up its orphaned photo documents.
+  await assertSucceeds(deleteDoc(doc(client('admin'),path)));
+  await assertFails(deleteDoc(doc(client('guest'),photoPath)));
+  await assertSucceeds(deleteDoc(doc(client('supervisor'),photoPath)));
+});
+test('a new diary entry submitted with photos is staged as a draft until every photo is linked',async()=>{
+  const created=[];
+  const result=await saveDiaryEntry(client('manager'),{projectId:'p',currentUser:diaryUser('manager'),email:'manager@example.test',entry:diaryEntry,intent:'submit',newPhotos:[jpeg(3000,'a.jpg'),jpeg(4000,'b.jpg')],onEntryCreated:id=>created.push(id)});
+  assert.equal(created.length,1); assert.equal(result.id,created[0]);
+  const entry=(await getDoc(doc(client('guest'),`artifacts/p/weatherLogs/${result.id}`))).data();
+  assert.equal(entry.status,'submitted'); assert.deepEqual(entry.photos.map(p=>p.name),['a.jpg','b.jpg']);
+  await assert.rejects(saveDiaryEntry(client('manager'),{projectId:'p',currentUser:diaryUser('manager'),email:'manager@example.test',entry:{...diaryEntry,details:''},intent:'submit'}),/Complete the date/);
+  await assert.rejects(saveDiaryEntry(client('RE'),{projectId:'p',currentUser:diaryUser('RE'),email:'RE@example.test',entry:diaryEntry,intent:'draft'}),/Only supervisors/);
 });

@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { test, expect } from '@playwright/test';
 const errorsByPage = new WeakMap();
 test.beforeEach(async ({page}) => { const errors=[]; errorsByPage.set(page,errors); page.on('pageerror',error=>errors.push(error.message)); });
@@ -112,17 +113,71 @@ test('existing main-branch sprint statuses stay visible on the planning board', 
   await expect(page.getByRole('region',{name:'In Progress (Sprint)',exact:true}).getByRole('heading',{name:'Existing sprint task'})).toBeVisible();
   await expect(page.getByRole('combobox',{name:'Move Existing sprint task'})).toHaveCount(0);
 });
-test('five-stage inspections keep creator and RE permissions distinct', async ({page}) => {
-  for (const [role,stage,allowed] of [['supervisor',0,true],['engineer',1,false],['RE',1,true],['RTO',1,false],['supervisor',2,true],['manager',3,false],['RE',3,true],['admin',3,true],['guest',0,false]]) {
-    await open(page,'inspections',role,`&stage=${stage}`);
-    await expect(page.getByRole('button',{name:'Advance Sign-Off →'})).toHaveCount(allowed?1:0);
-    if (role === 'RE' && stage === 3) {
-      await page.getByRole('button',{name:'Advance Sign-Off →'}).click();
-      await expect(page.getByText('✓ Inspection closed')).toBeVisible();
-      await page.getByRole('button',{name:/Show Comments & History/}).click();
-      await expect(page.getByText('Advanced inspection')).toBeVisible();
-    }
+test('RFI steps follow engineer/manager → RE → RTO → engineer/manager → RE ownership', async ({page}) => {
+  for (const [role,status,label] of [['engineer','draft','Open RFI'],['supervisor','draft',null],['guest','draft',null],['manager','opened','Submit for RE review'],['RE','opened',null],
+    ['RE','re_review','Allow site inspection'],['engineer','re_review',null],['RTO','re_review',null],['RTO','site_inspection','Allow next work'],['RE','site_inspection',null],
+    ['manager','next_work','Apply for RFI closure'],['RTO','next_work',null],['RE','closure_applied','Approve RFI closure'],['engineer','closure_applied',null],['admin','closure_applied','Approve RFI closure']]) {
+    await open(page,'inspections',role,`&status=${status}`);
+    await expect(page.getByRole('heading',{name:'Test slab',exact:true})).toBeVisible();
+    await expect(page.getByRole('button',{name:/ →$/})).toHaveCount(label?1:0);
+    if (label) await expect(page.getByRole('button',{name:`${label} →`})).toBeVisible();
   }
+  await open(page,'inspections','RE','&stage=1');
+  await expect(page.getByRole('button',{name:'Allow site inspection →'})).toBeVisible();
+});
+test('admin walks an RFI from draft to closed with audit history', async ({page}) => {
+  await open(page,'inspections','admin');
+  for (const label of ['Open RFI','Submit for RE review','Allow site inspection','Allow next work','Apply for RFI closure','Approve RFI closure']) {
+    await page.getByRole('button',{name:`${label} →`}).click();
+  }
+  await expect(page.getByText('✓ RFI closed')).toBeVisible();
+  await expect(page.getByRole('list',{name:'TEST-RFI review stages'}).getByRole('listitem')).toHaveCount(7);
+  await page.getByRole('button',{name:/Show Comments & History/}).click();
+  for (const text of ['Opened RFI','Submitted for RE review','RE allowed site inspection (RTO)','RTO allowed next work','Applied for RFI closure','RE approved closure — RFI closed'])
+    await expect(page.getByText(text,{exact:true})).toBeVisible();
+});
+test('engineers draft RFIs with automatic references and attach PDFs before RE submission', async ({page}) => {
+  await open(page,'inspections','supervisor');
+  await expect(page.getByRole('button',{name:'+ Add RFI'})).toHaveCount(0);
+  await open(page,'inspections','engineer','&email=engineer@example.test');
+  await page.getByRole('button',{name:'+ Add RFI'}).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByLabel('RFI ID')).toHaveText('Select a zone and discipline');
+  await dialog.getByLabel('Zone',{exact:true}).selectOption('East');
+  await dialog.getByLabel('Discipline').selectOption('Structural');
+  await expect(dialog.getByLabel('RFI ID')).toHaveText('Test project_East-STR-001');
+  await dialog.getByLabel('Discipline').selectOption('Architectural');
+  await expect(dialog.getByLabel('RFI ID')).toHaveText('Test project_East-AR-001');
+  await dialog.getByLabel('Element',{exact:true}).fill('Level 3 wall');
+  await dialog.getByLabel('Target cast').fill('');
+  await dialog.getByRole('button',{name:/Open RFI/}).click();
+  await expect(dialog.getByRole('alert')).toContainText('target cast date');
+  await dialog.getByRole('button',{name:'Save as draft'}).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const id = 'Test project_East-AR-001';
+  const card = page.getByRole('article').filter({hasText:id});
+  await expect(card.locator('.badge',{hasText:/^Draft$/})).toBeVisible();
+  await page.getByLabel(`Upload PDF to ${id}`).setInputFiles({name:'notes.txt',mimeType:'text/plain',buffer:Buffer.from('x')});
+  await expect(page.getByRole('alert')).toContainText('Only PDF files');
+  await page.getByLabel(`Document type for ${id}`).selectOption('Reference');
+  await page.getByLabel(`Upload PDF to ${id}`).setInputFiles([{name:'Drawing A-101.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4')},{name:'Checklist.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4')}]);
+  await expect(page.getByRole('status').filter({hasText:'2 PDFs attached'})).toBeVisible();
+  await expect(card.getByText('Drawing A-101.pdf')).toBeVisible();
+  await card.getByRole('button',{name:'Remove Checklist.pdf'}).click();
+  await expect(card.getByText('Checklist.pdf')).toHaveCount(0);
+  await card.getByRole('button',{name:'Open Drawing A-101.pdf'}).click();
+  await expect(page.getByText('Opened Drawing A-101.pdf')).toBeVisible();
+  await card.getByRole('button',{name:'Edit'}).click();
+  await page.getByRole('dialog').getByLabel('Target cast').fill('2026-11-20');
+  await expect(page.getByRole('dialog').getByLabel('RFI ID')).toHaveText(id);
+  await page.getByRole('dialog').getByRole('button',{name:/Save RFI/}).click();
+  await card.getByRole('button',{name:'Open RFI →'}).click();
+  await card.getByRole('button',{name:'Submit for RE review →'}).click();
+  await expect(card.locator('.badge',{hasText:/^Under RE Review$/})).toBeVisible();
+  await expect(page.getByLabel(`Upload PDF to ${id}`)).toHaveCount(0);
+  await expect(card.getByRole('button',{name:'Remove Drawing A-101.pdf'})).toHaveCount(0);
+  await expect(card.getByText('Locked after RE submission')).toBeVisible();
+  await expect(card.getByText('Awaiting RE')).toBeVisible();
 });
 test('RTO comments persist and rejected comments retain the input', async ({page}) => {
   await open(page,'inspections','RTO');

@@ -16,6 +16,7 @@ import AccountControls from '../../src/components/AccountControls';
 import DeletionReviewPanel from '../../src/components/DeletionReviewPanel';
 import { RecordDeletionContext } from '../../src/contexts/RecordDeletionContext';
 import { canRequestDeletion, canReviewDeletion, deletionKey, isDeletionAdmin, recordLabel } from '../../src/utils/deletions';
+import { RFI_TRANSITIONS, inspectionStatus, rfiPrefix, formatRfiId, highestRfiNumber } from '../../src/utils/siteData';
 import '../../src/index.css';
 
 export default function Harness() {
@@ -24,14 +25,14 @@ export default function Harness() {
   const [view, setView] = useState(query.get('view') || 'calendar');
   const [accountProfile, setAccountProfile] = useState({name:'Test person',role:'Site engineer',phone:'',birthday:''});
   const [accountAction, setAccountAction] = useState('');
-  const [requests, setRequests] = useState([]), [brief, setBrief] = useState(false);
+  const [requests, setRequests] = useState([]), [brief, setBrief] = useState(false), [fileAction, setFileAction] = useState('');
   const creator = 'fixture@example.test';
   const [data, setData] = useState(() => ({
     tasks: query.get('legacy') || query.get('seed') ? [{id:'legacy',activity:'Existing sprint task',status:'in_progress',zone:'East',createdBy:creator}] : [],
     materials: query.get('seed') ? [{id:'test-do',reference:'DO-001',type:'Delivery Order',element:'Rebar delivery',quantity:2,unit:'t',supplier:'Supplier',zone:'East',status:'Received',createdBy:creator,deliveryDate:'2026-10-01',actualDate:'2026-10-01'}] : [],
     lifts: query.get('seed') ? [{id:'test-ptw',crane:'Crane PTW',zone:'East',status:'SUSPENDED',createdBy:creator}] : [],
     diary: [], observations: [], zones:[{id:'east',name:'East',createdBy:creator}],
-    inspections:[{id:'TEST-RFI',element:'Test slab',discipline:'Structural',zone:'East',createdBy:creator,stage:Number(query.get('stage') || 0),comments:[],history:[]}],
+    inspections:[{id:'TEST-RFI',element:'Test slab',discipline:'Structural',zone:'East',createdBy:creator,...(query.get('stage')?{stage:Number(query.get('stage'))}:{status:query.get('status') || 'draft'}),targetCast:'2026-11-10',comments:[],history:[],attachments:[]}],
     users:[{id:'person@example.test',email:'person@example.test',name:'Test member',systemRole:'guest',organization:'Original organisation',createdBy:creator}],
   }));
   const [access, setAccess] = useState({'fixture-project':[{id:'requester@example.test',email:'requester@example.test',name:'New requester',systemRole:'pending',createdBy:'requester@example.test'}],'second-project':[]});
@@ -67,9 +68,13 @@ export default function Harness() {
     {view==='diary'&&<SiteDiaryView {...common} weatherLogs={data.diary} onAddWeatherLog={add('diary')} onUpdate={update('diary')}/>}
     {view==='lifting'&&<LiftingView {...common} lifts={data.lifts} onAdd={add('lifts')} onToggleLift={id=>update('lifts')(id,{status:'ACTIVE'})}/>}
     {view==='monitoring'&&<MonitoringView {...common} observations={data.observations} onAdd={add('observations')}/>}
-    {view==='inspections'&&<InspectionsView {...common} inspections={data.inspections} onAdd={add('inspections')} onUpdate={update('inspections')}
-      onAdvance={async(id,stage)=>update('inspections')(id,{stage:stage+1,history:[{user:currentUser.email,role,action:'Advanced inspection',timestamp:new Date().toISOString()}]})}
-      onComment={async(id,text)=>update('inspections')(id,{comments:[{user:currentUser.email,role,text,timestamp:new Date().toISOString()}]})}/>}
+    {view==='inspections'&&<>{fileAction&&<p role="status">{fileAction}</p>}<InspectionsView {...common} inspections={data.inspections} projectName="Test project" onUpdate={update('inspections')}
+      onAdd={async(details,status)=>{fail();const prefix=rfiPrefix('Test project',details.zone,details.discipline);const id=formatRfiId(prefix,highestRfiNumber(data.inspections.map(i=>i.id),prefix)+1);setData(prev=>({...prev,inspections:[...prev.inspections,{...details,id,status,rfiPrefix:prefix,attachments:[],history:[],comments:[],createdBy:currentUser.email}]}));return id;}}
+      onAdvance={async(id,status)=>{const rfi=data.inspections.find(i=>i.id===id);if(inspectionStatus(rfi)!==status)throw new Error('Stale');const t=RFI_TRANSITIONS[status];await update('inspections')(id,{status:t.to,history:[...(rfi.history||[]),{user:currentUser.email,role,action:t.history,timestamp:new Date().toISOString()}]});}}
+      onComment={async(id,text)=>update('inspections')(id,{comments:[{user:currentUser.email,role,text,timestamp:new Date().toISOString()}]})}
+      onAttachFile={async(id,file,category)=>{fail();setData(prev=>({...prev,inspections:prev.inspections.map(i=>i.id===id?{...i,attachments:[...(i.attachments||[]),{fileId:crypto.randomUUID(),name:file.name,size:file.size,category,uploadedBy:currentUser.email,path:`projects/test/inspections/${id}/x.pdf`}]}:i)}));}}
+      onRemoveFile={async(id,fileId)=>{fail();setData(prev=>({...prev,inspections:prev.inspections.map(i=>i.id===id?{...i,attachments:i.attachments.filter(a=>a.fileId!==fileId)}:i)}));}}
+      onOpenFile={async file=>setFileAction(`Opened ${file.name}`)}/></>}
     {view==='users'&&<><UserManagementView currentUser={currentUser} users={data.users} onAddPersonnel={add('users')} onUpdatePersonnelRole={(id,systemRole)=>update('users')(id,{systemRole})} onUpdatePersonnelOrganization={(id,organization)=>update('users')(id,{organization})}/><DeletionReviewPanel/></>}
     {view==='deletions'&&<><label className="block mb-4">Test reviewer account<select value={role} onChange={event=>setRole(event.target.value)}>{['engineer','manager','admin','guest'].map(value=><option key={value}>{value}</option>)}</select></label><DeletionReviewPanel/></>}
   </>;

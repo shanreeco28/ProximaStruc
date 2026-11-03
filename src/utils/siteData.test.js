@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canPlan, canRecordSite, canWrite, dayNumber, projectProgress, scheduleRows, taskConstraints, validateTask, validateMaterial, latestObservation, taskStatus, taskProgress, canAdvanceInspection, canEditInspection, isInspectionClosed, createMemberProfile } from './siteData.js';
+import { canPlan, canRecordSite, canWrite, dayNumber, projectProgress, scheduleRows, taskConstraints, validateTask, validateMaterial, latestObservation, taskStatus, taskProgress, canAdvanceInspection, canEditInspection, isInspectionClosed, createMemberProfile, inspectionStatus, inspectionStatusLabel, isInspectionOpen, nextInspectionTransition, RFI_STATUSES, canManageInspectionFiles, canRemoveInspectionFile, validateRfiFile, rfiPrefix, formatRfiId, highestRfiNumber, rfiIdSegment } from './siteData.js';
 
 test('role permissions deny unknown users, protect admin observations, and separate planning from site records', () => {
   for (const role of ['admin','manager','engineer','supervisor','guest','RE','RTO',undefined]) {
@@ -64,21 +64,57 @@ test('both persisted planning status formats retain completion and board placeme
   assert.equal(taskStatus({status:'In progress'}),'in_progress');
   assert.equal(taskStatus({status:'Blocked'}),'blocked');
 });
-test('five-stage RFI closure is reflected in planning constraints and chart milestones', () => {
+test('RFI closure is reflected in planning constraints and chart milestones, including legacy records', () => {
   assert.equal(isInspectionClosed({stage:3}),false); assert.equal(isInspectionClosed({stage:4}),true);
+  assert.equal(isInspectionClosed({status:'closure_applied'}),false); assert.equal(isInspectionClosed({status:'closed'}),true);
   const task = {inspectionId:'r'};
-  assert.equal(taskConstraints(task,{inspections:[{id:'r',stage:3}]}).length,1);
+  assert.equal(taskConstraints(task,{inspections:[{id:'r',status:'next_work'}]}).length,1);
+  assert.equal(taskConstraints(task,{inspections:[{id:'r',status:'closed'}]}).length,0);
   assert.equal(taskConstraints(task,{inspections:[{id:'r',stage:4}]}).length,0);
-  const rows = scheduleRows({inspections:[{id:'r',stage:4,targetCast:'2026-10-02'}]});
+  const rows = scheduleRows({inspections:[{id:'r',status:'closed',targetCast:'2026-10-02'}]});
   assert.equal(rows[0].detail,'Closed');
 });
-test('RE reviews and closes RFIs while site creators handle submission steps', () => {
-  for (const role of ['admin','manager','engineer','supervisor','RE','RTO','guest']) for (let stage=0;stage<5;stage++) {
-    const allowed = stage<4 && (role==='admin' || ([1,3].includes(stage) ? role==='RE' : ['manager','engineer','supervisor'].includes(role)));
-    assert.equal(canAdvanceInspection({systemRole:role},{stage}),allowed,`${role} stage ${stage}`);
+test('legacy five-stage records map onto the seven-stage RFI workflow', () => {
+  assert.deepEqual([0,1,2,3,4].map(stage=>inspectionStatus({stage})),['opened','re_review','site_inspection','closure_applied','closed']);
+  assert.equal(inspectionStatus({stage:9}),null); assert.equal(inspectionStatusLabel({}),'Stage not recorded');
+  assert.equal(inspectionStatus({stage:1,status:'next_work'}),'next_work');
+  assert.equal(isInspectionOpen({status:'draft'}),false); assert.equal(isInspectionOpen({status:'re_review'}),true);
+});
+test('RFI sequence: engineers/managers raise, submit and apply for closure; RE reviews and closes; RTO allows next work', () => {
+  const expected = { draft:'site', opened:'site', re_review:'RE', site_inspection:'RTO', next_work:'site', closure_applied:'RE', closed:null };
+  assert.deepEqual(RFI_STATUSES.map(s=>s.id),Object.keys(expected));
+  assert.deepEqual(RFI_STATUSES.slice(0,-1).map(s=>nextInspectionTransition({status:s.id}).to),RFI_STATUSES.slice(1).map(s=>s.id));
+  for (const role of ['admin','manager','engineer','supervisor','RE','RTO','guest']) for (const [status,actor] of Object.entries(expected)) {
+    const allowed = actor !== null && (role==='admin' || (actor==='site' ? ['manager','engineer'].includes(role) : role===actor));
+    assert.equal(canAdvanceInspection({systemRole:role},{status}),allowed,`${role} ${status}`);
   }
-  assert.equal(canEditInspection({systemRole:'supervisor',email:'a'},{createdBy:'a'}),true);
-  assert.equal(canEditInspection({systemRole:'supervisor',email:'a'},{createdBy:'b'}),false);
+  assert.equal(canEditInspection({systemRole:'engineer',email:'a'},{createdBy:'a'}),true);
+  assert.equal(canEditInspection({systemRole:'engineer',email:'a'},{createdBy:'b'}),false);
+  assert.equal(canEditInspection({systemRole:'supervisor',email:'a'},{createdBy:'a'}),false);
+});
+test('PDFs can be attached only before RE submission and removed by the uploader, creator or admin', () => {
+  const engineer = {systemRole:'engineer',email:'e'};
+  for (const status of ['draft','opened']) assert.equal(canManageInspectionFiles(engineer,{status}),true);
+  for (const status of ['re_review','site_inspection','next_work','closure_applied','closed']) assert.equal(canManageInspectionFiles(engineer,{status}),false);
+  assert.equal(canManageInspectionFiles({systemRole:'RE'},{status:'draft'}),false);
+  const rfi = {status:'draft',createdBy:'c'};
+  assert.equal(canRemoveInspectionFile(engineer,rfi,{uploadedBy:'e'}),true);
+  assert.equal(canRemoveInspectionFile(engineer,rfi,{uploadedBy:'x'}),false);
+  assert.equal(canRemoveInspectionFile({systemRole:'manager',email:'c'},rfi,{uploadedBy:'x'}),true);
+  assert.equal(validateRfiFile({name:'a.pdf',type:'application/pdf',size:10}),'');
+  assert.match(validateRfiFile({name:'a.docx',type:'application/msword',size:10}),/PDF/);
+  assert.match(validateRfiFile({name:'a.pdf',type:'application/pdf',size:10*1024*1024+1}),/10 MB/);
+  assert.equal(validateRfiFile({name:'a.pdf',type:'application/pdf',size:10*1024*1024}),'');
+  assert.match(validateRfiFile({name:'a.pdf',type:'application/pdf',size:10},20),/up to 20/);
+});
+test('RFI references follow Project Name_Zone-Discipline-###', () => {
+  assert.equal(rfiPrefix('Marina Tower','Zone A','Structural'),'Marina Tower_Zone A-STR');
+  assert.equal(rfiPrefix('Marina Tower','Zone A','Architectural'),'Marina Tower_Zone A-AR');
+  assert.equal(rfiPrefix('Marina Tower','Zone A','M&E Sleeve / Conduit'),'Marina Tower_Zone A-ME');
+  assert.equal(rfiPrefix('Marina Tower','','Structural'),''); assert.equal(rfiPrefix('Marina Tower','Zone A','Other'),'');
+  assert.equal(rfiIdSegment('  Block 1/2   Podium '),'Block 1-2 Podium');
+  assert.equal(formatRfiId('P_Z-STR',7),'P_Z-STR-007'); assert.equal(formatRfiId('P_Z-STR',1234),'P_Z-STR-1234');
+  assert.equal(highestRfiNumber(['P_Z-STR-002','P_Z-STR-011','P_Z-AR-050','P_Z-STR-draft','legacy'],'P_Z-STR'),11);
 });
 test('registration sync uses supplied identity and never seeds readings, expiry or admin rights', () => {
   const user={email:'Person@example.test',displayName:'Person'};

@@ -2,8 +2,9 @@ import { before, after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, getDoc, deleteDoc, arrayUnion, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { createMemberProfile, INSPECTION_STAGES, canAdvanceInspection } from '../../src/utils/siteData.js';
+import { doc, setDoc, updateDoc, getDoc, deleteDoc, arrayUnion, serverTimestamp, Timestamp, Bytes } from 'firebase/firestore';
+import { createMemberProfile, canAdvanceInspection, RFI_STATUSES, RFI_TRANSITIONS } from '../../src/utils/siteData.js';
+import { createInspection, advanceInspection, removeInspectionFile, attachInspectionFile, readInspectionFile } from '../../src/services/inspections.js';
 import { synchronizeProjectMembership } from '../../src/services/projectMembership.js';
 import { submitRecordDeletion, reviewRecordDeletion } from '../../src/services/recordDeletion.js';
 import { saveOwnProjectProfile } from '../../src/services/personalProfile.js';
@@ -117,37 +118,128 @@ test('manager organisation edits cannot change access roles or other personnel d
   await assertFails(updateDoc(doc(client('engineer'),path),{organization:'Changed',...changed('engineer')}));
   await assertSucceeds(updateDoc(doc(client('admin'),path),{organization:'Admin update',...changed('admin')}));
 });
-test('five-stage RFI transitions enforce the same role matrix as the interface',async()=>{
-  for(const role of ['admin','manager','engineer','supervisor','guest','RE','RTO']) for(let stage=0;stage<4;stage++) {
-    const path=`artifacts/p/inspections/transition-${role}-${stage}`;
-    await seed(path,{stage,history:[],comments:[],...audit('supervisor@example.test')});
-    const entry={email:`${role}@example.test`,user:role,role,timestamp:'2026-10-26',action:`Advanced to ${INSPECTION_STAGES[stage+1]}`};
-    const result=updateDoc(doc(client(role),path),{stage:stage+1,history:[entry],...changed(role)});
-    await (canAdvanceInspection({systemRole:role},{stage})?assertSucceeds(result):assertFails(result));
+const rfiUser = role => ({email:`${role}@example.test`,name:role,systemRole:role});
+const rfiDetails = {zone:'Zone A',discipline:'Structural',element:'Level 2 slab',rtoName:'',reName:'',targetCast:'2026-11-10',bbsLinked:''};
+const createRfi = (role,details=rfiDetails,status='draft') => createInspection(client(role),{projectId:'p',projectName:'Test project',currentUser:rfiUser(role),email:`${role}@example.test`,details,status});
+const historyText = status => Object.values(RFI_TRANSITIONS).find(t=>t.to===status)?.history || 'none';
+const historyEntry = (role,status) => ({email:`${role}@example.test`,user:role,role,timestamp:'2026-10-26',action:historyText(status)});
+const FILE_ID='0b5c1d2e-aaaa-bbbb-cccc-000000000001';
+const attachment = (role,extra={}) => ({fileId:FILE_ID,name:'Inspection.pdf',size:2048,chunks:1,contentType:'application/pdf',category:'Inspection file',uploadedBy:`${role}@example.test`,uploadedAt:'2026-10-26',...extra});
+const chunk = (role,rfiId,extra={}) => ({rfiId,fileId:FILE_ID,index:0,total:1,data:Bytes.fromUint8Array(new Uint8Array(2048).fill(37)),createdBy:`${role}@example.test`,createdAt:'2026-10-26',...extra});
+const pdfFile = (size,name='Inspection.pdf') => { const bytes=new Uint8Array(size); bytes.set([37,80,68,70]); return Object.assign(new Blob([bytes],{type:'application/pdf'}),{name}); };
+
+test('only engineers, managers and admins raise RFIs, numbered Project_Zone-Discipline-###',async()=>{
+  for(const role of ['supervisor','RE','RTO','guest']) await assertFails(createInspection(client(role),{projectId:'p',projectName:'Test project',currentUser:{...rfiUser(role),systemRole:'engineer'},email:`${role}@example.test`,details:{...rfiDetails,zone:`Role ${role}`}}));
+  assert.equal(await createRfi('engineer'),'Test project_Zone A-STR-001');
+  assert.equal(await createRfi('manager',rfiDetails,'opened'),'Test project_Zone A-STR-002');
+  assert.equal(await createRfi('admin',{...rfiDetails,discipline:'Architectural'}),'Test project_Zone A-AR-001');
+  assert.equal(await createRfi('engineer',{...rfiDetails,discipline:'M&E Sleeve / Conduit',zone:'Zone B'}),'Test project_Zone B-ME-001');
+  const saved=(await getDoc(doc(client('guest'),'artifacts/p/inspections/Test project_Zone A-STR-002'))).data();
+  assert.equal(saved.status,'opened'); assert.equal(saved.rfiNumber,2); assert.deepEqual(saved.attachments,[]);
+  // Deleted numbers are not reused because the counter only moves forward.
+  await assertSucceeds(deleteDoc(doc(client('admin'),'artifacts/p/inspections/Test project_Zone A-STR-002')));
+  assert.equal(await createRfi('engineer'),'Test project_Zone A-STR-003');
+});
+test('RFI references and counters cannot be forged or rewound',async()=>{
+  const db=client('engineer'), base={...rfiDetails,status:'draft',history:[],comments:[],attachments:[],...audit('engineer@example.test')};
+  await assertFails(setDoc(doc(db,'artifacts/p/inspections/Forged_Zone A-STR-900'),{...base,rfiPrefix:'Forged_Zone A-STR',rfiNumber:900}));
+  await assertFails(setDoc(doc(db,'artifacts/p/inspections/Custom reference'),{...base,rfiPrefix:'Custom',rfiNumber:1}));
+  await assertFails(setDoc(doc(db,'artifacts/p/inspections/Test project_Zone A-STR-001'),{...base,stage:0}));
+  await assertFails(setDoc(doc(db,'artifacts/p/rfiCounters/Test project_Zone A-STR'),{last:1,lastId:'Test project_Zone A-STR-001',...audit('engineer@example.test'),...changed('engineer')}));
+  await assertFails(deleteDoc(doc(client('admin'),'artifacts/p/rfiCounters/Test project_Zone A-STR')));
+  const counter=(await getDoc(doc(client('guest'),'artifacts/p/rfiCounters/Test project_Zone A-STR'))).data();
+  assert.equal(counter.last,3);
+});
+test('seven-stage RFI transitions enforce the same role matrix as the interface',async()=>{
+  for(const role of ['admin','manager','engineer','supervisor','guest','RE','RTO']) for(const {id:status} of RFI_STATUSES) {
+    const path=`artifacts/p/inspections/transition-${role}-${status}`;
+    await seed(path,{status,history:[],comments:[],attachments:[],...audit('engineer@example.test')});
+    const next=RFI_TRANSITIONS[status]?.to || 'closed';
+    const result=updateDoc(doc(client(role),path),{status:next,history:[historyEntry(role,next)],...changed(role)});
+    await (canAdvanceInspection({systemRole:role},{status})?assertSucceeds(result):assertFails(result));
   }
+});
+test('legacy five-stage RFIs continue through the new workflow',async()=>{
+  const path='artifacts/p/inspections/legacy-rfi';
+  await seed(path,{stage:2,history:[],comments:[],...audit('supervisor@example.test')});
+  await assertFails(advanceInspection(client('engineer'),{projectId:'p',id:'legacy-rfi',expectedStatus:'site_inspection',currentUser:{...rfiUser('engineer'),systemRole:'RTO'},email:'engineer@example.test'}));
+  await assertSucceeds(advanceInspection(client('RTO'),{projectId:'p',id:'legacy-rfi',expectedStatus:'site_inspection',currentUser:rfiUser('RTO'),email:'RTO@example.test'}));
+  assert.equal((await getDoc(doc(client('guest'),path))).data().status,'next_work');
+  await seed('artifacts/p/inspections/legacy-closed',{stage:4,history:[],comments:[],...audit('supervisor@example.test')});
+  await assertFails(updateDoc(doc(client('admin'),'artifacts/p/inspections/legacy-closed'),{status:'closed',history:[historyEntry('admin','closed')],...changed('admin')}));
 });
 test('RFIs cannot skip stages, forge discussion identity or erase existing history',async()=>{
   const path='artifacts/p/inspections/history';
-  const previous={email:'admin@example.test',user:'Admin',role:'admin',timestamp:'2026-10-25',action:`Advanced to ${INSPECTION_STAGES[1]}`};
-  await seed(path,{stage:1,history:[previous],comments:[],...audit('supervisor@example.test')});
-  const entry={email:'RE@example.test',user:'RE',role:'RE',timestamp:'2026-10-26',action:`Advanced to ${INSPECTION_STAGES[2]}`};
-  await assertFails(updateDoc(doc(client('RE'),path),{stage:4,history:[previous,entry],...changed('RE')}));
-  await assertFails(updateDoc(doc(client('RE'),path),{stage:2,history:[entry],...changed('RE')}));
-  await assertSucceeds(updateDoc(doc(client('RE'),path),{stage:2,history:[previous,entry],...changed('RE')}));
+  const previous=historyEntry('engineer','re_review');
+  await seed(path,{status:'re_review',history:[previous],comments:[],attachments:[],...audit('engineer@example.test')});
+  const entry=historyEntry('RE','site_inspection');
+  await assertFails(updateDoc(doc(client('RE'),path),{status:'closed',history:[previous,historyEntry('RE','closed')],...changed('RE')}));
+  await assertFails(updateDoc(doc(client('RE'),path),{status:'site_inspection',history:[entry],...changed('RE')}));
+  await assertFails(updateDoc(doc(client('RE'),path),{status:'site_inspection',history:[previous,{...entry,role:'admin'}],...changed('RE')}));
+  await assertFails(updateDoc(doc(client('RE'),path),{status:'site_inspection',history:[previous,{...entry,action:'Approved'}],...changed('RE')}));
+  await assertSucceeds(updateDoc(doc(client('RE'),path),{status:'site_inspection',history:[previous,entry],...changed('RE')}));
   const comment={email:'RTO@example.test',user:'RTO',role:'RTO',text:'Observation',timestamp:'2026-10-26'};
   await assertSucceeds(updateDoc(doc(client('RTO'),path),{comments:arrayUnion(comment),...changed('RTO')}));
   await assertFails(updateDoc(doc(client('guest'),path),{comments:arrayUnion({...comment,text:'Forged'}),...changed('guest')}));
   await assertFails(updateDoc(doc(client('RTO'),path),{comments:[],...changed('RTO')}));
 });
-test('inspection metadata edits cannot overwrite discussion or bypass stage permissions',async()=>{
+test('PDF chunks are written only by engineers/managers/admins before RE submission',async()=>{
+  const id='chunk-rfi', path=`artifacts/p/inspections/${id}`, chunkPath=`artifacts/p/rfiFileChunks/${FILE_ID}_0`;
+  await seed(path,{status:'draft',history:[],comments:[],attachments:[],...audit('engineer@example.test')});
+  for(const role of ['supervisor','RE','RTO','guest']) await assertFails(setDoc(doc(client(role),chunkPath),chunk(role,id)));
+  await assertFails(setDoc(doc(client('engineer'),chunkPath),chunk('engineer',id,{data:Bytes.fromUint8Array(new Uint8Array(921601))})));
+  await assertFails(setDoc(doc(client('engineer'),chunkPath),chunk('engineer',id,{index:1})));
+  await assertFails(setDoc(doc(client('engineer'),chunkPath),chunk('engineer',id,{data:'not bytes'})));
+  await assertFails(setDoc(doc(client('engineer'),chunkPath),chunk('manager',id)));
+  await assertSucceeds(setDoc(doc(client('engineer'),chunkPath),chunk('engineer',id)));
+  await assertFails(setDoc(doc(client('engineer'),chunkPath),chunk('engineer',id,{createdAt:'changed'})));
+  await assertSucceeds(getDoc(doc(client('guest'),chunkPath)));
+  await seed('artifacts/p/inspections/submitted-rfi',{status:'re_review',history:[],comments:[],attachments:[],...audit('engineer@example.test')});
+  await assertFails(setDoc(doc(client('engineer'),`artifacts/p/rfiFileChunks/${FILE_ID.replace('0001','0009')}_0`),chunk('engineer','submitted-rfi',{fileId:FILE_ID.replace('0001','0009')})));
+});
+test('PDF links require a complete upload and lock after RE submission',async()=>{
+  const id='attach-rfi', path=`artifacts/p/inspections/${id}`;
+  await seed(path,{status:'draft',history:[],comments:[],attachments:[],element:'Slab',...audit('engineer@example.test')});
+  // No chunks yet: the link is refused.
+  await assertFails(updateDoc(doc(client('manager'),path),{attachments:[attachment('manager')],...changed('manager')}));
+  await seed(`artifacts/p/rfiFileChunks/${FILE_ID}_0`,chunk('manager',id));
+  await assertFails(updateDoc(doc(client('RE'),path),{attachments:[attachment('RE')],...changed('RE')}));
+  await assertFails(updateDoc(doc(client('manager'),path),{attachments:[attachment('manager',{chunks:2})],...changed('manager')}));
+  await assertFails(updateDoc(doc(client('manager'),path),{attachments:[attachment('manager',{size:921601})],...changed('manager')}));
+  await assertFails(updateDoc(doc(client('manager'),path),{attachments:[attachment('manager',{contentType:'image/png'})],...changed('manager')}));
+  await assertFails(updateDoc(doc(client('engineer'),path),{attachments:[attachment('manager')],...changed('engineer')}));
+  await assertSucceeds(updateDoc(doc(client('manager'),path),{attachments:[attachment('manager')],...changed('manager')}));
+  // The full service path: a 2 MB PDF is split into three chunks, linked and read back intact.
+  await assertSucceeds(attachInspectionFile(client('engineer'),{projectId:'p',id,file:pdfFile(2_000_000,'Drawing.pdf'),category:'Reference',currentUser:rfiUser('engineer'),email:'engineer@example.test'}));
+  const linked=(await getDoc(doc(client('guest'),path))).data().attachments;
+  assert.equal(linked.length,2); assert.equal(linked[1].chunks,3); assert.equal(linked[1].size,2_000_000);
+  const blob=await readInspectionFile(client('RTO'),{projectId:'p',attachment:linked[1]});
+  assert.equal(blob.size,2_000_000); assert.deepEqual([...new Uint8Array(await blob.arrayBuffer()).slice(0,4)],[37,80,68,70]);
+  // Another engineer cannot unlink or delete a file they neither uploaded nor own; the RFI creator can.
+  await seed('artifacts/p/users/engineer2@example.test',{email:'engineer2@example.test',systemRole:'engineer'});
+  await assertFails(updateDoc(doc(client('engineer2'),path),{attachments:[linked[1]],...changed('engineer2')}));
+  await assertFails(deleteDoc(doc(client('engineer2'),`artifacts/p/rfiFileChunks/${FILE_ID}_0`)));
+  await assertSucceeds(removeInspectionFile(client('engineer'),{projectId:'p',id,fileId:FILE_ID,currentUser:rfiUser('engineer'),email:'engineer@example.test'}));
+  assert.equal((await getDoc(doc(client('guest'),`artifacts/p/rfiFileChunks/${FILE_ID}_0`))).exists(),false);
+  await assertSucceeds(advanceInspection(client('engineer'),{projectId:'p',id,expectedStatus:'draft',currentUser:rfiUser('engineer'),email:'engineer@example.test'}));
+  await assertSucceeds(advanceInspection(client('manager'),{projectId:'p',id,expectedStatus:'opened',currentUser:rfiUser('manager'),email:'manager@example.test'}));
+  // After RE submission the list and the stored chunks are locked, even for admins.
+  await assertFails(updateDoc(doc(client('engineer'),path),{attachments:[],...changed('engineer')}));
+  await assertFails(deleteDoc(doc(client('engineer'),`artifacts/p/rfiFileChunks/${linked[1].fileId}_0`)));
+  await assertFails(deleteDoc(doc(client('admin'),`artifacts/p/rfiFileChunks/${linked[1].fileId}_1`)));
+});
+test('inspection metadata edits cannot overwrite discussion, renumber RFIs or bypass stage permissions',async()=>{
   const path='artifacts/p/inspections/creator-edit';
-  await seed(path,{stage:0,history:[],comments:[],element:'Slab',...audit('supervisor@example.test')});
-  await assertSucceeds(updateDoc(doc(client('supervisor'),path),{element:'Updated slab',...changed('supervisor')}));
+  await seed(path,{status:'draft',rfiPrefix:'Test project_Zone A-STR',rfiNumber:50,zone:'Zone A',discipline:'Structural',history:[],comments:[],attachments:[],element:'Slab',...audit('engineer@example.test')});
+  await assertSucceeds(updateDoc(doc(client('engineer'),path),{element:'Updated slab',...changed('engineer')}));
+  await assertFails(updateDoc(doc(client('engineer'),path),{zone:'Zone B',...changed('engineer')}));
   await assertFails(updateDoc(doc(client('manager'),path),{element:'Other creator',...changed('manager')}));
-  await assertFails(updateDoc(doc(client('supervisor'),path),{stage:4,...changed('supervisor')}));
+  await assertFails(updateDoc(doc(client('engineer'),path),{status:'closed',...changed('engineer')}));
   await assertFails(updateDoc(doc(client('RE'),path),{element:'Reviewer edit',...changed('RE')}));
-  await assertFails(deleteDoc(doc(client('supervisor'),path)));
+  await assertFails(deleteDoc(doc(client('engineer'),path)));
   await assertSucceeds(deleteDoc(doc(client('admin'),path)));
+  await seed('artifacts/p/inspections/legacy-edit',{stage:0,history:[],comments:[],element:'Slab',zone:'East',...audit('engineer@example.test')});
+  await assertSucceeds(updateDoc(doc(client('engineer'),'artifacts/p/inspections/legacy-edit'),{zone:'West',...changed('engineer')}));
 });
 
 test('every project role can save their own personal fields without changing assigned access',async()=>{

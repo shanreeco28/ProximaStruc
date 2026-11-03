@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canPlan, canRecordSite, canWrite, dayNumber, projectProgress, scheduleRows, taskConstraints, validateTask, validateMaterial, latestObservation, taskStatus, taskProgress, canAdvanceInspection, canEditInspection, isInspectionClosed, createMemberProfile, inspectionStatus, inspectionStatusLabel, isInspectionOpen, nextInspectionTransition, RFI_STATUSES, canManageInspectionFiles, canRemoveInspectionFile, validateRfiFile, rfiPrefix, formatRfiId, highestRfiNumber, rfiIdSegment } from './siteData.js';
+import { canPlan, canRecordSite, canWrite, dayNumber, projectProgress, scheduleRows, taskConstraints, validateTask, validateMaterial, latestObservation, taskStatus, taskProgress, canAdvanceInspection, canEditInspection, isInspectionClosed, createMemberProfile, inspectionStatus, inspectionStatusLabel, isInspectionOpen, nextInspectionTransition, RFI_STATUSES, canManageInspectionFiles, canRemoveInspectionFile, validateRfiFile, rfiPrefix, formatRfiId, highestRfiNumber, rfiIdSegment, diaryStatus, isDiaryDraft, recordedDiaryEntries, diaryEntryProblem, validateDiaryPhotoSource, canManageDiaryPhotos, canRemoveDiaryPhoto, DIARY_PHOTO_MAX } from './siteData.js';
 
 test('role permissions deny unknown users, protect admin observations, and separate planning from site records', () => {
   for (const role of ['admin','manager','engineer','supervisor','guest','RE','RTO',undefined]) {
@@ -123,4 +123,40 @@ test('registration sync uses supplied identity and never seeds readings, expiry 
   assert.equal(profile.systemRole,'pending'); assert.equal(profile.certExpiry,''); assert.equal(profile.bizSafe,'');
   assert.equal(profile.organization,''); assert.deepEqual(profile.ptwAuthority,[]);
   assert.equal(createMemberProfile(user,{},true).systemRole,'admin');
+});
+
+test('diary drafts are kept out of recorded entries; entries without a status count as submitted', () => {
+  assert.equal(diaryStatus({}), 'submitted');
+  assert.equal(diaryStatus({ status: 'draft' }), 'draft');
+  assert.equal(isDiaryDraft({ status: 'submitted' }), false);
+  assert.deepEqual(recordedDiaryEntries([{ id: 'a', status: 'draft' }, { id: 'b' }, { id: 'c', status: 'submitted' }]).map(e => e.id), ['b', 'c']);
+});
+test('diary drafts need only a title; submission needs every required field and no future date', () => {
+  const full = { date: '2026-01-02', time: '09:00', category: 'Work progress', zone: 'East', title: 'Formwork', details: 'Installed' };
+  assert.equal(diaryEntryProblem({ title: '  ' }, 'draft', '2026-01-05'), 'Enter a title to save the draft.');
+  assert.equal(diaryEntryProblem({ title: 'Formwork' }, 'draft', '2026-01-05'), '');
+  assert.match(diaryEntryProblem({ title: 'Formwork' }, 'submitted', '2026-01-05'), /Complete the date/);
+  assert.equal(diaryEntryProblem(full, 'submitted', '2026-01-05'), '');
+  assert.match(diaryEntryProblem({ ...full, date: '2026-01-06' }, 'draft', '2026-01-05'), /have occurred/);
+});
+test('diary photos accept images within limits and are managed only while the entry is a draft', () => {
+  assert.equal(validateDiaryPhotoSource({ name: 'site.jpg', type: 'image/jpeg', size: 1000 }), '');
+  assert.equal(validateDiaryPhotoSource({ name: 'IMG_1.HEIC', type: '', size: 1000 }), '');
+  assert.equal(validateDiaryPhotoSource({ name: 'notes.pdf', type: 'application/pdf', size: 1000 }), 'Only image files can be attached.');
+  assert.equal(validateDiaryPhotoSource({ name: 'empty.png', type: 'image/png', size: 0 }), 'The selected photo is empty.');
+  assert.equal(validateDiaryPhotoSource({ name: 'huge.jpg', type: 'image/jpeg', size: 31 * 1024 * 1024 }), 'Photos must be 30 MB or smaller.');
+  assert.match(validateDiaryPhotoSource({ name: 'site.jpg', type: 'image/jpeg', size: 1000 }, DIARY_PHOTO_MAX), /up to 10 photos/);
+  const draft = { status: 'draft', createdBy: 'creator@x' }, photo = { uploadedBy: 'uploader@x' };
+  for (const role of ['admin', 'manager', 'engineer', 'supervisor']) {
+    assert.equal(canManageDiaryPhotos({ systemRole: role }), true);
+    assert.equal(canManageDiaryPhotos({ systemRole: role }, draft), true);
+    assert.equal(canManageDiaryPhotos({ systemRole: role }, { status: 'submitted' }), false);
+    assert.equal(canManageDiaryPhotos({ systemRole: role }, {}), false);
+  }
+  for (const role of ['guest', 'RE', 'RTO']) assert.equal(canManageDiaryPhotos({ systemRole: role }, draft), false);
+  assert.equal(canRemoveDiaryPhoto({ systemRole: 'supervisor', email: 'uploader@x' }, draft, photo), true);
+  assert.equal(canRemoveDiaryPhoto({ systemRole: 'engineer', email: 'creator@x' }, draft, photo), true);
+  assert.equal(canRemoveDiaryPhoto({ systemRole: 'admin', email: 'other@x' }, draft, photo), true);
+  assert.equal(canRemoveDiaryPhoto({ systemRole: 'manager', email: 'other@x' }, draft, photo), false);
+  assert.equal(canRemoveDiaryPhoto({ systemRole: 'admin', email: 'other@x' }, { status: 'submitted' }, photo), false);
 });

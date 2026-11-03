@@ -20,8 +20,9 @@ import useSelfRegistration from './hooks/useSelfRegistration';
 import useSiteOwner from './hooks/useSiteOwner';
 import useProjectMembers from './hooks/useProjectMembers';
 import { grantProjectAccess, revokeProjectAccess, setProjectAccessRole } from './services/projectAccess';
-import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canCommentInspection, isInspectionClosed, isInspectionOpen, taskStatus } from './utils/siteData';
+import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canCommentInspection, isInspectionClosed, isInspectionOpen, taskStatus, recordedDiaryEntries } from './utils/siteData';
 import { createInspection, updateInspectionDetails, advanceInspection, attachInspectionFile, readInspectionFile, removeInspectionFile } from './services/inspections';
+import { saveDiaryEntry, readDiaryPhoto, deleteDiaryPhotoFiles } from './services/siteDiary';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, sendEmailVerification, updateProfile } from 'firebase/auth';
@@ -156,6 +157,8 @@ export default function App() {
   const filteredInspections = filterByZone(inspections);
   const filteredMaterials = filterByZone(materials);
   const filteredWeatherLogs = filterByZone(weatherLogs);
+  // Draft diary entries stay in the Site Diary until submitted; dashboards, timelines and reports use submitted entries only.
+  const recordedWeatherLogs = recordedDiaryEntries(filteredWeatherLogs);
   const filteredLifts = filterByZone(lifts);
 
 
@@ -226,6 +229,8 @@ export default function App() {
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (error) { viewer?.close(); throw error; }
   };
+  const handleSaveDiaryEntry = options => saveDiaryEntry(db, { ...inspectionContext(), ...options });
+  const handleLoadDiaryPhoto = photo => readDiaryPhoto(db, { projectId: selectedProject.id, photo });
   const handleCommentInspection = async (id, text) => {
     if (!canCommentInspection(currentUser) || !text.trim()) throw new Error('Enter a comment using an assigned project account.');
     const timestamp = new Date().toISOString();
@@ -328,7 +333,9 @@ export default function App() {
     user: { ...currentUser, uid: user.uid }, requests: deletionRequests,
     records: { tasks, materials, lifts, inspections, weatherLogs, users: personnel, zones, monitoring: observations, projects: liveProject && isSiteOwner ? [liveProject] : [] },
     submit: async (collection, id, reason) => {
+      const photos = collection === 'weatherLogs' ? weatherLogs.find(entry => entry.id === id)?.photos : null;
       const status = await submitRecordDeletion(db, selectedProject.id, { ...currentUser, uid: user.uid }, collection, id, reason);
+      if (photos?.length && status === 'deleted') deleteDiaryPhotoFiles(db, { projectId: selectedProject.id, photos });
       setDeletionStatus(status === 'pending' ? 'Deletion requested. The record remains available until verification.' : 'Record deleted. Verification history retained.');
       if (collection === 'projects' && status === 'deleted') { setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard'); }
       if (collection === 'zones' && status === 'deleted' && zones.find(zone=>zone.id===id)?.name === selectedZone) setSelectedZone('All Zones');
@@ -337,6 +344,7 @@ export default function App() {
     review: async (key, approve, reason) => {
       const request = deletionRequests.find(request=>request.id===key);
       await reviewRecordDeletion(db, selectedProject.id, { ...currentUser, uid: user.uid }, key, approve, reason);
+      if (approve && request?.targetCollection === 'weatherLogs' && request.targetSnapshot?.photos?.length) deleteDiaryPhotoFiles(db, { projectId: selectedProject.id, photos: request.targetSnapshot.photos });
       setDeletionStatus(approve ? 'Deletion verified. The reviewed record was deleted.' : 'Deletion request rejected. The record remains available.');
       if (approve && request?.targetCollection === 'projects') { setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard'); }
       if (approve && request?.targetCollection === 'zones' && zones.find(zone=>zone.id===request.targetId)?.name === selectedZone) setSelectedZone('All Zones');
@@ -401,11 +409,11 @@ export default function App() {
               lifts={filteredLifts}
               materials={filteredMaterials}
               tasks={filteredTasks}
-              diary={filteredWeatherLogs}
+              diary={recordedWeatherLogs}
               users={personnel}
             />
           )}
-          {activeTab === 'calendar' && <CalendarView key={selectedProject.id} tasks={filteredTasks} allTasks={tasks} timeline={{ tasks: filteredTasks, inspections: filteredInspections, materials: filteredMaterials, diary: filteredWeatherLogs, lifts: filteredLifts }} inspections={inspections} materials={materials} diary={filteredWeatherLogs} lifts={filteredLifts} onAdd={(t) => addRecord('tasks', t)} onUpdate={(id, t) => updateRecord('tasks', id, t)} currentUser={currentUser} zones={zones} />}
+          {activeTab === 'calendar' && <CalendarView key={selectedProject.id} tasks={filteredTasks} allTasks={tasks} timeline={{ tasks: filteredTasks, inspections: filteredInspections, materials: filteredMaterials, diary: recordedWeatherLogs, lifts: filteredLifts }} inspections={inspections} materials={materials} diary={recordedWeatherLogs} lifts={filteredLifts} onAdd={(t) => addRecord('tasks', t)} onUpdate={(id, t) => updateRecord('tasks', id, t)} currentUser={currentUser} zones={zones} />}
           {activeTab === 'inspections' && (
             <InspectionsView
               inspections={filteredInspections}
@@ -448,8 +456,8 @@ export default function App() {
               weatherLogs={filteredWeatherLogs}
               tasks={tasks}
               observation={observation}
-              onAddWeatherLog={(l) => addRecord('weatherLogs', l)}
-              onUpdate={(id, t) => updateRecord('weatherLogs', id, t)}
+              onSave={handleSaveDiaryEntry}
+              onLoadPhoto={handleLoadDiaryPhoto}
               currentUser={currentUser}
               zones={zones}
             />
@@ -472,7 +480,7 @@ export default function App() {
           inspections={filteredInspections}
           projectName={liveProject?.name}
           lifts={filteredLifts}
-          weatherLogs={filteredWeatherLogs}
+          weatherLogs={recordedWeatherLogs}
           materials={filteredMaterials}
         />
       )}

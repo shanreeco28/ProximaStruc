@@ -19,6 +19,7 @@ import { canRequestDeletion, canReviewDeletion, deletionKey, isDeletionAdmin, re
 import { RFI_TRANSITIONS, inspectionStatus, rfiPrefix, formatRfiId, highestRfiNumber } from '../../src/utils/siteData';
 import '../../src/index.css';
 
+const photoBlobs = new Map();
 export default function Harness() {
   const query = new URLSearchParams(window.location.search);
   const [role, setRole] = useState(query.get('role') || 'admin');
@@ -31,7 +32,7 @@ export default function Harness() {
     tasks: query.get('legacy') || query.get('seed') ? [{id:'legacy',activity:'Existing sprint task',status:'in_progress',zone:'East',createdBy:creator}] : [],
     materials: query.get('seed') ? [{id:'test-do',reference:'DO-001',type:'Delivery Order',element:'Rebar delivery',quantity:2,unit:'t',supplier:'Supplier',zone:'East',status:'Received',createdBy:creator,deliveryDate:'2026-10-01',actualDate:'2026-10-01'}] : [],
     lifts: query.get('seed') ? [{id:'test-ptw',crane:'Crane PTW',zone:'East',status:'SUSPENDED',createdBy:creator}] : [],
-    diary: [], observations: [], zones:[{id:'east',name:'East',createdBy:creator}],
+    diary: query.get('diaryDraft') ? [{id:'draft-entry',title:'Unfinished note',details:'',status:'draft',photos:[],createdBy:creator},{id:'submitted-entry',title:'Submitted note',details:'Recorded',date:'2026-01-01',time:'08:00',category:'Other',zone:'East',status:'submitted',photos:[],createdBy:creator}] : [], observations: [], zones:[{id:'east',name:'East',createdBy:creator}],
     inspections:[{id:'TEST-RFI',element:'Test slab',discipline:'Structural',zone:'East',createdBy:creator,...(query.get('stage')?{stage:Number(query.get('stage'))}:{status:query.get('status') || 'draft'}),targetCast:'2026-11-10',comments:[],history:[],attachments:[]}],
     users:[{id:'person@example.test',email:'person@example.test',name:'Test member',systemRole:'guest',organization:'Original organisation',createdBy:creator}],
   }));
@@ -59,13 +60,29 @@ export default function Harness() {
       if(approve)remove(request.targetCollection,request.targetId);
     },
   };
+  // In-memory stand-in for services/siteDiary.saveDiaryEntry: drafts keep photos editable; submission locks them.
+  const saveDiary = async ({id,entry,intent,newPhotos=[],removedPhotoIds=[],onEntryCreated,onPhotoSaved,onPhotoRemoved})=>{
+    fail();
+    const entryId=id||crypto.randomUUID(),status=intent==='draft'?'draft':'submitted',timestamp=new Date().toISOString();
+    if(!id)onEntryCreated?.(entryId);
+    const added=newPhotos.map(p=>{const photoId=crypto.randomUUID();photoBlobs.set(photoId,p.blob);return {photoId,name:p.name,size:p.blob.size,width:p.width,height:p.height,contentType:'image/jpeg',thumb:p.thumb,uploadedBy:currentUser.email,uploadedAt:timestamp};});
+    setData(prev=>{
+      const existing=prev.diary.find(r=>r.id===entryId);
+      const locked=existing&&existing.status!=='draft';
+      const photos=locked?existing.photos||[]:[...(existing?.photos||[]).filter(p=>!removedPhotoIds.includes(p.photoId)),...added];
+      const next={...existing,...entry,id:entryId,photos,status:locked?existing.status:status,createdBy:existing?.createdBy||currentUser.email,...(existing?{updatedBy:currentUser.email}:{})};
+      return {...prev,diary:existing?prev.diary.map(r=>r.id===entryId?next:r):[...prev.diary,next]};
+    });
+    removedPhotoIds.forEach(photoId=>onPhotoRemoved?.(photoId));newPhotos.forEach(p=>onPhotoSaved?.(p.key));
+    return {id:entryId,status};
+  };
   const common={currentUser,zones:data.zones,tasks:data.tasks};
   const accountProps={user:accountUser,profile:accountProfile,projectName:'Test project',onProjects:()=>setAccountAction('Project selection opened'),onExecutiveBrief:()=>{setAccountAction('Executive brief opened');setBrief(true);},onLogout:async()=>{fail();setAccountAction('Logged out');},onSaveProfile:async updates=>{fail();setAccountProfile(prev=>({...prev,...updates}));}};
   const views=<>
     {view==='dashboard'&&<PMCommandDashboard onNavigate={setView} inspections={data.inspections} materials={data.materials} lifts={data.lifts}/>}
     {view==='calendar'&&<CalendarView {...common} onAdd={add('tasks')} onUpdate={update('tasks')} materials={data.materials} diary={data.diary} inspections={data.inspections}/>}
     {view==='materials'&&<MaterialsView {...common} materials={data.materials} onAdd={add('materials')} onUpdate={update('materials')}/>}
-    {view==='diary'&&<SiteDiaryView {...common} weatherLogs={data.diary} onAddWeatherLog={add('diary')} onUpdate={update('diary')}/>}
+    {view==='diary'&&<SiteDiaryView {...common} weatherLogs={data.diary} onSave={saveDiary} onLoadPhoto={async photo=>{const blob=photoBlobs.get(photo.photoId);if(!blob)throw new Error('Photo missing');return blob;}}/>}
     {view==='lifting'&&<LiftingView {...common} lifts={data.lifts} onAdd={add('lifts')} onToggleLift={id=>update('lifts')(id,{status:'ACTIVE'})}/>}
     {view==='monitoring'&&<MonitoringView {...common} observations={data.observations} onAdd={add('observations')}/>}
     {view==='inspections'&&<>{fileAction&&<p role="status">{fileAction}</p>}<InspectionsView {...common} inspections={data.inspections} projectName="Test project" onUpdate={update('inspections')}

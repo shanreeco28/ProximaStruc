@@ -38,7 +38,7 @@ export function RecordModal({ title, onClose, children, wide = false }) {
     target?.focus();
     return () => { unlock(); portal.remove(); if (previous?.isConnected) previous.focus(); else document.querySelector('main')?.focus(); };
   }, [portal]);
-  return createPortal(<div className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6" onKeyDown={event => {
+  return createPortal(<div className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center" onKeyDown={event => {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close.current(); }
     trapDialogFocus(event, dialog.current);
   }}><section ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`dialog-panel animate-in-scale-in rounded-2xl w-full max-h-[90dvh] overflow-auto ${wide ? 'max-w-3xl' : 'max-w-2xl'}`}>

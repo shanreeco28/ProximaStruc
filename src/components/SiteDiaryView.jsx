@@ -157,7 +157,7 @@ export default function SiteDiaryView({ weatherLogs = [], onSave, onLoadPhoto, c
           const draft = isDiaryDraft(entry);
           const photos = entry.photos || [];
           const title = entry.title || entry.event || 'Untitled entry';
-          return <li key={entry.id} className="flex gap-4 rounded-xl border p-4" style={{ borderColor: draft ? 'var(--border-strong)' : 'var(--border)', borderStyle: draft ? 'dashed' : 'solid' }}>
+          return <li key={entry.id} className="flex flex-col sm:flex-row gap-3 sm:gap-4 rounded-xl border p-4" style={{ borderColor: draft ? 'var(--border-strong)' : 'var(--border)', borderStyle: draft ? 'dashed' : 'solid' }}>
             <div className="hidden sm:flex w-14 shrink-0 flex-col items-center justify-center rounded-lg py-2 text-center" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }} aria-hidden="true">
               {parts ? <><span className="text-[10px] font-semibold uppercase tracking-wider text-muted">{parts.month}</span><span className="text-xl font-bold leading-tight tabular">{parts.day}</span><span className="text-[10px] text-muted">{parts.year}</span></> : <span className="text-[10px] text-muted">No date</span>}
             </div>
@@ -178,9 +178,9 @@ export default function SiteDiaryView({ weatherLogs = [], onSave, onLoadPhoto, c
               {!!photos.length && <ul className="mt-3 flex flex-wrap gap-2" aria-label={`Photos for ${title}`}>
                 {photos.map((photo, index) => <li key={photo.photoId}><PhotoThumb src={photo.thumb} label={`View photo ${index + 1} of ${photos.length}: ${photo.name}`} onClick={() => setViewer({ photos, index, title })} /></li>)}
               </ul>}
-              <p className="text-xs text-muted mt-3 flex items-center gap-1.5"><UserRound size={12} aria-hidden="true" />{draft ? 'Draft by' : 'Recorded by'} {entry.createdBy || 'Not recorded'}{entry.submittedBy && entry.submittedBy !== entry.createdBy ? ` · Submitted by ${entry.submittedBy}` : ''}{entry.updatedBy ? ` · Updated by ${entry.updatedBy}` : ''}</p>
+              <p className="text-xs text-muted mt-3 flex items-center gap-1.5 [overflow-wrap:anywhere]"><UserRound size={12} aria-hidden="true" />{draft ? 'Draft by' : 'Recorded by'} {entry.createdBy || 'Not recorded'}{entry.submittedBy && entry.submittedBy !== entry.createdBy ? ` · Submitted by ${entry.submittedBy}` : ''}{entry.updatedBy ? ` · Updated by ${entry.updatedBy}` : ''}</p>
             </div>
-            <div className="flex flex-col items-end gap-1 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:flex-nowrap sm:items-end sm:gap-1 shrink-0">
               {permitted && <button className="btn btn-secondary btn-sm" onClick={() => openForm(entry)} aria-label={`${draft ? 'Continue draft' : 'Edit'} ${title}`}>{draft ? 'Continue draft' : 'Edit'}</button>}
               <DeleteRecordAction collection="weatherLogs" record={entry} />
             </div>

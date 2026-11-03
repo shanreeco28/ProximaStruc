@@ -18,7 +18,7 @@ export default class AppErrorBoundary extends React.Component {
 
   render() {
     if (!this.state.failed) return this.props.children;
-    return <main className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    return <main className="min-h-screen min-h-dvh flex items-center justify-center p-4" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <div role="alert" className="menu-panel max-w-md w-full p-5">
         <h1 className="text-lg font-semibold">Something went wrong</h1>
         <p className="mt-1 text-sm text-muted">ProximaStruc hit an unexpected error while showing this screen. Your saved records are not affected. Reload to try again.</p>

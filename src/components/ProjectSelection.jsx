@@ -27,19 +27,19 @@ const ProjectSelection = ({ projects, onSelect, onAdd, onDelete, onLogout, user,
   };
 
   return (
-    <main tabIndex={-1} className="project-selection survey-grid min-h-screen flex flex-col">
+    <main tabIndex={-1} className="project-selection survey-grid min-h-screen min-h-dvh flex flex-col">
       <div className="w-full border-b-[1.5px]" style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <div className="max-w-6xl mx-auto safe-px h-16 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <AppLogo className="w-8 h-8 shrink-0" />
-            <span className="display text-xl font-bold tracking-wide truncate">PROXIMA<span style={{ color: 'var(--accent-text)' }}>STRUC</span></span>
+            <span className="display text-base min-[360px]:text-lg sm:text-xl font-bold tracking-wide truncate">PROXIMA<span style={{ color: 'var(--accent-text)' }}>STRUC</span></span>
           </div>
           <AccountControls user={user} onLogout={onLogout} />
         </div>
       </div>
       <FloatingThemeControl />
 
-      <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-24 space-y-8 animate-in-fade-in-up">
+      <div className="w-full max-w-6xl mx-auto safe-px pt-10 sm:pt-14 pb-24 space-y-8 animate-in-fade-in-up">
         <div className="flex flex-wrap items-end justify-between gap-4 border-b pb-5" style={{ borderColor: 'var(--rule)' }}>
           <div>
             <p className="eyebrow" style={{ color: 'var(--accent-text)' }}>Project register</p>

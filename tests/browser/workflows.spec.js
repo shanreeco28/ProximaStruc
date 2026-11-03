@@ -159,8 +159,12 @@ test('admin confirms observations without pre-filled readings', async ({page}) =
 test('mobile navigation reaches planning without restoring the removed analytics tab', async ({page}) => {
   await page.setViewportSize({width:390,height:844});
   await open(page,'diary','engineer');
-  await page.getByRole('button',{name:'Planning',exact:true}).click();
+  // Sections that do not fit across a phone's tab bar are listed under More.
+  const nav = page.getByRole('navigation',{name:'Mobile Field Navigation'});
+  await nav.getByRole('button',{name:'More',exact:true}).click();
+  await nav.getByRole('button',{name:'Planning',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Site Planning',level:2})).toBeVisible();
+  await expect(nav.getByRole('button',{name:'More',exact:true})).toHaveAttribute('aria-expanded','false');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

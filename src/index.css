@@ -65,6 +65,12 @@
   --radius-lg: 4px;
   --focus: #0e6670;
 
+  /* Device safe areas (notch, rounded corners, home indicator). 0 on desktops and most browsers. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
   /* Legacy aliases kept for existing selectors */
   --pm-canvas: var(--bg); --pm-surface: var(--surface); --pm-soft: var(--surface-3); --pm-ink: var(--text);
   --pm-muted: var(--muted); --pm-border: var(--border); --pm-focus: var(--focus);
@@ -117,7 +123,7 @@ html.dark {
 
 /* ---------- Base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
-html { height: 100%; width: 100%; -webkit-text-size-adjust: 100%; }
+html { height: 100%; width: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body, html {
   font-family: var(--font-sans);
   line-height: 1.5;
@@ -127,7 +133,8 @@ body, html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-body { margin: 0; display: block; min-width: 320px; min-height: 100vh; width: 100%; background: var(--bg); color: var(--text); }
+/* 100dvh tracks the visible area: on iOS 100vh is taller than the screen (Safari toolbars; the status bar in the installed app). */
+body { margin: 0; display: block; min-width: 320px; min-height: 100vh; min-height: 100dvh; width: 100%; background: var(--bg); color: var(--text); }
 #root { max-width: none; margin: 0; padding: 0; text-align: left; width: 100%; height: 100%; display: block; }
 ::selection { background: color-mix(in srgb, var(--hivis) 55%, transparent); color: #14202b; }
 
@@ -220,10 +227,10 @@ body { margin: 0; display: block; min-width: 320px; min-height: 100vh; width: 10
   .link-action { display: inline-flex; align-items: center; gap: .35rem; min-height: 32px; font-size: .8125rem; font-weight: 600; color: var(--accent-text); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
   .link-action:hover { text-decoration-color: currentColor; }
 
-  /* Segmented filter control (toggle buttons with aria-pressed) */
-  .chip-group { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule); border-radius: var(--radius-sm); background: var(--surface); overflow: hidden; }
-  .chip { min-height: 36px; padding: .35rem .85rem; font-size: .78rem; font-weight: 600; color: var(--text-2); background: transparent; border-right: 1px solid var(--border-strong); }
-  .chip:last-child { border-right: 0; }
+  /* Segmented filter control (toggle buttons with aria-pressed). The dividers are 1px gaps showing the
+     group background, so when a narrow screen wraps the chips each row keeps its rules and fills the width. */
+  .chip-group { display: inline-flex; flex-wrap: wrap; gap: 1px; max-width: 100%; border: 1px solid var(--rule); border-radius: var(--radius-sm); background: var(--border-strong); overflow: hidden; }
+  .chip { flex: 1 1 auto; min-height: 36px; padding: .35rem .85rem; font-size: .78rem; font-weight: 600; color: var(--text-2); background: var(--surface); }
   .chip:hover { background: var(--surface-3); color: var(--text); }
   .chip[aria-pressed="true"] { background: var(--text); color: var(--surface); }
 
@@ -355,12 +362,12 @@ body { margin: 0; display: block; min-width: 320px; min-height: 100vh; width: 10
 /* ---------- Workspace shell ---------- */
 .app-shell { color: var(--text); background: var(--bg); }
 
-/* Sheet register (sidebar) */
-.project-sidebar { width: 272px; background: var(--nav-bg); color: var(--nav-text); border-right: 1px solid var(--nav-border); }
-.sidebar-collapsed .project-sidebar { width: 76px; }
-.sidebar-brand { min-height: 76px; padding: 16px 18px; border-bottom: 1.5px solid var(--rule); }
+/* Sheet register (sidebar). Widths grow by the left safe area so the notch of a landscape iPhone never covers it. */
+.project-sidebar { width: calc(272px + var(--safe-left)); padding-left: var(--safe-left); background: var(--nav-bg); color: var(--nav-text); border-right: 1px solid var(--nav-border); }
+.sidebar-collapsed .project-sidebar { width: calc(76px + var(--safe-left)); }
+.sidebar-brand { min-height: calc(76px + var(--safe-top)); padding: calc(16px + var(--safe-top)) 18px 16px; border-bottom: 1.5px solid var(--rule); }
 .dark .sidebar-brand { border-bottom-color: var(--nav-border); }
-.sidebar-collapsed .sidebar-brand { padding: 16px; justify-content: center; }
+.sidebar-collapsed .sidebar-brand { padding: calc(16px + var(--safe-top)) 16px 16px; justify-content: center; }
 .sidebar-wordmark { font-family: var(--font-display); font-size: 1.3rem; line-height: 1; font-weight: 700; letter-spacing: .04em; color: var(--text); }
 .sidebar-wordmark span { color: var(--accent-text); }
 .sidebar-tagline { margin-top: 4px; color: var(--nav-muted); font-family: var(--font-mono); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; }
@@ -395,7 +402,15 @@ body { margin: 0; display: block; min-width: 320px; min-height: 100vh; width: 10
 .sidebar-observations .obs-value { color: var(--nav-text); font-family: var(--font-mono); font-size: .7rem; font-weight: 600; }
 
 /* Title-block header */
-.workspace-header { min-height: 76px; background: var(--surface); border-bottom: 1.5px solid var(--rule); }
+.workspace-header { min-height: calc(76px + var(--safe-top)); padding-top: var(--safe-top); padding-right: var(--safe-right); background: var(--surface); border-bottom: 1.5px solid var(--rule); }
+/* The title keeps room for two lines of the longest sheet name; project, zone and weather cells give way
+   first (they truncate with an ellipsis). The account cell never shrinks, so its buttons stay on screen. */
+.tb-title { min-width: 8rem; }
+@media (min-width: 1024px) { .tb-title { min-width: 15rem; } }
+@media (min-width: 1536px) { .tb-title { min-width: 17rem; } }
+.tb-cell.tb-account { padding: 0 1rem 0 .75rem; }
+@media (max-width: 1279px) { .tb-cell.tb-account { padding: 0 .75rem; } }
+@media (max-width: 767px) { .tb-cell.tb-account { padding: 0 .5rem; } }
 .tb-cell { justify-content: center; min-width: 0; padding: 0 1rem; border-left: 1px solid var(--border-strong); }
 .tb-label { font-family: var(--font-mono); font-size: .6rem; line-height: .9rem; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .tb-value { font-size: .8125rem; line-height: 1.2rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -405,14 +420,25 @@ body { margin: 0; display: block; min-width: 320px; min-height: 100vh; width: 10
 .tb-area { font-family: var(--font-mono); font-size: .64rem; line-height: 1rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .compact-zone-controls { background: var(--surface); border-color: var(--border-strong); }
 
-.workspace-scroll { scrollbar-gutter: stable; scroll-padding-top: 1.5rem; }
-.metrics-ribbon { display: flex; gap: 0 !important; overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); scroll-snap-type: x proximity; }
+/* Inner scroll areas keep their scrolling to themselves: no rubber-banding of the whole app shell on iPad,
+   and a sideways swipe at the edge of a table or ribbon never triggers browser back navigation. */
+.workspace-scroll { scrollbar-gutter: stable; scroll-padding-top: 1.5rem; overscroll-behavior-y: contain; }
+.workspace-content [role="region"][tabindex] { overscroll-behavior-x: contain; }
+.metrics-ribbon { display: flex; gap: 0 !important; overflow-x: auto; overscroll-behavior-x: contain; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); scroll-snap-type: x proximity; }
 .metrics-ribbon > button { flex: 1 0 176px; border-right: 1px solid var(--border-strong); scroll-snap-align: start; }
 .metrics-ribbon > button:last-child { border-right: 0; }
 .metrics-ribbon > button:not(.kpi-card) { min-height: 116px; padding: 14px 16px; text-align: left; background: transparent; color: var(--text); border-top: 0; border-bottom: 0; border-left: 0; border-radius: 0; }
 .metrics-ribbon > button:not(.kpi-card):hover { background: var(--surface-2); }
 .workspace-content { scroll-padding-top: 1.5rem; }
 .workspace-inner { max-width: 1600px; margin-inline: auto; width: 100%; }
+/* Content gutters also clear the side safe areas (a landscape iPhone's notch) and the home indicator. */
+.workspace-inner, .compact-zone-controls { --gutter: 1rem; padding-left: var(--gutter); padding-right: max(var(--gutter), var(--safe-right)); }
+.workspace-inner { padding-bottom: calc(2.5rem + var(--safe-bottom)); }
+@media (max-width: 767px) {
+  .workspace-inner, .compact-zone-controls { padding-left: max(var(--gutter), var(--safe-left)); }
+  .workspace-inner { padding-bottom: calc(7rem + var(--safe-bottom)); }
+}
+@media (min-width: 1024px) { .workspace-inner, .compact-zone-controls { --gutter: 2rem; } }
 .workspace-content h2 { line-height: 1.4; }
 .workspace-content h3 { line-height: 1.4; }
 .workspace-content .font-mono { overflow-wrap: anywhere; }
@@ -422,13 +448,19 @@ body { margin: 0; display: block; min-width: 320px; min-height: 100vh; width: 10
 .record-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .record-toolbar > label { flex: 0 1 200px; }
 
-.mobile-nav { background: var(--surface); border-top: 1.5px solid var(--rule); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.mobile-nav { background: var(--surface); border-top: 1.5px solid var(--rule); padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left); }
+.mobile-nav[data-open="true"] { z-index: 40; }
 .mobile-nav-item { position: relative; color: var(--text-2); }
 .mobile-nav-item:hover { background: var(--surface-3); color: var(--text); }
-.mobile-nav-item[aria-current="page"] { color: var(--surface); background: var(--text); }
-.mobile-nav-item[aria-current="page"]::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent); }
+.mobile-nav-item:is([aria-current="page"], [data-active="true"]) { color: var(--surface); background: var(--text); }
+.mobile-nav-item:is([aria-current="page"], [data-active="true"])::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent); }
+/* "More" sheet: the sections that do not fit in the bar, listed above it. */
+.mobile-nav-more { position: absolute; left: 0; right: 0; bottom: 100%; max-height: min(26rem, calc(100vh - 9rem)); max-height: min(26rem, calc(100dvh - 9rem)); overflow-y: auto; overscroll-behavior: contain; padding: .5rem calc(.5rem + var(--safe-right)) .5rem calc(.5rem + var(--safe-left)); background: var(--surface); border-top: 1.5px solid var(--rule); box-shadow: 0 -12px 28px -16px rgb(15 23 32 / 45%); }
+.mobile-nav-more .menu-item { min-height: 48px; font-size: .875rem; }
+.mobile-nav-more .menu-item[aria-current="page"] { background: var(--text); color: var(--surface); }
+.mobile-nav-more .menu-item[aria-current="page"] .nav-code { color: var(--nav-active-code); }
 
-.theme-shortcut { position: fixed; left: 18px; bottom: 20px; z-index: 35; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--rule); border-radius: var(--radius-sm); color: var(--text); background: var(--surface); box-shadow: var(--shadow-hard); }
+.theme-shortcut { position: fixed; left: calc(18px + var(--safe-left)); bottom: calc(20px + var(--safe-bottom)); z-index: 35; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--rule); border-radius: var(--radius-sm); color: var(--text); background: var(--surface); box-shadow: var(--shadow-hard); }
 .theme-shortcut[hidden] { display: none; }
 .theme-shortcut:hover { background: var(--surface-3); }
 
@@ -436,16 +468,18 @@ body { margin: 0; display: block; min-width: 320px; min-height: 100vh; width: 10
 .record-delete-action:hover:not(:disabled) { background: var(--danger-soft); }
 .record-delete-action:disabled { color: var(--muted); }
 .empty-state { border: 1px dashed var(--border-strong); background: repeating-linear-gradient(-45deg, var(--surface) 0 10px, var(--surface-2) 10px 20px); padding: 2.25rem 1.5rem; border-radius: var(--radius-sm); text-align: center; color: var(--muted); font-size: .8125rem; }
-.skip-link { position: fixed; top: 8px; left: 8px; transform: translateY(-180%); z-index: 100; padding: 12px 18px; border-radius: var(--radius-sm); background: var(--surface); color: var(--accent-text); font-weight: 600; border: 1px solid var(--rule); box-shadow: var(--shadow-hard); }
+.skip-link { position: fixed; top: calc(8px + var(--safe-top)); left: calc(8px + var(--safe-left)); transform: translateY(-180%); z-index: 100; padding: 12px 18px; border-radius: var(--radius-sm); background: var(--surface); color: var(--accent-text); font-weight: 600; border: 1px solid var(--rule); box-shadow: var(--shadow-hard); }
 .skip-link:focus { transform: translateY(0); }
 
 /* Dialogs & menus */
-.dialog-backdrop { background: rgb(15 23 32 / 66%); }
-.dialog-panel { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-lg) !important; box-shadow: var(--shadow-3); color: var(--text); }
+.dialog-backdrop { --dialog-pad: .75rem; padding: max(var(--dialog-pad), var(--safe-top)) max(var(--dialog-pad), var(--safe-right)) max(var(--dialog-pad), var(--safe-bottom)) max(var(--dialog-pad), var(--safe-left)); background: rgb(15 23 32 / 66%); }
+@media (min-width: 640px) { .dialog-backdrop { --dialog-pad: 1.5rem; } }
+.dialog-panel { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-lg) !important; box-shadow: var(--shadow-3); color: var(--text); overscroll-behavior: contain; }
 .dialog-panel input[readonly] { background-color: var(--surface-3); color: var(--muted); }
 .menu-panel { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius) !important; box-shadow: var(--shadow-hard); color: var(--text); }
 .menu-item { display: flex; width: 100%; align-items: center; gap: .6rem; padding: .55rem .7rem; border-radius: var(--radius-sm); font-size: .8125rem; font-weight: 500; color: var(--text-2); }
 .menu-item:hover, .menu-item:focus-visible { background: var(--surface-3); color: var(--text); }
+@media (pointer: coarse) { .menu-item { min-height: 44px; } }
 .avatar { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: none; border-radius: var(--radius-sm); background: var(--text); color: var(--surface); font-family: var(--font-mono); font-size: .68rem; font-weight: 600; letter-spacing: .04em; }
 
 /* Entry screens */
@@ -467,6 +501,10 @@ body { margin: 0; display: block; min-width: 320px; min-height: 100vh; width: 10
 .project-card:hover { box-shadow: var(--shadow-hard); }
 .project-card-add { border: 1.5px dashed var(--border-strong); background: transparent; color: var(--text-2); border-radius: var(--radius); }
 .project-card-add:hover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
+/* Entry screens keep content clear of a landscape iPhone's notch; backgrounds still run edge to edge. */
+.auth-form-col { padding-left: var(--safe-left); padding-right: var(--safe-right); }
+.safe-px { padding-left: max(1rem, var(--safe-left)); padding-right: max(1rem, var(--safe-right)); }
+@media (min-width: 640px) { .safe-px { padding-left: max(1.5rem, var(--safe-left)); padding-right: max(1.5rem, var(--safe-right)); } }
 
 /* Registration marks (corner ticks) */
 .reg-marks { position: relative; }
@@ -520,21 +558,39 @@ input[readonly] { background-color: var(--surface-3); color: var(--muted); }
   button, select, summary, input, input[type="checkbox"], .interactive-tag { min-height: 44px; }
   button, select, input[type="checkbox"], .interactive-tag { min-width: 44px; }
 }
+/* Phones and touch screens: 16px form text stops iOS Safari zooming the page whenever a field is focused. */
+@media (max-width: 767px), (pointer: coarse) {
+  :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]), select, textarea) { font-size: 16px; }
+}
 @media (max-width: 767px) {
-  .workspace-header { min-height: 64px; position: sticky; top: 0; z-index: 25; }
+  .workspace-header { min-height: calc(64px + var(--safe-top)); padding-left: var(--safe-left); position: sticky; top: 0; z-index: 25; }
   .tb-code { min-width: 64px; padding: 0 .55rem; }
   .tb-code-value { font-size: .78rem; }
   .workspace-content { overflow-x: hidden; }
   .metrics-ribbon { min-width: 0; scroll-padding-inline: 1rem; }
   .metrics-ribbon > button { flex: 0 0 168px; min-height: 108px; }
-  .app-shell :is(input, select, textarea), .dialog-panel :is(input, select, textarea) { font-size: 16px; }
-  .app-shell .theme-shortcut { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+  .metrics-ribbon .kpi-value { font-size: 1.625rem; line-height: 1.9rem; }
+  .app-shell .theme-shortcut { bottom: calc(86px + var(--safe-bottom)); }
   .record-search { flex-basis: 100%; max-width: none; }
   .record-toolbar > label { flex: 1 1 120px; min-width: 0; }
   .stepper { grid-template-columns: 1fr; }
   .step { border-right: 0; border-bottom: 1px solid var(--border-strong); }
   .step:last-child { border-bottom: 0; }
   .card-header, .card-body { padding: 1rem; }
+  /* Long labels wrap inside the button instead of pushing past the screen edge. */
+  .btn, .button-primary, .button-secondary { white-space: normal; text-align: center; }
+  .board-scroller { scroll-snap-type: x proximity; scroll-padding-inline: 1rem; }
+  .board-scroller .board-column { scroll-snap-align: start; }
+}
+/* Short landscape screens (phones turned sideways, very short windows): the whole sidebar scrolls so the
+   sheet register is never squeezed out, and both title blocks are slimmer. */
+@media (min-width: 768px) and (max-height: 560px) {
+  .project-sidebar { overflow-y: auto; overscroll-behavior-y: contain; }
+  .project-sidebar nav { flex: none; overflow: visible; }
+  .sidebar-brand, .sidebar-collapsed .sidebar-brand { min-height: calc(64px + var(--safe-top)); padding-top: calc(10px + var(--safe-top)); padding-bottom: 10px; }
+  .workspace-header { min-height: calc(64px + var(--safe-top)); }
+  /* No spare corner for the floating theme button here; the theme stays available from the Actions menu. */
+  .app-shell .theme-shortcut { display: none; }
 }
 @media (min-width: 768px) and (max-width: 1023px) {
   .stepper { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -594,5 +650,5 @@ input[readonly] { background-color: var(--surface-3); color: var(--muted); }
 }
 
 /* "Update available" prompt: top of the screen, clear of the mobile nav. */
-.update-prompt { top: calc(12px + env(safe-area-inset-top, 0px)); }
+.update-prompt { top: calc(12px + var(--safe-top)); left: calc(1rem + var(--safe-left)); right: calc(1rem + var(--safe-right)); }
 @media print { .update-prompt { display: none !important; } }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Mail, Moon, Shield, Sun } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, House, Mail, Moon, Shield, Sun } from 'lucide-react';
 import AppLogo from './AppLogo';
 import useTheme from '../hooks/useTheme';
 import { SHEETS } from '../utils/sheets';
@@ -75,8 +75,8 @@ const LoginView = ({ initialMode = 'login' }) => {
   const backToLogin = <button type="button" onClick={() => setMode('login')} className="btn btn-ghost btn-block"><ArrowLeft size={16} aria-hidden="true" />Back to Login</button>;
 
   return (
-    <main className="auth-shell min-h-screen flex w-full">
-      <div className="auth-brand-panel hidden lg:flex w-[48%] xl:w-1/2 flex-col justify-between gap-10 p-12 xl:p-14 pb-16 max-h-screen overflow-y-auto sticky top-0">
+    <main className="auth-shell min-h-screen min-h-dvh flex w-full">
+      <div className="auth-brand-panel hidden lg:flex w-[48%] xl:w-1/2 flex-col justify-between gap-10 p-12 xl:p-14 pb-16 max-h-screen max-h-dvh overflow-y-auto sticky top-0">
         <button onClick={() => navigate('/')} className="relative flex items-center gap-3 self-start hover:opacity-90">
           <AppLogo className="w-11 h-11" />
           <span className="text-left"><span className="block text-2xl font-bold tracking-wide text-white display leading-none">PROXIMA<span style={{ color: '#f59a5b' }}>STRUC</span></span><span className="block mt-1 font-mono text-[10px] tracking-[.12em] uppercase" style={{ color: '#a3a8b0' }}>Project control · Construction</span></span>
@@ -93,14 +93,14 @@ const LoginView = ({ initialMode = 'login' }) => {
         <p className="relative font-mono text-[10.5px] leading-relaxed" style={{ color: '#8f96a0' }}>ISO 21502 practice-area terms · ISO 19650 information naming · Singapore BCA &amp; MOM touchpoints. Records are entered and confirmed by your project team.</p>
       </div>
 
-      <div className="w-full lg:flex-1 flex flex-col relative survey-grid">
+      <div className="auth-form-col w-full lg:flex-1 flex flex-col relative survey-grid">
         <div className="flex items-center justify-between gap-2 p-4 sm:p-6">
-          <div className="flex items-center gap-2.5 lg:invisible">
-            <AppLogo className="w-9 h-9" />
-            <span className="display text-xl font-bold tracking-wide">PROXIMA<span style={{ color: 'var(--accent-text)' }}>STRUC</span></span>
+          <div className="flex items-center gap-2.5 min-w-0 lg:invisible">
+            <AppLogo className="w-8 h-8 sm:w-9 sm:h-9 shrink-0" />
+            <span className="display text-base min-[360px]:text-lg sm:text-xl font-bold tracking-wide">PROXIMA<span style={{ color: 'var(--accent-text)' }}>STRUC</span></span>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => navigate('/')} className="btn btn-ghost btn-sm">Back to Home</button>
+          <div className="flex gap-2 shrink-0">
+            <button onClick={() => navigate('/')} className="btn btn-ghost btn-sm"><House size={16} aria-hidden="true" className="min-[400px]:hidden" /><span className="max-[399px]:sr-only">Back to Home</span></button>
             <button aria-label={isDark ? 'Use light theme' : 'Use dark theme'} onClick={toggleTheme} className="btn btn-secondary btn-icon btn-sm !w-[34px]">
               {isDark ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
             </button>

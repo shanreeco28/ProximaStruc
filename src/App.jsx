@@ -286,7 +286,7 @@ export default function App() {
 
 
   if (authLoading) {
-    return <div role="status" aria-label="Loading ProximaStruc" className="min-h-screen flex flex-col items-center justify-center gap-5" style={{ background: 'var(--bg)' }}>
+    return <div role="status" aria-label="Loading ProximaStruc" className="min-h-screen min-h-dvh flex flex-col items-center justify-center gap-5" style={{ background: 'var(--bg)' }}>
       <AppLogo className="w-12 h-12" />
       <div className="w-40 progress-track"><div className="progress-fill w-1/3 animate-pulse" /></div>
     </div>;

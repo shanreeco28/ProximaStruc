@@ -21,7 +21,7 @@ export default function WorkspaceShell({ project, navGroups, activeTab, onNaviga
     try { localStorage.setItem('proxima-sidebar-collapsed', String(next)); } catch { /* Keep the current session usable. */ }
   };
   const zoneOptions = <><option value="All Zones">All Zones</option>{zones.map(zone => <option key={zone.id} value={zone.name}>{zone.name}</option>)}</>;
-  return <div className={`app-shell min-h-screen md:h-dvh md:overflow-hidden flex flex-col md:flex-row font-sans antialiased ${collapsed ? 'sidebar-collapsed' : ''}`}>
+  return <div className={`app-shell min-h-screen min-h-dvh md:h-dvh md:overflow-hidden flex flex-col md:flex-row font-sans antialiased ${collapsed ? 'sidebar-collapsed' : ''}`}>
     <a href="#main-content" className="skip-link">Skip to project content</a>
 
     <aside id="project-sidebar" className="project-sidebar hidden md:flex shrink-0 flex-col" aria-label="Project sidebar">
@@ -66,27 +66,27 @@ export default function WorkspaceShell({ project, navGroups, activeTab, onNaviga
     <div className="flex-1 flex flex-col min-w-0 md:min-h-0">
       <header className="workspace-header flex items-stretch shrink-0">
         <div className="tb-cell tb-code flex flex-col"><span className="tb-label">Sheet</span><span className="tb-code-value">{sheet.code}</span></div>
-        <div className="flex-1 min-w-0 flex flex-col justify-center px-4 lg:px-6 py-2">
+        <div className="tb-title flex-1 min-w-0 flex flex-col justify-center px-3 sm:px-4 lg:px-6 py-2">
           <p className="tb-area">{sheet.area}</p>
-          <h1 className="page-title text-lg leading-tight sm:text-xl 2xl:text-2xl line-clamp-2">{pageTitle}</h1>
+          <h1 className="page-title text-base min-[390px]:text-lg leading-tight sm:text-xl 2xl:text-2xl line-clamp-2">{pageTitle}</h1>
         </div>
         <div className="tb-cell hidden lg:flex flex-col max-w-[220px]"><span className="tb-label">Project</span><span className="tb-value" title={project?.name}>{project?.name || 'Project workspace'}</span></div>
         <div className="tb-cell hidden lg:flex flex-col max-w-[180px]"><span className="tb-label">Zone</span><span className="tb-value">{selectedZone}</span></div>
         <div className="tb-cell hidden 2xl:flex flex-col max-w-[220px]" title={observation ? `Observed ${observation.observedAt.replace('T', ' ')}` : undefined}><span className="tb-label">Weather · last record</span><span className="tb-value">{observationValue(observation, 'weather')}</span></div>
         <div className="tb-cell hidden min-[1800px]:flex flex-col"><span className="tb-label">Date</span><span className="tb-value font-mono">{today()}</span></div>
-        <div className="tb-cell flex items-center pl-2 pr-3 sm:pl-3 sm:pr-4">
-          <AccountControls user={user} profile={profile} projectName={project?.name} onSaveProfile={onSaveProfile} onLogout={onLogout} onProjects={onProjects} onExecutiveBrief={onExecutiveBrief} />
+        <div className="tb-cell tb-account shrink-0 flex items-center">
+          <AccountControls labels="xl" user={user} profile={profile} projectName={project?.name} onSaveProfile={onSaveProfile} onLogout={onLogout} onProjects={onProjects} onExecutiveBrief={onExecutiveBrief} />
         </div>
       </header>
 
-      <div role="region" aria-label="Project zone selection" className={`compact-zone-controls px-4 lg:px-8 py-2 border-b items-center gap-3 ${collapsed ? 'flex' : 'flex md:hidden'}`}>
+      <div role="region" aria-label="Project zone selection" className={`compact-zone-controls py-2 border-b items-center gap-3 ${collapsed ? 'flex' : 'flex md:hidden'}`}>
         <label htmlFor="compact-project-zone" className="field-label shrink-0 flex items-center gap-2"><Layers size={14} aria-hidden="true" />Project zone</label>
         <select id="compact-project-zone" value={selectedZone} onChange={event => onZoneChange(event.target.value)} className="field-control !mt-0 min-w-0 flex-1 max-w-64 !py-1.5">{zoneOptions}</select>
         {canAddZone && <button type="button" aria-label="Add project zone" onClick={onAddZone} className="btn btn-ghost btn-icon"><Plus size={16} aria-hidden="true" /></button>}
       </div>
 
       <div className="workspace-scroll survey-grid flex-1 min-h-0 min-w-0 md:overflow-y-auto">
-        <div className="workspace-inner px-4 lg:px-8 pt-5 lg:pt-6 pb-28 md:pb-10">
+        <div className="workspace-inner pt-5 lg:pt-6">
           <section aria-label="Key Project Metrics" tabIndex={0} title="Project metrics; scroll horizontally on small screens to view all metrics" className="metrics-ribbon">{metrics}</section>
           <main id="main-content" tabIndex={-1} key={project?.id} className="workspace-content mt-6 min-w-0">{children}</main>
         </div>

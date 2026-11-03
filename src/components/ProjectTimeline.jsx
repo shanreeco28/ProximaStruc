@@ -23,10 +23,10 @@ export default function ProjectTimeline({ tasks = [], inspections = [], material
       </div>}
     </div>
     <div className="card-body">
-      {!rows.length ? <p className="empty-state">No dated records yet. Add a planned activity or dated site record to generate the chart.</p> : <div className="overflow-x-auto" role="region" aria-label="ProjectTimeline records" tabIndex={0}><div className="min-w-[640px]">
-        <div className="ml-64 flex justify-between text-xs text-muted mb-2 font-medium tabular"><span>{new Date(start * 86400000).toISOString().slice(0, 10)}</span><span>{new Date(end * 86400000).toISOString().slice(0, 10)}</span></div>
+      {!rows.length ? <p className="empty-state">No dated records yet. Add a planned activity or dated site record to generate the chart.</p> : <div className="overflow-x-auto" role="region" aria-label="ProjectTimeline records" tabIndex={0}><div className="sm:min-w-[640px]">
+        <div className="ml-36 sm:ml-64 flex justify-between gap-2 text-xs text-muted mb-2 font-medium tabular"><span>{new Date(start * 86400000).toISOString().slice(0, 10)}</span><span>{new Date(end * 86400000).toISOString().slice(0, 10)}</span></div>
         {rows.map(row => <div key={row.id} className="flex items-center border-t py-2.5 gap-4" style={{ borderColor: 'var(--border)' }}>
-          <div className="w-60 shrink-0 text-sm"><div className="font-semibold truncate" title={row.label}>{row.label}</div><div className="text-xs text-muted">{row.kind} · {row.detail}</div></div>
+          <div className="w-32 sm:w-60 shrink-0 text-sm"><div className="font-semibold truncate" title={row.label}>{row.label}</div><div className="text-xs text-muted">{row.kind} · {row.detail}</div></div>
           <div role="img" aria-label={`${row.label}: ${row.start} to ${row.end}${row.kind === 'Activity' ? `, ${row.progress}% complete` : ''}`} className="flex-1 relative h-8 rounded-md" style={{ background: 'var(--surface-2)' }} title={`${row.start} → ${row.end}${row.kind === 'Activity' ? ` · ${row.progress}% complete` : ''}`}>
             <div className="absolute top-1.5 h-5 min-w-[4px] rounded" style={{ left: `${(dayNumber(row.start) - start) / span * 100}%`, width: `${(dayNumber(row.end) - dayNumber(row.start) + 1) / span * 100}%`, background: row.kind === 'Activity' ? 'color-mix(in srgb, var(--accent) 22%, transparent)' : 'var(--warning-solid)' }}>
               {row.kind === 'Activity' && <div className="h-full rounded" style={{ width: `${row.progress}%`, background: 'var(--accent)' }} />}

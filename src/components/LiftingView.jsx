@@ -37,7 +37,7 @@ export default function LiftingView({ lifts, onToggleLift, onAdd, currentUser, z
             <article key={ptw.id} className="card flex flex-col overflow-hidden">
               {!isActive && <div className="hazard-edge !rounded-none" aria-hidden="true" />}
               <div className="card-body flex-1 space-y-4">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="ref-tag">{ptw.id}</span>
                   <span className="badge badge-dot" data-tone={isActive ? 'success' : 'warning'}>{isActive ? 'PTW ACTIVE (RECORDED)' : 'PTW SUSPENDED (RECORDED)'}</span>
                 </div>
@@ -45,7 +45,7 @@ export default function LiftingView({ lifts, onToggleLift, onAdd, currentUser, z
                   <h3 className="text-base font-semibold">{ptw.crane}</h3>
                   <p className="text-sm text-secondary mt-0.5">{ptw.loadDescription || 'Load not recorded'}</p>
                 </div>
-                <div className="meta-grid grid-cols-3 inset p-3.5">
+                <div className="meta-grid grid-cols-2 sm:grid-cols-3 inset p-3.5">
                   <div><span className="meta-label">Zone</span><span className="meta-value flex items-center gap-1"><MapPin size={12} aria-hidden="true" className="text-muted shrink-0" />{ptw.zone || '—'}</span></div>
                   <div><span className="meta-label">Working Radius</span><span className="meta-value flex items-center gap-1 tabular"><Gauge size={12} aria-hidden="true" className="text-muted shrink-0" />{ptw.radius || '—'}</span></div>
                   <div><span className="meta-label">MOM LM Cert</span><span className="meta-value tabular" style={{ color: 'var(--success)' }}>{ptw.lmExpiry || '—'}</span></div>

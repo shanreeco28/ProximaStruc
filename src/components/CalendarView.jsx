@@ -40,7 +40,7 @@ export default function CalendarView({ tasks, allTasks = tasks, inspections = []
         {permitted && <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(emptyTask()); }}>+ Add activity</button>}
       </div>
       {error && <p role="alert" className="form-error mx-5 mt-4">{error}</p>}
-      <div className="p-4 sm:p-5 overflow-x-auto" role="region" aria-label="Site planning board" tabIndex={0}>
+      <div className="board-scroller p-4 sm:p-5 overflow-x-auto" role="region" aria-label="Site planning board" tabIndex={0}>
         <div className="flex gap-4 min-w-[1064px] items-start">
           {COLUMNS.map(([id, title]) => {
             const columnTasks = tasks.filter(t => taskStatus(t) === id || id === 'make_ready' && taskStatus(t) === 'blocked');

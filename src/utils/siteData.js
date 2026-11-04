@@ -265,3 +265,33 @@ export function personName(email, people = []) {
   return person?.name?.trim() || email;
 }
 export const creatorName = (record, people = []) => (typeof record?.createdByName === 'string' && record.createdByName.trim()) || personName(record?.createdBy, people);
+
+// Gantt chart window: the time axis runs from two weeks before the earliest dated record to two weeks
+// after the latest finish, so bars never sit flush against the chart edges.
+export const GANTT_PADDING_DAYS = 14;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const dayToIso = day => new Date(day * 86400000).toISOString().slice(0, 10);
+export function ganttWindow(rows, { padDays = GANTT_PADDING_DAYS, at = today() } = {}) {
+  const days = rows.flatMap(r => [dayNumber(r.start), dayNumber(r.end || r.start)]).filter(d => d !== null);
+  if (!days.length) return null;
+  const first = Math.min(...days), last = Math.max(...days);
+  const start = first - padDays, end = last + padDays, span = end - start + 1;
+  const offset = day => (day - start) / span * 100;
+  const months = [];
+  for (let day = start; day <= end;) {
+    const date = new Date(day * 86400000);
+    const next = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1) / 86400000;
+    const segmentEnd = Math.min(end + 1, next);
+    months.push({ key: dayToIso(day).slice(0, 7), label: `${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`, short: MONTHS[date.getUTCMonth()], left: offset(day), width: (segmentEnd - day) / span * 100 });
+    day = segmentEnd;
+  }
+  // Week lines fall on Mondays (1970-01-01 was a Thursday, so day 4 is a Monday).
+  const weeks = [];
+  for (let day = start + ((4 - start) % 7 + 7) % 7; day <= end; day += 7) weeks.push({ day, iso: dayToIso(day), label: String(new Date(day * 86400000).getUTCDate()), left: offset(day) });
+  const current = dayNumber(at);
+  return {
+    start, end, span, first, last, startIso: dayToIso(start), endIso: dayToIso(end), months, weeks,
+    today: current !== null && current >= start && current <= end ? { iso: at, left: offset(current + 0.5) } : null,
+    position: (from, to = from) => ({ left: offset(dayNumber(from)), width: (dayNumber(to) - dayNumber(from) + 1) / span * 100 }),
+  };
+}

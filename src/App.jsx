@@ -361,7 +361,7 @@ export default function App() {
       zones={zones} selectedZone={selectedZone} onZoneChange={setSelectedZone} onAddZone={handleAddZone} canAddZone={isPrivileged}
       observation={observation} user={user} profile={ownProfile} isAdmin={isAdmin} onSaveProfile={handleSaveProfile} onLogout={handleLogout}
       onProjects={() => { setSelectedProject(null); setSelectedZone('All Zones'); setActiveTab('dashboard'); setOperationError(''); setIsExecModalOpen(false); }}
-      onExecutiveBrief={() => setIsExecModalOpen(true)} metrics={<>
+      onExecutiveBrief={isPrivileged ? () => setIsExecModalOpen(true) : undefined} metrics={<>
           <KpiPill
             title="Recorded plan progress"
             icon="calendar"
@@ -480,7 +480,8 @@ export default function App() {
           )}
     </WorkspaceShell>
     </PeopleContext.Provider>
-      {isExecModalOpen && (
+      {/* Executive briefs are limited to admins, managers and engineers (the planning roles). */}
+      {isExecModalOpen && isPrivileged && (
         <ExecutiveReportModal
           onClose={() => setIsExecModalOpen(false)}
           tasks={filteredTasks}

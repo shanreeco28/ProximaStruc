@@ -40,14 +40,14 @@ ProximaStruc gives site teams, resident engineers and project managers a single 
 | Area | What it does |
 | --- | --- |
 | **Control Centre** | Project dashboard with a KPI ribbon: recorded plan progress, RE/RTO inspections, active permits, BBS and concrete records, and registered personnel. Filter the whole workspace by zone. |
-| **Schedule and Lookahead** | Four-column planning board (Lookahead, Make-Ready, In Progress, Done) plus a Gantt that combines activities with inspection targets, material deliveries, diary dates and lifting permits. Activities support predecessors, hold points, required material and constraints. |
+| **Schedule and Lookahead** | Four-column planning board (Lookahead, Make-Ready, In Progress, Done) plus a Gantt that combines activities with inspection targets, material deliveries, diary dates and lifting permits, with month/week scales, a today marker and a two-week buffer before the earliest and after the latest date. Activities support predecessors, hold points, required material and constraints. |
 | **Quality: RE/RTO Inspections** | Request-for-inspection workflow: Draft → Opened → Under RE Review → Site Inspection (RTO) → Next Work Allowed → Closure Applied → Closed. RFI IDs are generated as `Project Name_Zone-Discipline-###` (STR, AR, ME). Engineers/managers attach inspection-file and reference PDFs before submitting for RE review. Role-gated stage changes, append-only comments and history. Only the final Closed stage clears a linked planning hold point. |
 | **Materials: BBS and DOs** | Separate records for bar bending schedules, concrete batches and delivery orders. Receipt, installation and pour states require a DO reference and actual date. Test results are never assumed to pass. |
 | **Site Diary** | Dated entries for progress, manpower, equipment, deliveries, inspections, safety, environment, weather, instructions, visitors and delays, optionally linked to a task. |
 | **Lifting and Permit-to-Work** | Lifting permit register with active and suspended states. Manual records never imply statutory compliance or authorisation to lift. |
 | **Stakeholders and Access** | Personnel register, organisation details, role assignment and the deletion-verification queue. |
 | **Site Observations** | Admin-only confirmed observations (weather, noise, TSS, wind, headcount and similar) with source, confirmer and confirmation time. Each confirmation is a complete observation, so older values are never silently inherited. |
-| **Executive Brief** | Printable summary of progress, inspections, permits, diary and materials for the selected project or zone. |
+| **Executive Brief** | Admins, managers and engineers choose which sections to include (progress summary, Gantt, blocked activities, materials, open RFIs, lifting permits, recent diary) and print it or download it as a PDF. On an iPhone/iPad Home Screen app, Print opens the share sheet with the brief as a PDF (Print, Save to Files, Mail). |
 | **Accounts** | Google sign-in and email verification, project selection, editable personal profile (name, title, phone, birthday) and logout that clears local project state. |
 
 ### Progress calculation

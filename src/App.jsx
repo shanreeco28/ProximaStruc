@@ -22,7 +22,7 @@ import useSiteOwner from './hooks/useSiteOwner';
 import useProjectMembers from './hooks/useProjectMembers';
 import { grantProjectAccess, revokeProjectAccess, setProjectAccessRole } from './services/projectAccess';
 import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canCommentInspection, isInspectionClosed, isInspectionOpen, taskStatus, recordedDiaryEntries } from './utils/siteData';
-import { createInspection, updateInspectionDetails, advanceInspection, attachInspectionFile, readInspectionFile, removeInspectionFile } from './services/inspections';
+import { createInspection, updateInspectionDetails, advanceInspection, changeInspectionOutcome, attachInspectionFile, readInspectionFile, removeInspectionFile } from './services/inspections';
 import { saveDiaryEntry, readDiaryPhoto, deleteDiaryPhotoFiles } from './services/siteDiary';
 
 import { auth, db } from './firebase';
@@ -97,7 +97,7 @@ export default function App() {
 
   const ownProfile = personnel.find(p => p.id === user?.email?.toLowerCase());
   const currentUser = liveProject && (liveProject.ownerId === user?.uid || isSiteOwner)
-    ? { email: user?.email, name: ownProfile?.name || user?.displayName || user?.email, systemRole: 'admin' }
+    ? { email: user?.email, name: ownProfile?.name || user?.displayName || user?.email, systemRole: 'admin', siteOwner: isSiteOwner }
     : user?.emailVerified ? (personnel.find(p => p.id === user.email?.toLowerCase()) || personnel.find(p => p.email?.toLowerCase() === user.email?.toLowerCase())) : undefined;
   const isPrivileged = canPlan(currentUser);
   const isAdmin = currentUser?.systemRole === 'admin';
@@ -220,6 +220,7 @@ export default function App() {
   });
   const handleUpdateInspection = (id, details) => updateInspectionDetails(db, { ...inspectionContext(), id, details });
   const handleAdvanceInspection = (id, expectedStatus) => advanceInspection(db, { ...inspectionContext(), id, expectedStatus });
+  const handleInspectionOutcome = (id, expectedStatus, action, reason, target) => changeInspectionOutcome(db, { ...inspectionContext(), id, expectedStatus, action, reason, target });
   const handleAttachInspectionFile = (id, file, category, onProgress) => attachInspectionFile(db, { ...inspectionContext(), id, file, category, onProgress });
   const handleRemoveInspectionFile = (id, fileId) => removeInspectionFile(db, { ...inspectionContext(), id, fileId });
   const handleOpenInspectionFile = async attachment => {
@@ -424,6 +425,7 @@ export default function App() {
               allInspectionIds={inspections.map(i => i.id)}
               projectName={liveProject?.name || selectedProject.name}
               onAdvance={handleAdvanceInspection}
+              onOutcome={handleInspectionOutcome}
               onComment={handleCommentInspection}
               onAdd={handleCreateInspection}
               onUpdate={handleUpdateInspection}

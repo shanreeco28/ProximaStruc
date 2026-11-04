@@ -84,6 +84,49 @@ service cloud.firestore {
     function rfiHistoryText() {
       return {'opened': 'Opened RFI', 're_review': 'Submitted for RE review', 'site_inspection': 'RE allowed site inspection (RTO)', 'next_work': 'RTO allowed next work', 'closure_applied': 'Applied for RFI closure', 'closed': 'RE approved closure — RFI closed'};
     }
+    // Rejection and rollback (mirrors src/utils/siteData.js): the RE/RTO rejects at their stage; an engineer/manager
+    // rolls a rejected RFI back (Opened up to the rejected stage) or closes it; only the site owner rolls back a
+    // closed RFI. Each step appends an audit entry with a reason. `rejectedFrom` marks a rejected or closed-rejected RFI.
+    function rfiIndex() {
+      return {'draft': 0, 'opened': 1, 're_review': 2, 'site_inspection': 3, 'next_work': 4, 'closure_applied': 5, 'closed': 6};
+    }
+    function rfiLabels() {
+      return {'opened': 'Opened', 're_review': 'Under RE Review', 'site_inspection': 'Site Inspection (RTO)', 'next_work': 'Next Work Allowed', 'closure_applied': 'Closure Applied'};
+    }
+    function rfiRejecters() { return {'re_review': 'RE', 'site_inspection': 'RTO', 'closure_applied': 'RE'}; }
+    function rfiOutcomeEntry(projectId, action) {
+      let history = request.resource.data.get('history', []);
+      let entry = history[history.size() - 1];
+      return appendOnly('history') && entry.email == request.auth.token.email && entry.timestamp is string
+        && entry.role == effectiveRole(projectId) && entry.action == action
+        && entry.reason is string && entry.reason.size() > 0 && entry.reason.size() <= 2000;
+    }
+    function inspectionReject(projectId) {
+      let d = request.resource.data;
+      let from = rfiStatusOf(resource.data);
+      let r = effectiveRole(projectId);
+      return from in rfiRejecters() && r in ['admin', rfiRejecters()[from]]
+        && d.status == 'rejected' && d.rejectedFrom == from
+        && d.diff(resource.data).affectedKeys().hasOnly(['status', 'rejectedFrom', 'history', 'updatedBy', 'updatedAt'])
+        && rfiOutcomeEntry(projectId, 'Rejected at ' + rfiLabels()[from]);
+    }
+    function rfiRollbackTo(last) {
+      let d = request.resource.data;
+      return d.status in rfiLabels() && rfiIndex()[d.status] <= last && !d.keys().hasAny(['rejectedFrom'])
+        && d.diff(resource.data).affectedKeys().hasOnly(['status', 'rejectedFrom', 'history', 'updatedBy', 'updatedAt']);
+    }
+    function inspectionResolveRejected(projectId) {
+      let d = request.resource.data;
+      return rfiStatusOf(resource.data) == 'rejected' && rfiRaiser(projectId)
+        && (d.status == 'closed' && d.get('rejectedFrom', '') == resource.data.rejectedFrom
+            && d.diff(resource.data).affectedKeys().hasOnly(['status', 'history', 'updatedBy', 'updatedAt'])
+            && rfiOutcomeEntry(projectId, 'Closed rejected RFI')
+          || rfiRollbackTo(rfiIndex()[resource.data.rejectedFrom]) && rfiOutcomeEntry(projectId, 'Rolled back to ' + rfiLabels()[d.status]));
+    }
+    function inspectionRollbackClosed(projectId) {
+      return rfiStatusOf(resource.data) == 'closed' && siteOwner() && rfiRollbackTo(5)
+        && rfiOutcomeEntry(projectId, 'Site owner rolled back to ' + rfiLabels()[request.resource.data.status]);
+    }
     function rfiDisciplineCodes() { return {'Structural': 'STR', 'Architectural': 'AR', 'M&E Sleeve / Conduit': 'ME'}; }
     // Engineers, managers and admins raise RFIs, submit them and apply for closure.
     function rfiRaiser(projectId) { return planner(projectId); }
@@ -258,7 +301,8 @@ service cloud.firestore {
     function inspectionUpdate(projectId, recordId) {
       let keys = request.resource.data.diff(resource.data).affectedKeys();
       return keys.hasAny(['comments']) ? inspectionComment(projectId)
-        : keys.hasAny(['status', 'history']) ? inspectionAdvance(projectId)
+        : keys.hasAny(['status', 'history']) ? (inspectionAdvance(projectId) || inspectionReject(projectId)
+          || inspectionResolveRejected(projectId) || inspectionRollbackClosed(projectId))
         : keys.hasAny(['attachments']) ? inspectionAttachments(projectId, recordId)
         : inspectionDetails(projectId);
     }

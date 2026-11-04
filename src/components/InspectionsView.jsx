@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarClock, ChevronRight, FileText, HardHat, Lock, MapPin, MessageSquare, Paperclip, UserRound } from 'lucide-react';
-import { RecordModal } from './RecordForm';
+import { ArrowLeft, ArrowRight, CalendarClock, ChevronRight, FileText, HardHat, Lock, MapPin, MessageSquare, Paperclip, RotateCcw, UserRound, XCircle } from 'lucide-react';
+import { Field, RecordModal, SaveForm, TextArea } from './RecordForm';
 import DeleteRecordAction from './DeleteRecordAction';
 import CreatedBy from './CreatedBy';
 import {
   RFI_STATUSES, RFI_DISCIPLINES, RFI_FILE_CATEGORIES, RFI_TRANSITIONS, canRaiseRfi, canAdvanceInspection, canEditInspection, canCommentInspection,
   canManageInspectionFiles, canRemoveInspectionFile, inspectionStatus, inspectionStatusIndex, inspectionStatusLabel,
   isInspectionClosed, nextInspectionTransition, rfiPrefix, formatRfiId, highestRfiNumber, validateRfiFile,
+  canRejectInspection, canResolveRejectedInspection, canRollbackClosedInspection, isInspectionClosedRejected, isInspectionRejected,
+  rfiRollbackTargets, rfiStatusLabel, rfiReasonProblem, RFI_REASON_MAX, RFI_REJECTERS,
 } from '../utils/siteData';
 import RecordSearch from './RecordSearch';
 import { matchesRecordSearch } from '../utils/recordSearch';
@@ -14,11 +16,13 @@ import { sheetCode } from '../utils/sheets';
 
 // No RTO is assigned to an RFI: the RTO on duty that day carries out the site inspection.
 const emptyForm = () => ({ zone: '', discipline: '', element: '', reName: '', targetCast: '', bbsLinked: '' });
-const STATUS_FILTERS = [['All', () => true], ['Drafts', s => s === 'draft'], ['In progress', s => s && !['draft', 'closed'].includes(s)], ['Closed', s => s === 'closed']];
+const STATUS_FILTERS = [['All', () => true], ['Drafts', s => s === 'draft'], ['In progress', s => s && !['draft', 'closed', 'rejected'].includes(s)], ['Rejected', s => s === 'rejected'], ['Closed', s => s === 'closed']];
 const AWAITING = { site: 'Awaiting engineer / manager', RE: 'Awaiting RE', RTO: 'Awaiting RTO on duty' };
 const formatSize = bytes => bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 const formatStamp = value => { const date = value ? new Date(value) : null; return date && !Number.isNaN(date.getTime()) ? date.toLocaleString() : ''; };
-const statusTone = rfi => isInspectionClosed(rfi) ? 'success' : inspectionStatus(rfi) === 'draft' ? undefined : 'warning';
+const statusTone = rfi => isInspectionRejected(rfi) || isInspectionClosedRejected(rfi) ? 'danger' : isInspectionClosed(rfi) ? 'success' : inspectionStatus(rfi) === 'draft' ? undefined : 'warning';
+const statusColor = rfi => ({ danger: 'var(--danger-solid)', success: 'var(--success-solid)', warning: 'var(--warning-solid)' })[statusTone(rfi)] || 'var(--border-strong)';
+const lastRejection = rfi => [...(rfi.history || [])].reverse().find(h => h.action?.startsWith('Rejected at '));
 
 // The open RFI lives in the URL hash (#rfi=<id>) so the device back button returns to the register.
 const RFI_HASH = '#rfi=';
@@ -89,18 +93,44 @@ function rtoInspection(rfi) {
   return inspectionStatus(rfi) === 'site_inspection' ? 'Awaiting RTO on duty' : 'Any RTO on duty';
 }
 
-function RfiDetail({ rfi, currentUser, saving, uploading, uploadProgress, onBack, onAdvance, onEdit, onUpload, onRemoveFile, onOpenFile, comment, onCommentChange, onComment }) {
+/** Reason (and, for a rollback, the target stage) for rejecting, rolling back or closing a rejected RFI. */
+function OutcomeDialog({ dialog, onClose, onSubmit }) {
+  const [reason, setReason] = useState('');
+  const [target, setTarget] = useState(dialog.targets?.[0] || '');
+  return <RecordModal title={dialog.title} onClose={onClose}>
+    <p className="text-sm text-secondary">{dialog.description}</p>
+    <SaveForm submitLabel={dialog.submitLabel} onSave={async () => {
+      const problem = rfiReasonProblem(reason);
+      if (problem) throw new Error(problem);
+      await onSubmit(dialog.action, reason.trim(), target);
+      onClose();
+    }}>
+      {dialog.targets && <Field label="Roll back to" value={target} onChange={e => setTarget(e.target.value)}>
+        {dialog.targets.map(id => <option key={id} value={id}>{rfiStatusLabel(id)}</option>)}
+      </Field>}
+      <TextArea label="Reason" required maxLength={RFI_REASON_MAX} rows={3} value={reason} onChange={e => setReason(e.target.value)} />
+    </SaveForm>
+  </RecordModal>;
+}
+
+function RfiDetail({ rfi, currentUser, saving, uploading, uploadProgress, onBack, onAdvance, onOutcome, onEdit, onUpload, onRemoveFile, onOpenFile, comment, onCommentChange, onComment }) {
   const headingRef = useRef(null);
+  const [dialog, setDialog] = useState(null);
   useEffect(() => { headingRef.current?.focus(); }, [rfi.id]);
   const statusIndex = inspectionStatusIndex(rfi);
   const isCleared = isInspectionClosed(rfi);
+  const rejected = isInspectionRejected(rfi), closedRejected = isInspectionClosedRejected(rfi);
+  const rejection = (rejected || closedRejected) && lastRejection(rfi);
   const transition = nextInspectionTransition(rfi);
+  const busy = saving || !!uploading;
+  const status = inspectionStatus(rfi);
+  const openDialog = (action, extra = {}) => setDialog({ action, ...extra });
   const feed = [...(rfi.history || []).map(h => ({ ...h, type: 'history' })), ...(rfi.comments || []).map(c => ({ ...c, type: 'comment' }))]
     .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
   return (
     <div className="space-y-5">
       <button type="button" onClick={onBack} className="link-action"><ArrowLeft size={15} aria-hidden="true" />Back to RFI register</button>
-      <article aria-labelledby="rfi-detail-title" className="card overflow-hidden" style={{ borderTop: `3px solid ${isCleared ? 'var(--success-solid)' : inspectionStatus(rfi) === 'draft' ? 'var(--border-strong)' : 'var(--warning-solid)'}` }}>
+      <article aria-labelledby="rfi-detail-title" className="card overflow-hidden" style={{ borderTop: `3px solid ${statusColor(rfi)}` }}>
         <div className="card-body space-y-5">
           <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
             <div className="min-w-0">
@@ -115,14 +145,30 @@ function RfiDetail({ rfi, currentUser, saving, uploading, uploadProgress, onBack
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {transition && canAdvanceInspection(currentUser, rfi) ? (
-                <button disabled={saving || !!uploading} onClick={() => onAdvance(rfi)} className="btn btn-primary">{transition.action} →</button>
+                <button disabled={busy} onClick={() => onAdvance(rfi)} className="btn btn-primary">{transition.action} →</button>
               ) : isCleared ? (
                 <span className="badge" data-tone="success" style={{ padding: '.45rem .8rem', fontSize: '.8rem' }}>✓ RFI closed</span>
-              ) : <span className="text-xs text-muted px-1">{transition ? AWAITING[transition.actor] : 'Awaiting authorised stage review'}</span>}
+              ) : closedRejected ? (
+                <span className="badge" data-tone="danger" style={{ padding: '.45rem .8rem', fontSize: '.8rem' }}>✕ Closed (rejected)</span>
+              ) : rejected ? (canResolveRejectedInspection(currentUser, rfi) ? <>
+                <button disabled={busy} className="btn btn-primary" onClick={() => openDialog('rollback', { title: 'Roll back rejected RFI', submitLabel: 'Roll back RFI', targets: rfiRollbackTargets(rfi).reverse(), description: `Return ${rfi.id} to an earlier stage after rectification. The rejection stays in the history.` })}><RotateCcw size={14} aria-hidden="true" />Roll back…</button>
+                <button disabled={busy} className="btn btn-secondary" onClick={() => openDialog('closeRejected', { title: 'Close rejected RFI', submitLabel: 'Close RFI', description: `${rfi.id} will be closed as rejected. It does not clear a linked planning hold point; raise a new RFI for the reworked element if needed.` })}>Close RFI</button>
+              </> : <span className="text-xs text-muted px-1">Awaiting engineer / manager: roll back or close</span>)
+              : <span className="text-xs text-muted px-1">{transition ? AWAITING[transition.actor] : 'Awaiting authorised stage review'}</span>}
+              {canRejectInspection(currentUser, rfi) && <button disabled={busy} className="btn btn-danger-soft" onClick={() => openDialog('reject', { title: status === 'closure_applied' ? 'Reject RFI closure' : 'Reject inspection', submitLabel: 'Reject', description: `${rfi.id} stops at ${rfiStatusLabel(status)}. An engineer or manager then rolls it back or closes it.` })}><XCircle size={14} aria-hidden="true" />{status === 'closure_applied' ? 'Reject closure' : `Reject (${RFI_REJECTERS[status]})`}</button>}
+              {canRollbackClosedInspection(currentUser, rfi) && <button disabled={busy} className="btn btn-secondary" onClick={() => openDialog('rollback', { title: 'Roll back closed RFI', submitLabel: 'Roll back RFI', targets: rfiRollbackTargets(rfi).reverse(), description: `Site owner only. ${rfi.id} reopens at the chosen stage${isCleared ? ' and no longer clears a linked planning hold point' : ''}.` })}><RotateCcw size={14} aria-hidden="true" />Roll back (site owner)…</button>}
               {canEditInspection(currentUser, rfi) && <button onClick={() => onEdit(rfi)} className="btn btn-secondary">Edit</button>}
               <DeleteRecordAction collection="inspections" record={rfi} />
             </div>
           </div>
+
+          {rejection && <div role="note" data-tone="danger" className="alert">
+            <XCircle size={16} aria-hidden="true" className="shrink-0" />
+            <span className="flex-1 min-w-0" style={{ overflowWrap: 'anywhere' }}>
+              <strong>{rejection.action}</strong> by {rejection.user || rejection.email}{formatStamp(rejection.timestamp) ? ` · ${formatStamp(rejection.timestamp)}` : ''}
+              {rejection.reason && <span className="block mt-1">Reason: {rejection.reason}</span>}
+            </span>
+          </div>}
 
           <dl className="meta-grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 inset p-3.5">
             <div><dt className="meta-label">Assigned RE</dt><dd className="meta-value flex items-center gap-1.5"><UserRound size={13} aria-hidden="true" className="shrink-0 text-muted" />{rfi.reName || 'Not recorded'}</dd></div>
@@ -138,7 +184,8 @@ function RfiDetail({ rfi, currentUser, saving, uploading, uploadProgress, onBack
           <ol className="stepper" data-steps={RFI_STATUSES.length} style={{ '--steps': RFI_STATUSES.length }} aria-label={`${rfi.id} review stages`}>
             {RFI_STATUSES.map(({ id, label }, idx) => {
               const state = idx === statusIndex ? 'current' : idx < statusIndex ? 'done' : 'todo';
-              return <li key={id} className="step" data-state={isCleared && idx === statusIndex ? 'done' : state} aria-current={idx === statusIndex ? 'step' : undefined}>
+              const shown = idx === statusIndex && (rejected || closedRejected) ? 'rejected' : isCleared && idx === statusIndex ? 'done' : state;
+              return <li key={id} className="step" data-state={shown} aria-current={idx === statusIndex ? 'step' : undefined}>
                 <span className="step-index" aria-hidden="true">{idx + 1}</span><span className="leading-tight">{label}</span>
               </li>;
             })}
@@ -154,7 +201,7 @@ function RfiDetail({ rfi, currentUser, saving, uploading, uploadProgress, onBack
                   <span className="font-semibold text-xs">{item.user} <span className="badge ml-1">{item.role}</span></span>
                   <span className="text-[11px] text-muted">{formatStamp(item.timestamp)}</span>
                 </div>
-                <div>{item.type === 'history' ? <span className="italic">{item.action}</span> : item.text}</div>
+                <div>{item.type === 'history' ? <><span className="italic">{item.action}</span>{item.reason && <span className="block mt-0.5">Reason: {item.reason}</span>}</> : item.text}</div>
               </div>
             ))}
             {!feed.length && <p className="text-xs text-muted italic">No comments or history yet.</p>}
@@ -172,11 +219,12 @@ function RfiDetail({ rfi, currentUser, saving, uploading, uploadProgress, onBack
           </div>}
         </section>
       </article>
+      {dialog && <OutcomeDialog dialog={dialog} onClose={() => setDialog(null)} onSubmit={(action, reason, target) => onOutcome(rfi, action, reason, target)} />}
     </div>
   );
 }
 
-export default function InspectionsView({ inspections, allInspectionIds, projectName, onAdd, onUpdate, onAdvance, onComment, onAttachFile, onRemoveFile, onOpenFile, currentUser, zones }) {
+export default function InspectionsView({ inspections, allInspectionIds, projectName, onAdd, onUpdate, onAdvance, onOutcome, onComment, onAttachFile, onRemoveFile, onOpenFile, currentUser, zones }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
@@ -234,6 +282,12 @@ export default function InspectionsView({ inspections, allInspectionIds, project
     setSaving(true); setError(''); setNotice('');
     try { await onAdvance(rfi.id, inspectionStatus(rfi)); setNotice(`${rfi.id}: ${transition.history}.`); }
     catch (e) { setError(e.message); } finally { setSaving(false); }
+  };
+  // Errors are shown inside the reason dialog, which stays open so the reason is not lost.
+  const handleOutcome = async (rfi, action, reason, target) => {
+    setError(''); setNotice('');
+    await onOutcome(rfi.id, inspectionStatus(rfi), action, reason, target);
+    setNotice(action === 'reject' ? `${rfi.id} rejected.` : action === 'closeRejected' ? `${rfi.id} closed as rejected.` : `${rfi.id} rolled back to ${rfiStatusLabel(target)}.`);
   };
   const handleAddComment = async id => {
     const text = commentInputs[id]?.trim();
@@ -341,7 +395,7 @@ export default function InspectionsView({ inspections, allInspectionIds, project
         {messages}
         {selected
           ? <RfiDetail rfi={selected} currentUser={currentUser} saving={saving} uploading={uploading} uploadProgress={uploadProgress}
-            onBack={closeRfi} onAdvance={handleAdvance} onEdit={handleOpenModal} onUpload={handleUpload} onRemoveFile={handleRemoveFile}
+            onBack={closeRfi} onAdvance={handleAdvance} onOutcome={handleOutcome} onEdit={handleOpenModal} onUpload={handleUpload} onRemoveFile={handleRemoveFile}
             onOpenFile={onOpenFile ? handleOpenFile : null} comment={commentInputs[selected.id] || ''}
             onCommentChange={value => setCommentInputs(prev => ({ ...prev, [selected.id]: value }))} onComment={handleAddComment} />
           : <div className="space-y-4">
@@ -360,7 +414,7 @@ export default function InspectionsView({ inspections, allInspectionIds, project
         <div className="card-header">
           <div className="min-w-0">
             <div className="title-row"><span className="sheet-code">{sheetCode('inspections', 1)}</span><h2 className="card-title">BCA Statutory & RE/RTO Inspection Matrix (RFI)</h2></div>
-            <p className="card-subtitle">Draft → Opened → RE review → RTO site inspection → Next work allowed → Closure applied → Closed. Select an RFI to see its details, documents and history.</p>
+            <p className="card-subtitle">Draft → Opened → RE review → RTO site inspection → Next work allowed → Closure applied → Closed. The RE or RTO can reject at their stage. Select an RFI to see its details, documents and history.</p>
           </div>
           {canRaise && <button onClick={() => handleOpenModal()} className="btn btn-primary">+ Add RFI</button>}
         </div>

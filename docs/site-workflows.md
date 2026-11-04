@@ -48,6 +48,9 @@ Each confirmation is a complete observation: blank fields remain unrecorded, rat
 | Draft/open RFIs, attach PDFs, submit for RE review, apply for closure | Yes | Yes | Yes | No | No | No | No |
 | Allow site inspection / approve RFI closure | Yes | No | No | No | Yes | No | No |
 | Allow next work after site inspection (any RTO on duty) | Yes | No | No | No | No | Yes | No |
+| Reject an RFI (RE: RE review or closure; RTO: site inspection) | Yes | No | No | No | Yes | Yes | No |
+| Roll back or close a rejected RFI | Yes | Yes | Yes | No | No | No | No |
+| Roll back a closed RFI | Site owner only | No | No | No | No | No | No |
 | Record lifting permits | Yes | Yes | Yes | No | No | No | No |
 | Delete operational records directly | Yes | No | No | No | No | No | No |
 | Request deletion of own records | Direct deletion | Yes | Yes | Yes | Yes | Yes | Yes |
@@ -69,7 +72,14 @@ Manager organisation updates are limited to that field and audit metadata; they 
 | 5 | Closure Applied | Apply for RFI closure | Engineer / manager |
 | 6 | Closed | Approve RFI closure | RE |
 
-Admins can perform any step. No RTO is assigned to an RFI: RTO duty changes daily, so any project member with the RTO role can carry out the site inspection and allow next work. The RFI page shows which RTO did so (from the audit history). Supervisors no longer create RFIs or perform engineer/manager steps; they keep read and comment access. Each step is a transaction that rejects stale updates and appends an audit-history entry whose text the Firestore rules check. Only Closed clears a linked planning hold point; drafts are not counted as open RFIs.
+Admins can perform any step. No RTO is assigned to an RFI: RTO duty changes daily, so any project member with the RTO role can carry out the site inspection and allow next work. The RFI page shows which RTO did so (from the audit history). Supervisors no longer create RFIs or perform engineer/manager steps; they keep read and comment access. Each step is a transaction that rejects stale updates and appends an audit-history entry whose text the Firestore rules check. Only Closed (approved, not closed after rejection) clears a linked planning hold point; drafts are not counted as open RFIs.
+
+**Rejection and rollback.** At their own stage the RE (Under RE Review, Closure Applied) or the RTO (Site Inspection) can **reject** the RFI instead of approving it. The RFI becomes *Rejected at &lt;stage&gt;* and records `rejectedFrom`. An engineer, manager or admin then either:
+
+- **rolls it back** to any stage from Opened up to the stage where it was rejected (rolling back to Opened unlocks PDF changes again, so drawings can be revised before resubmitting), or
+- **closes** it. A rejected RFI that is closed shows as *Closed (rejected)*: it keeps `rejectedFrom`, is not counted as cleared and does **not** clear a linked planning hold point. Raise a new RFI for the reworked element if needed.
+
+A closed RFI, cleared or rejected, can be rolled back only by the **site owner** (to any stage from Opened to Closure Applied). Project admins cannot do this. Every rejection, rollback and close-after-rejection requires a reason, which is stored in the RFI's audit history and shown on the RFI page; the Firestore rules check the role, the allowed stages, the history text and the reason. The register's **Rejected** filter lists RFIs awaiting a rollback or close.
 
 **RFI ID.** New RFIs are numbered automatically as `Project Name_Zone-Discipline-###`, for example `Marina Tower_Zone A-STR-001`. Discipline codes are STR (Structural), AR (Architectural) and ME (M&E Sleeve / Conduit). Slashes and unsupported characters in project or zone names become `-`. Each prefix has a counter document (`artifacts/{projectId}/rfiCounters/{prefix}`) that advances in the same transaction as the RFI, so concurrent users never receive the same number and numbers of deleted RFIs are not reused. Counters cannot be deleted. Zone and discipline are fixed once an RFI is numbered; the creator (engineer/manager) or an admin can still edit the description, assigned RE, target cast and linked BBS. The earlier *Assigned RTO* field is no longer shown or saved; values on existing RFIs are kept in storage untouched.
 

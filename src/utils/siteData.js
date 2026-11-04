@@ -123,12 +123,23 @@ export const RFI_TRANSITIONS = {
 // Records from the earlier five-stage workflow stored a numeric `stage`; map them onto the current statuses.
 const LEGACY_STAGE_STATUS = ['opened', 're_review', 'site_inspection', 'closure_applied', 'closed'];
 export function inspectionStatus(inspection) {
-  if (RFI_STATUSES.some(s => s.id === inspection?.status)) return inspection.status;
+  if (RFI_STATUSES.some(s => s.id === inspection?.status) || inspection?.status === 'rejected') return inspection.status;
   return Number.isInteger(inspection?.stage) ? LEGACY_STAGE_STATUS[inspection.stage] || null : null;
 }
-export const inspectionStatusIndex = inspection => RFI_STATUSES.findIndex(s => s.id === inspectionStatus(inspection));
-export const inspectionStatusLabel = inspection => RFI_STATUSES.find(s => s.id === inspectionStatus(inspection))?.label || 'Stage not recorded';
-export const isInspectionClosed = inspection => inspectionStatus(inspection) === 'closed';
+export const rfiStatusIndex = status => RFI_STATUSES.findIndex(s => s.id === status);
+export const rfiStatusLabel = status => RFI_STATUSES.find(s => s.id === status)?.label || 'Stage not recorded';
+export const isInspectionRejected = inspection => inspectionStatus(inspection) === 'rejected';
+// An RFI closed after a rejection keeps `rejectedFrom`: it is closed, but the inspection was never cleared.
+export const isInspectionClosedRejected = inspection => inspectionStatus(inspection) === 'closed' && !!inspection?.rejectedFrom;
+/** Position on the seven-stage tracker; a rejected RFI sits on the stage where it was rejected. */
+export const inspectionStatusIndex = inspection => rfiStatusIndex(isInspectionRejected(inspection) ? inspection.rejectedFrom : inspectionStatus(inspection));
+export function inspectionStatusLabel(inspection) {
+  if (isInspectionRejected(inspection)) return `Rejected at ${rfiStatusLabel(inspection.rejectedFrom)}`;
+  if (isInspectionClosedRejected(inspection)) return 'Closed (rejected)';
+  return rfiStatusLabel(inspectionStatus(inspection));
+}
+/** Closed and cleared: only an approved closure clears a linked planning hold point. */
+export const isInspectionClosed = inspection => inspectionStatus(inspection) === 'closed' && !inspection?.rejectedFrom;
 export const isInspectionDraft = inspection => inspectionStatus(inspection) === 'draft';
 export const isInspectionOpen = inspection => !!inspectionStatus(inspection) && !['draft', 'closed'].includes(inspectionStatus(inspection));
 export const nextInspectionTransition = inspection => RFI_TRANSITIONS[inspectionStatus(inspection)] || null;
@@ -138,6 +149,28 @@ export function canAdvanceInspection(user, inspection) {
   if (user?.systemRole === 'admin') return true;
   return transition.actor === 'site' ? canRaiseRfi(user) : user?.systemRole === transition.actor;
 }
+// Rejection: the RE (RE review, closure approval) or the RTO (site inspection) can reject at their own stage.
+// A rejected RFI is then rolled back to an earlier stage, or closed, by an engineer/manager. A closed RFI can be
+// rolled back only by the site owner. Every one of these steps needs a reason (mirrored in firestore.rules).
+export const RFI_REJECTERS = { re_review: 'RE', site_inspection: 'RTO', closure_applied: 'RE' };
+export const RFI_CLOSE_REJECTED_HISTORY = 'Closed rejected RFI';
+export const rfiRejectHistory = from => `Rejected at ${rfiStatusLabel(from)}`;
+export const rfiRollbackHistory = to => `Rolled back to ${rfiStatusLabel(to)}`;
+export const rfiSiteOwnerRollbackHistory = to => `Site owner rolled back to ${rfiStatusLabel(to)}`;
+export const RFI_REASON_MAX = 2000;
+export function canRejectInspection(user, inspection) {
+  const rejecter = RFI_REJECTERS[inspectionStatus(inspection)];
+  return !!rejecter && (user?.systemRole === 'admin' || user?.systemRole === rejecter);
+}
+export const canResolveRejectedInspection = (user, inspection) => isInspectionRejected(inspection) && canRaiseRfi(user);
+export const canRollbackClosedInspection = (user, inspection) => inspectionStatus(inspection) === 'closed' && user?.siteOwner === true;
+/** Stages an RFI can be rolled back to: Opened up to the rejected stage, or up to Closure Applied for a closed RFI. */
+export function rfiRollbackTargets(inspection) {
+  const status = inspectionStatus(inspection);
+  const last = status === 'rejected' ? rfiStatusIndex(inspection.rejectedFrom) : status === 'closed' ? rfiStatusIndex('closure_applied') : -1;
+  return last < 1 ? [] : RFI_STATUSES.slice(1, last + 1).map(s => s.id);
+}
+export const rfiReasonProblem = reason => !String(reason || '').trim() ? 'Enter a reason.' : String(reason).trim().length > RFI_REASON_MAX ? `Keep the reason under ${RFI_REASON_MAX} characters.` : '';
 export const canEditInspection = (user, inspection) => user?.systemRole === 'admin'
   || canRaiseRfi(user) && inspection?.createdBy === user?.email;
 // PDFs can be attached while the RFI is a draft or opened, i.e. before it is submitted for RE review.

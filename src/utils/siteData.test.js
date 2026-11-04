@@ -208,3 +208,20 @@ test('the RE or RTO rejects at their own stage; engineers/managers roll back or 
   assert.equal(rfiReasonProblem('Cover insufficient'), '');
   assert.match(rfiReasonProblem('x'.repeat(2001)), /under 2000/);
 });
+
+test('gantt window pads two weeks either side of the recorded dates', async () => {
+  const { ganttWindow, dayNumber } = await import('./siteData.js');
+  assert.equal(ganttWindow([]), null);
+  const w = ganttWindow([{ start: '2026-03-10', end: '2026-03-20' }, { start: '2026-03-05', end: '2026-03-05' }, { start: '2026-04-02', end: '2026-04-30' }], { at: '2026-04-01' });
+  assert.equal(w.startIso, '2026-02-19');
+  assert.equal(w.endIso, '2026-05-14');
+  assert.equal(w.span, dayNumber('2026-05-14') - dayNumber('2026-02-19') + 1);
+  assert.deepEqual(w.months.map(m => m.key), ['2026-02', '2026-03', '2026-04', '2026-05']);
+  assert.ok(Math.abs(w.months.reduce((s, m) => s + m.width, 0) - 100) < 1e-9);
+  assert.ok(w.weeks.every(k => new Date(`${k.iso}T00:00:00Z`).getUTCDay() === 1));
+  assert.equal(w.weeks[0].iso, '2026-02-23');
+  const bar = w.position('2026-03-05');
+  assert.ok(bar.left > 0 && bar.width > 0 && bar.left + bar.width < 100);
+  assert.equal(w.today.iso, '2026-04-01');
+  assert.equal(ganttWindow([{ start: '2026-03-10', end: '2026-03-20' }], { at: '2027-01-01' }).today, null);
+});

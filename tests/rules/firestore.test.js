@@ -2,9 +2,9 @@ import { before, after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, getDoc, deleteDoc, arrayUnion, serverTimestamp, Timestamp, Bytes } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getDoc, deleteDoc, arrayUnion, deleteField, serverTimestamp, Timestamp, Bytes } from 'firebase/firestore';
 import { createMemberProfile, canAdvanceInspection, RFI_STATUSES, RFI_TRANSITIONS } from '../../src/utils/siteData.js';
-import { createInspection, advanceInspection, removeInspectionFile, attachInspectionFile, readInspectionFile } from '../../src/services/inspections.js';
+import { createInspection, advanceInspection, changeInspectionOutcome, removeInspectionFile, attachInspectionFile, readInspectionFile } from '../../src/services/inspections.js';
 import { synchronizeProjectMembership } from '../../src/services/projectMembership.js';
 import { submitRecordDeletion, reviewRecordDeletion } from '../../src/services/recordDeletion.js';
 import { saveOwnProjectProfile } from '../../src/services/personalProfile.js';
@@ -75,6 +75,16 @@ test('planner updates persist only valid progress and preserve creator audit',as
   await assertSucceeds(updateDoc(doc(db,'artifacts/p/tasks/existing'),{progress:30,status:'In progress',updatedBy:'engineer@example.test',updatedAt:'2026-10-01'}));
   await assertFails(updateDoc(doc(db,'artifacts/p/tasks/existing'),{progress:120,updatedBy:'engineer@example.test',updatedAt:'2026-10-01'}));
   await assertFails(updateDoc(doc(db,'artifacts/p/tasks/existing'),{createdBy:'engineer@example.test',updatedBy:'engineer@example.test',updatedAt:'2026-10-01'}));
+});
+test('the name of the person who created a record is kept on later edits',async()=>{
+  const db=client('engineer'),email='engineer@example.test',ref=doc(db,'artifacts/p/tasks/named');
+  await assertFails(setDoc(doc(db,'artifacts/p/tasks/named-bad'),{...task(email),createdByName:42}));
+  await assertSucceeds(setDoc(ref,{...task(email),createdByName:'Aisha Tan'}));
+  await assertFails(updateDoc(ref,{createdByName:'Someone else',updatedBy:email,updatedAt:'2026-01-02'}));
+  await assertSucceeds(updateDoc(ref,{progress:10,updatedBy:email,updatedAt:'2026-01-02'}));
+  assert.equal((await getDoc(ref)).data().createdByName,'Aisha Tan');
+  const id=await createInspection(db,{projectId:'p',projectName:'Test project',currentUser:{systemRole:'engineer',name:'Aisha Tan'},email,details:{zone:'Named',discipline:'Structural',element:'Slab'}});
+  assert.equal((await getDoc(doc(db,`artifacts/p/inspections/${id}`))).data().createdByName,'Aisha Tan');
 });
 test('observation confirmations cannot be silently overwritten',async()=>{
   await assertFails(updateDoc(doc(client('admin'),'artifacts/p/monitoring/admin'),{noise:1,updatedBy:'admin@example.test',updatedAt:'2026-10-01'}));
@@ -159,6 +169,47 @@ test('seven-stage RFI transitions enforce the same role matrix as the interface'
     const result=updateDoc(doc(client(role),path),{status:next,history:[historyEntry(role,next)],...changed(role)});
     await (canAdvanceInspection({systemRole:role},{status})?assertSucceeds(result):assertFails(result));
   }
+});
+test('the RE/RTO reject at their stage, engineers roll back or close, and only the site owner reopens closed RFIs',async()=>{
+  const outcome=(role,id,expectedStatus,action,target='',reason='Cover to rebar insufficient',user=rfiUser(role))=>changeInspectionOutcome(client(role),{projectId:'p',id,expectedStatus,action,target,reason,currentUser:user,email:`${role}@example.test`});
+  const fresh=async(id,status,extra={})=>seed(`artifacts/p/inspections/${id}`,{status,history:[],comments:[],attachments:[],...extra,...audit('engineer@example.test')});
+  const read=async id=>(await getDoc(doc(client('guest'),`artifacts/p/inspections/${id}`))).data();
+  // Only the RE (RE review, closure) or the RTO (site inspection) can reject, and only with a reason.
+  await fresh('rej-re','re_review');
+  for(const role of ['engineer','manager','RTO','guest']) await assertFails(outcome(role,'rej-re','re_review','reject','','Reason',{...rfiUser(role),systemRole:'RE'}));
+  await assertFails(updateDoc(doc(client('RE'),'artifacts/p/inspections/rej-re'),{status:'rejected',rejectedFrom:'re_review',history:[{...historyEntry('RE','rejected'),action:'Rejected at Under RE Review'}],...changed('RE')}));
+  await assertSucceeds(outcome('RE','rej-re','re_review','reject'));
+  let rfi=await read('rej-re');
+  assert.equal(rfi.status,'rejected'); assert.equal(rfi.rejectedFrom,'re_review');
+  assert.equal(rfi.history.at(-1).action,'Rejected at Under RE Review'); assert.equal(rfi.history.at(-1).reason,'Cover to rebar insufficient');
+  await fresh('rej-rto','site_inspection');
+  await assertFails(outcome('RE','rej-rto','site_inspection','reject','','Reason',{...rfiUser('RE'),systemRole:'RTO'}));
+  await assertSucceeds(outcome('RTO','rej-rto','site_inspection','reject'));
+  await fresh('rej-next','next_work');
+  await assertFails(updateDoc(doc(client('RTO'),'artifacts/p/inspections/rej-next'),{status:'rejected',rejectedFrom:'next_work',history:[{...historyEntry('RTO','rejected'),action:'Rejected at Next Work Allowed',reason:'x'}],...changed('RTO')}));
+  // A rejected RFI is rolled back (no further than the rejected stage) or closed by an engineer/manager.
+  for(const role of ['RE','RTO','supervisor']) await assertFails(outcome(role,'rej-rto','rejected','rollback','opened','Reworked',{...rfiUser(role),systemRole:'engineer'}));
+  await assertFails(updateDoc(doc(client('engineer'),'artifacts/p/inspections/rej-rto'),{status:'next_work',history:[{...historyEntry('engineer','next_work'),action:'Rolled back to Next Work Allowed',reason:'x'}],rejectedFrom:deleteField(),...changed('engineer')}));
+  await assertFails(updateDoc(doc(client('engineer'),'artifacts/p/inspections/rej-rto'),{status:'opened',history:[{...historyEntry('engineer','opened'),action:'Rolled back to Opened',reason:'x'}],...changed('engineer')}));
+  await assertSucceeds(outcome('engineer','rej-rto','rejected','rollback','site_inspection','Rebar cover corrected'));
+  rfi=await read('rej-rto');
+  assert.equal(rfi.status,'site_inspection'); assert.equal('rejectedFrom' in rfi,false);
+  await assertSucceeds(outcome('manager','rej-re','rejected','closeRejected','','Element redesigned; new RFI raised'));
+  rfi=await read('rej-re');
+  assert.equal(rfi.status,'closed'); assert.equal(rfi.rejectedFrom,'re_review');
+  // Closed RFIs (cleared or rejected) reopen only through the site owner.
+  await fresh('closed-ok','closed');
+  const siteOwnerUser={systemRole:'admin',siteOwner:true,name:'Site owner'};
+  for(const id of ['closed-ok','rej-re']) {
+    for(const role of ['admin','manager','engineer','RE']) await assertFails(outcome(role,id,'closed','rollback','closure_applied','Reopen',{...rfiUser(role),siteOwner:true}));
+    await assertFails(updateDoc(doc(client('siteowner'),`artifacts/p/inspections/${id}`),{status:'draft',history:arrayUnion({email:'siteowner@example.test',user:'Site owner',role:'admin',timestamp:'2026-10-26',action:'Site owner rolled back to Draft',reason:'x'}),...changed('siteowner')}));
+  }
+  await assertSucceeds(outcome('siteowner','closed-ok','closed','rollback','closure_applied','Closure approved in error',siteOwnerUser));
+  await assertSucceeds(outcome('siteowner','rej-re','closed','rollback','opened','Rework accepted under this RFI',siteOwnerUser));
+  assert.equal((await read('closed-ok')).status,'closure_applied');
+  rfi=await read('rej-re');
+  assert.equal(rfi.status,'opened'); assert.equal('rejectedFrom' in rfi,false);
+  assert.equal(rfi.history.at(-1).action,'Site owner rolled back to Opened');
 });
 test('legacy five-stage RFIs continue through the new workflow',async()=>{
   const path='artifacts/p/inspections/legacy-rfi';

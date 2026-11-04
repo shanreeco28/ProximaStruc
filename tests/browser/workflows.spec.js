@@ -4,6 +4,8 @@ const errorsByPage = new WeakMap();
 test.beforeEach(async ({page}) => { const errors=[]; errorsByPage.set(page,errors); page.on('pageerror',error=>errors.push(error.message)); });
 test.afterEach(async ({page}) => { expect(errorsByPage.get(page)).toEqual([]); });
 const open = (page, view='calendar', role='admin', suffix='') => page.goto(`/tests/browser/harness.html?view=${view}&role=${role}${suffix}`);
+// RFIs are listed one per line; selecting one opens its own page with the full details.
+const openRfi = async (page, view='inspections', role='admin', suffix='') => { await open(page,view,role,suffix); await page.getByRole('button',{name:'TEST-RFI',exact:true}).click(); };
 const fillActivity = async page => {
   await page.getByRole('button',{name:'+ Add activity'}).click();
   await page.getByLabel('Activity',{exact:true}).fill('Install formwork');
@@ -177,22 +179,48 @@ test('RFI steps follow engineer/manager → RE → RTO → engineer/manager → 
   for (const [role,status,label] of [['engineer','draft','Open RFI'],['supervisor','draft',null],['guest','draft',null],['manager','opened','Submit for RE review'],['RE','opened',null],
     ['RE','re_review','Allow site inspection'],['engineer','re_review',null],['RTO','re_review',null],['RTO','site_inspection','Allow next work'],['RE','site_inspection',null],
     ['manager','next_work','Apply for RFI closure'],['RTO','next_work',null],['RE','closure_applied','Approve RFI closure'],['engineer','closure_applied',null],['admin','closure_applied','Approve RFI closure']]) {
-    await open(page,'inspections',role,`&status=${status}`);
+    await openRfi(page,'inspections',role,`&status=${status}`);
     await expect(page.getByRole('heading',{name:'Test slab',exact:true})).toBeVisible();
     await expect(page.getByRole('button',{name:/ →$/})).toHaveCount(label?1:0);
     if (label) await expect(page.getByRole('button',{name:`${label} →`})).toBeVisible();
   }
-  await open(page,'inspections','RE','&stage=1');
+  await openRfi(page,'inspections','RE','&stage=1');
   await expect(page.getByRole('button',{name:'Allow site inspection →'})).toBeVisible();
 });
+test('RFI register shows one line per RFI and opens a details page', async ({page}) => {
+  await open(page,'inspections','engineer','&status=re_review');
+  await expect(page.getByRole('columnheader')).toHaveText(['RFI No.','Description','Stage','Assigned RE']);
+  await expect(page.getByRole('row').filter({hasText:'TEST-RFI'}).getByRole('cell')).toHaveText(['TEST-RFI','Test slab','Under RE Review','Not recorded']);
+  await expect(page.getByText('Target Concrete Pour')).toHaveCount(0);
+  await page.getByRole('cell',{name:'Test slab'}).click();
+  await expect(page.getByRole('heading',{name:'Test slab',exact:true})).toBeFocused();
+  await expect(page).toHaveURL(/#rfi=TEST-RFI$/);
+  for (const text of ['Assigned RE','RTO site inspection','Any RTO on duty','Target Concrete Pour','2026-11-10','Linked BBS'])
+    await expect(page.getByText(text,{exact:true})).toBeVisible();
+  await expect(page.getByText('Created by Fixture Creator')).toBeVisible();
+  await expect(page.getByText(/Assigned RTO/)).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByRole('columnheader',{name:'Stage'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Test slab',exact:true})).toHaveCount(0);
+});
+test('no RTO is assigned and any RTO can carry out the site inspection', async ({page}) => {
+  await open(page,'inspections','engineer');
+  await page.getByRole('button',{name:'+ Add RFI'}).click();
+  await expect(page.getByRole('dialog').getByLabel(/RTO/)).toHaveCount(0);
+  await expect(page.getByRole('dialog').getByLabel('Assigned RE')).toBeVisible();
+  await openRfi(page,'inspections','RTO','&status=site_inspection');
+  await expect(page.getByText('Awaiting RTO on duty',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Allow next work →'}).click();
+  await expect(page.getByText(/^Fixture RTO · /)).toBeVisible();
+});
 test('admin walks an RFI from draft to closed with audit history', async ({page}) => {
-  await open(page,'inspections','admin');
+  await openRfi(page,'inspections','admin');
   for (const label of ['Open RFI','Submit for RE review','Allow site inspection','Allow next work','Apply for RFI closure','Approve RFI closure']) {
     await page.getByRole('button',{name:`${label} →`}).click();
   }
   await expect(page.getByText('✓ RFI closed')).toBeVisible();
   await expect(page.getByRole('list',{name:'TEST-RFI review stages'}).getByRole('listitem')).toHaveCount(7);
-  await page.getByRole('button',{name:/Show Comments & History/}).click();
+  await expect(page.getByText(/^Fixture admin · /)).toBeVisible();
   for (const text of ['Opened RFI','Submitted for RE review','RE allowed site inspection (RTO)','RTO allowed next work','Applied for RFI closure','RE approved closure — RFI closed'])
     await expect(page.getByText(text,{exact:true})).toBeVisible();
 });
@@ -208,7 +236,7 @@ test('engineers draft RFIs with automatic references and attach PDFs before RE s
   await expect(dialog.getByLabel('RFI ID')).toHaveText('Test project_East-STR-001');
   await dialog.getByLabel('Discipline').selectOption('Architectural');
   await expect(dialog.getByLabel('RFI ID')).toHaveText('Test project_East-AR-001');
-  await dialog.getByLabel('Element',{exact:true}).fill('Level 3 wall');
+  await dialog.getByLabel('Description',{exact:true}).fill('Level 3 wall');
   await dialog.getByLabel('Target cast').fill('');
   await dialog.getByRole('button',{name:/Open RFI/}).click();
   await expect(dialog.getByRole('alert')).toContainText('target cast date');
@@ -238,29 +266,32 @@ test('engineers draft RFIs with automatic references and attach PDFs before RE s
   await expect(card.getByRole('button',{name:'Remove Drawing A-101.pdf'})).toHaveCount(0);
   await expect(card.getByText('Locked after RE submission')).toBeVisible();
   await expect(card.getByText('Awaiting RE')).toBeVisible();
+  await expect(card.getByText('Created by')).toBeVisible();
+  await page.getByRole('button',{name:'Back to RFI register'}).click();
+  const row = page.getByRole('row').filter({hasText:id});
+  await expect(row.getByRole('cell')).toHaveText([id,'Level 3 wall','Under RE Review','Not recorded']);
+  await expect(page.getByRole('button',{name:id,exact:true})).toBeFocused();
 });
 test('RTO comments persist and rejected comments retain the input', async ({page}) => {
-  await open(page,'inspections','RTO');
-  await page.getByRole('button',{name:/Show Comments & History/}).click();
+  await openRfi(page,'inspections','RTO');
   await page.getByLabel('Comment on TEST-RFI').fill('Site inspection observation');
   await page.getByRole('button',{name:'Send',exact:true}).click();
   await expect(page.getByText('Site inspection observation',{exact:true})).toBeVisible();
   await expect(page.getByLabel('Comment on TEST-RFI')).toHaveValue('');
-  await open(page,'inspections','RTO','&fail=1');
-  await page.getByRole('button',{name:/Show Comments & History/}).click();
+  await openRfi(page,'inspections','RTO','&fail=1');
   await page.getByLabel('Comment on TEST-RFI').fill('Keep this comment');
   await page.getByRole('button',{name:'Send',exact:true}).click();
   await expect(page.getByRole('alert')).toHaveText('Test write rejected');
   await expect(page.getByLabel('Comment on TEST-RFI')).toHaveValue('Keep this comment');
 });
 test('admins delete RFIs directly while creators request independent verification', async ({page}) => {
-  await open(page,'inspections','admin','&fail=1');
+  await openRfi(page,'inspections','admin','&fail=1');
   await page.getByRole('button',{name:'Delete Test slab',exact:true}).click();
   await page.getByLabel('Reason for deletion').fill('Duplicate RFI');
   await page.getByRole('button',{name:'Delete record',exact:true}).click();
   await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Test write rejected');
   await expect(page.getByRole('heading',{name:'Test slab',exact:true})).toHaveCount(1);
-  await open(page,'inspections','supervisor');
+  await openRfi(page,'inspections','supervisor');
   await expect(page.getByRole('button',{name:'Request deletion of Test slab',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Delete Test slab',exact:true})).toHaveCount(0);
 });
@@ -386,4 +417,84 @@ test('failed access changes keep the form and show an error', async ({page}) => 
   await panel.getByRole('button',{name:'Grant access'}).click();
   await expect(panel.getByRole('alert')).toHaveText('Test write rejected');
   await expect(panel.getByLabel('Sign-in email')).toHaveValue('someone@example.test');
+});
+test('every record shows who created it by name', async ({page}) => {
+  for (const view of ['calendar','materials','lifting']) {
+    await open(page,view,'admin','&seed=1');
+    await expect(page.getByText('Created by Fixture Creator').first()).toBeVisible();
+  }
+  await open(page,'diary','admin','&diaryDraft=1');
+  await expect(page.getByText('Created by Fixture Creator')).toHaveCount(2);
+  await open(page,'calendar','engineer','&email=person@example.test');
+  await fillActivity(page);
+  await page.getByRole('button',{name:'Save activity',exact:true}).click();
+  await expect(page.getByText('Created by Test member')).toBeVisible();
+});
+test('the RE or RTO rejects at their stage with a reason; engineers roll back or close the rejected RFI', async ({page}) => {
+  for (const [role,status,label] of [['RE','re_review','Reject (RE)'],['RTO','site_inspection','Reject (RTO)'],['RE','closure_applied','Reject closure'],['admin','site_inspection','Reject (RTO)'],
+    ['RTO','re_review',null],['RE','site_inspection',null],['engineer','site_inspection',null],['manager','re_review',null],['RE','next_work',null],['RE','closed',null]]) {
+    await openRfi(page,'inspections',role,`&status=${status}`);
+    await expect(page.getByRole('button',{name:/^Reject/})).toHaveCount(label?1:0);
+    if (label) await expect(page.getByRole('button',{name:label})).toBeVisible();
+  }
+  await openRfi(page,'inspections','RTO','&status=site_inspection');
+  await page.getByRole('button',{name:'Reject (RTO)'}).click();
+  const dialog = page.getByRole('dialog',{name:'Reject inspection'});
+  await dialog.getByRole('button',{name:'Reject',exact:true}).click();
+  await expect(dialog).toBeVisible();
+  expect(await dialog.getByLabel('Reason').evaluate(el => el.validity.valueMissing)).toBe(true);
+  await dialog.getByLabel('Reason').fill('   ');
+  await dialog.getByRole('button',{name:'Reject',exact:true}).click();
+  await expect(dialog.getByRole('alert')).toHaveText('Enter a reason.');
+  await dialog.getByLabel('Reason').fill('Cover to rebar insufficient at grid C4');
+  await dialog.getByRole('button',{name:'Reject',exact:true}).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.badge',{hasText:/^Rejected at Site Inspection \(RTO\)$/})).toBeVisible();
+  await expect(page.getByRole('note')).toContainText('Rejected at Site Inspection (RTO) by Fixture RTO');
+  await expect(page.getByRole('note')).toContainText('Reason: Cover to rebar insufficient at grid C4');
+  await expect(page.getByText('Awaiting engineer / manager: roll back or close')).toBeVisible();
+  await expect(page.getByRole('button',{name:/Roll back/})).toHaveCount(0);
+});
+test('engineers roll back a rejected RFI to a chosen earlier stage or close it as rejected', async ({page}) => {
+  await openRfi(page,'inspections','engineer','&status=rejected&rejectedFrom=site_inspection');
+  await expect(page.getByRole('note')).toContainText('Reason: Cover to rebar insufficient');
+  await expect(page.getByRole('list',{name:'TEST-RFI review stages'}).locator('[data-state="rejected"]')).toHaveText(/Site Inspection \(RTO\)/);
+  await page.getByRole('button',{name:'Roll back…'}).click();
+  const dialog = page.getByRole('dialog',{name:'Roll back rejected RFI'});
+  await expect(dialog.getByLabel('Roll back to').locator('option')).toHaveText(['Site Inspection (RTO)','Under RE Review','Opened']);
+  await dialog.getByLabel('Roll back to').selectOption({label:'Opened'});
+  await dialog.getByLabel('Reason').fill('Rebar cover corrected; resubmitting drawings');
+  await dialog.getByRole('button',{name:'Roll back RFI'}).click();
+  await expect(page.locator('.badge',{hasText:/^Opened$/})).toBeVisible();
+  await expect(page.getByRole('note')).toHaveCount(0);
+  await expect(page.getByText('Rolled back to Opened',{exact:true})).toBeVisible();
+  await expect(page.getByLabel('Upload PDF to TEST-RFI')).toHaveCount(1);
+  await expect(page.getByRole('button',{name:'Submit for RE review →'})).toBeVisible();
+
+  await openRfi(page,'inspections','manager','&status=rejected&rejectedFrom=re_review');
+  await page.getByRole('button',{name:'Close RFI'}).click();
+  const close = page.getByRole('dialog',{name:'Close rejected RFI'});
+  await close.getByLabel('Reason').fill('Element redesigned; new RFI raised');
+  await close.getByRole('button',{name:'Close RFI'}).click();
+  await expect(page.getByText('✕ Closed (rejected)')).toBeVisible();
+  await expect(page.getByText('✓ RFI closed')).toHaveCount(0);
+  await page.getByRole('button',{name:'Back to RFI register'}).click();
+  await expect(page.getByRole('row').filter({hasText:'TEST-RFI'}).getByRole('cell').nth(2)).toHaveText('Closed (rejected)');
+  await page.getByRole('button',{name:'Rejected',exact:true}).click();
+  await expect(page.getByText('No RFI records for this selection.')).toBeVisible();
+});
+test('only the site owner can roll back a closed RFI', async ({page}) => {
+  for (const role of ['admin','manager','engineer','RE','RTO']) {
+    await openRfi(page,'inspections',role,'&status=closed');
+    await expect(page.getByRole('button',{name:/Roll back/})).toHaveCount(0);
+  }
+  await openRfi(page,'inspections','admin','&status=closed&siteOwner=1');
+  await page.getByRole('button',{name:'Roll back (site owner)…'}).click();
+  const dialog = page.getByRole('dialog',{name:'Roll back closed RFI'});
+  await expect(dialog.getByLabel('Roll back to').locator('option')).toHaveText(['Closure Applied','Next Work Allowed','Site Inspection (RTO)','Under RE Review','Opened']);
+  await dialog.getByLabel('Reason').fill('Closure approved in error');
+  await dialog.getByRole('button',{name:'Roll back RFI'}).click();
+  await expect(page.locator('.badge',{hasText:/^Closure Applied$/})).toBeVisible();
+  await expect(page.getByText('Site owner rolled back to Closure Applied',{exact:true})).toBeVisible();
+  await expect(page.getByText('Reason: Closure approved in error')).toBeVisible();
 });

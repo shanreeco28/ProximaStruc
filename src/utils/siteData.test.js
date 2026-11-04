@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canPlan, canRecordSite, canWrite, dayNumber, projectProgress, scheduleRows, taskConstraints, validateTask, validateMaterial, latestObservation, taskStatus, taskProgress, canAdvanceInspection, canEditInspection, isInspectionClosed, createMemberProfile, inspectionStatus, inspectionStatusLabel, isInspectionOpen, nextInspectionTransition, RFI_STATUSES, canManageInspectionFiles, canRemoveInspectionFile, validateRfiFile, rfiPrefix, formatRfiId, highestRfiNumber, rfiIdSegment, diaryStatus, isDiaryDraft, recordedDiaryEntries, diaryEntryProblem, validateDiaryPhotoSource, canManageDiaryPhotos, canRemoveDiaryPhoto, DIARY_PHOTO_MAX } from './siteData.js';
+import { canPlan, canRecordSite, canWrite, dayNumber, projectProgress, scheduleRows, taskConstraints, validateTask, validateMaterial, latestObservation, taskStatus, taskProgress, canAdvanceInspection, canEditInspection, isInspectionClosed, createMemberProfile, inspectionStatus, inspectionStatusLabel, isInspectionOpen, nextInspectionTransition, RFI_STATUSES, canManageInspectionFiles, canRemoveInspectionFile, validateRfiFile, rfiPrefix, formatRfiId, highestRfiNumber, rfiIdSegment, diaryStatus, isDiaryDraft, recordedDiaryEntries, diaryEntryProblem, validateDiaryPhotoSource, canManageDiaryPhotos, canRemoveDiaryPhoto, DIARY_PHOTO_MAX, creatorName, personName, canRejectInspection, canResolveRejectedInspection, canRollbackClosedInspection, rfiRollbackTargets, isInspectionRejected, isInspectionClosedRejected, inspectionStatusIndex, rfiReasonProblem } from './siteData.js';
 
 test('role permissions deny unknown users, protect admin observations, and separate planning from site records', () => {
   for (const role of ['admin','manager','engineer','supervisor','guest','RE','RTO',undefined]) {
@@ -159,4 +159,52 @@ test('diary photos accept images within limits and are managed only while the en
   assert.equal(canRemoveDiaryPhoto({ systemRole: 'admin', email: 'other@x' }, draft, photo), true);
   assert.equal(canRemoveDiaryPhoto({ systemRole: 'manager', email: 'other@x' }, draft, photo), false);
   assert.equal(canRemoveDiaryPhoto({ systemRole: 'admin', email: 'other@x' }, { status: 'submitted' }, photo), false);
+});
+test('records show the name of the person who created them', () => {
+  const people = [{ id: 'eng@example.test', email: 'eng@example.test', name: 'Aisha Tan' }, { id: 'legacy', email: 'Old@Example.test', name: '  ' }];
+  assert.equal(creatorName({ createdBy: 'eng@example.test', createdByName: 'Aisha T.' }, people), 'Aisha T.');
+  assert.equal(creatorName({ createdBy: 'ENG@example.test' }, people), 'Aisha Tan');
+  assert.equal(creatorName({ createdBy: 'old@example.test' }, people), 'old@example.test');
+  assert.equal(creatorName({ createdBy: 'gone@example.test', createdByName: ' ' }, people), 'gone@example.test');
+  assert.equal(creatorName({}, people), '');
+  assert.equal(personName('', people), '');
+});
+test('the RE or RTO rejects at their own stage; engineers/managers roll back or close; only the site owner reopens closed RFIs', () => {
+  const as = systemRole => ({ systemRole, email: `${systemRole}@example.test` });
+  for (const [status, who] of [['re_review', 'RE'], ['site_inspection', 'RTO'], ['closure_applied', 'RE']]) {
+    for (const role of ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin']) {
+      assert.equal(canRejectInspection(as(role), { status }), role === who || role === 'admin', `${role} at ${status}`);
+    }
+  }
+  for (const status of ['draft', 'opened', 'next_work', 'closed', 'rejected']) assert.equal(canRejectInspection(as('admin'), { status }), false);
+  const rejected = { status: 'rejected', rejectedFrom: 'site_inspection' };
+  assert.equal(isInspectionRejected(rejected), true);
+  assert.equal(inspectionStatus(rejected), 'rejected');
+  assert.equal(inspectionStatusLabel(rejected), 'Rejected at Site Inspection (RTO)');
+  assert.equal(inspectionStatusIndex(rejected), 3);
+  assert.equal(isInspectionOpen(rejected), true);
+  assert.equal(nextInspectionTransition(rejected), null);
+  assert.deepEqual(rfiRollbackTargets(rejected), ['opened', 're_review', 'site_inspection']);
+  assert.deepEqual(rfiRollbackTargets({ status: 'rejected', rejectedFrom: 're_review' }), ['opened', 're_review']);
+  for (const role of ['engineer', 'manager', 'admin']) assert.equal(canResolveRejectedInspection(as(role), rejected), true);
+  for (const role of ['guest', 'supervisor', 'RE', 'RTO']) assert.equal(canResolveRejectedInspection(as(role), rejected), false);
+  assert.equal(canResolveRejectedInspection(as('engineer'), { status: 'site_inspection' }), false);
+  // Closed after rejection: closed, but never cleared, so a linked hold point stays unresolved.
+  const closedRejected = { id: 'R', status: 'closed', rejectedFrom: 're_review' };
+  assert.equal(isInspectionClosedRejected(closedRejected), true);
+  assert.equal(isInspectionClosed(closedRejected), false);
+  assert.equal(isInspectionOpen(closedRejected), false);
+  assert.equal(inspectionStatusLabel(closedRejected), 'Closed (rejected)');
+  assert.deepEqual(taskConstraints({ inspectionId: 'R' }, { inspections: [closedRejected] }), ['Inspection not cleared']);
+  assert.deepEqual(taskConstraints({ inspectionId: 'R' }, { inspections: [{ id: 'R', status: 'closed' }] }), []);
+  for (const closed of [{ status: 'closed' }, closedRejected, { stage: 4 }]) {
+    assert.equal(canRollbackClosedInspection({ systemRole: 'admin', siteOwner: true }, closed), true);
+    assert.equal(canRollbackClosedInspection(as('admin'), closed), false);
+    assert.deepEqual(rfiRollbackTargets(closed), ['opened', 're_review', 'site_inspection', 'next_work', 'closure_applied']);
+  }
+  assert.equal(canRollbackClosedInspection({ systemRole: 'admin', siteOwner: true }, { status: 'closure_applied' }), false);
+  assert.deepEqual(rfiRollbackTargets({ status: 'next_work' }), []);
+  assert.equal(rfiReasonProblem('  '), 'Enter a reason.');
+  assert.equal(rfiReasonProblem('Cover insufficient'), '');
+  assert.match(rfiReasonProblem('x'.repeat(2001)), /under 2000/);
 });

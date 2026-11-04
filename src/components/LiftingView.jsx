@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Gauge, MapPin, Radio, Wind } from 'lucide-react';
 import DeleteRecordAction from './DeleteRecordAction';
+import CreatedBy from './CreatedBy';
 import { canPlan } from '../utils/siteData';
 import { observationValue } from '../utils/monitoring';
 import { Field, SaveForm, RecordModal } from './RecordForm';
@@ -60,7 +61,10 @@ export default function LiftingView({ lifts, onToggleLift, onAdd, currentUser, z
                 </div>
               </div>
               <div className="card-footer">
-                <span className="text-xs text-muted">Last update: <strong style={{ color: 'var(--text)' }} className="tabular">{ptw.updatedAt?.slice(0, 10) || ptw.date || 'Not recorded'}</strong></span>
+                <span className="flex flex-col gap-1 min-w-0">
+                  <CreatedBy record={ptw} />
+                  <span className="text-xs text-muted">Last update: <strong style={{ color: 'var(--text)' }} className="tabular">{ptw.updatedAt?.slice(0, 10) || ptw.date || 'Not recorded'}</strong></span>
+                </span>
                 <div className="flex flex-wrap items-center gap-2">
                   <DeleteRecordAction collection="lifts" record={ptw} />
                   {permitted && <button onClick={() => onToggleLift && onToggleLift(ptw.id)} className={`btn btn-sm ${isActive ? 'btn-danger-soft' : 'btn-success'}`}>{isActive ? 'Record suspension' : 'Record PTW activation'}</button>}

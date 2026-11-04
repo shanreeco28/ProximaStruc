@@ -1,11 +1,14 @@
-import { Bytes, deleteDoc, doc, getDoc, runTransaction, setDoc } from 'firebase/firestore';
+import { Bytes, deleteDoc, deleteField, doc, getDoc, runTransaction, setDoc } from 'firebase/firestore';
 import {
   canAdvanceInspection, canEditInspection, canManageInspectionFiles, canRaiseRfi, canRemoveInspectionFile,
+  canRejectInspection, canResolveRejectedInspection, canRollbackClosedInspection, rfiRollbackTargets, rfiReasonProblem,
+  rfiRejectHistory, rfiRollbackHistory, rfiSiteOwnerRollbackHistory, RFI_CLOSE_REJECTED_HISTORY,
   disciplineCode, formatRfiId, highestRfiNumber, inspectionStatus, nextInspectionTransition, rfiPrefix,
   RFI_CHUNK_BYTES, RFI_FILE_CATEGORIES, RFI_MAX_FILES, validateRfiFile,
 } from '../utils/siteData.js';
 
-const DETAIL_FIELDS = ['zone', 'discipline', 'element', 'rtoName', 'reName', 'targetCast', 'bbsLinked'];
+// No RTO is assigned to an RFI: the RTO on duty that day carries out the site inspection (any RTO may advance it).
+const DETAIL_FIELDS = ['zone', 'discipline', 'element', 'reName', 'targetCast', 'bbsLinked'];
 const actorEntry = (currentUser, email, timestamp) => ({ user: currentUser.name || email, email, role: currentUser.systemRole, timestamp });
 
 /**
@@ -13,7 +16,7 @@ const actorEntry = (currentUser, email, timestamp) => ({ user: currentUser.name 
  * The per-prefix counter and the RFI are written in one transaction so concurrent
  * users never receive the same number and numbers of deleted RFIs are not reused.
  */
-export async function createInspection(db, { projectId, projectName, currentUser, email, details, status = 'draft', knownIds = [] }) {
+export async function createInspection(db, { projectId, projectName, currentUser, email, creatorName = '', details, status = 'draft', knownIds = [] }) {
   if (!canRaiseRfi(currentUser)) throw new Error('Only engineers, managers and admins can raise RFIs.');
   if (!['draft', 'opened'].includes(status)) throw new Error('New RFIs start as a draft or opened RFI.');
   if (!details.zone || !disciplineCode(details.discipline) || !details.element?.trim()) throw new Error('Select a zone and discipline and enter the element.');
@@ -34,7 +37,7 @@ export async function createInspection(db, { projectId, projectName, currentUser
     const timestamp = new Date().toISOString();
     transaction.set(doc(db, `artifacts/${projectId}/inspections`, id), {
       ...fields, status, rfiPrefix: prefix, rfiNumber: number,
-      attachments: [], history: [], comments: [], createdBy: email, createdAt: timestamp,
+      attachments: [], history: [], comments: [], createdBy: email, createdByName: creatorName || currentUser.name || email, createdAt: timestamp,
     });
     transaction.set(counterRef, counter.exists()
       ? { ...counter.data(), last: number, lastId: id, updatedBy: email, updatedAt: timestamp }
@@ -72,6 +75,45 @@ export async function advanceInspection(db, { projectId, id, expectedStatus, cur
     transaction.update(ref, {
       status: transition.to,
       history: [...(inspection.history || []), { ...actorEntry(currentUser, email, timestamp), action: transition.history }],
+      updatedBy: email, updatedAt: timestamp,
+    });
+  });
+}
+
+/**
+ * Rejection and rollback steps. Each runs in a transaction that rejects stale updates and appends an audit entry
+ * with the reason. `action` is 'reject', 'rollback' (rejected or, for the site owner, closed RFIs) or 'closeRejected'.
+ */
+export async function changeInspectionOutcome(db, { projectId, id, expectedStatus, action, target = '', reason, currentUser, email }) {
+  const problem = rfiReasonProblem(reason);
+  if (problem) throw new Error(problem);
+  const ref = doc(db, `artifacts/${projectId}/inspections`, id);
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists()) throw new Error('This inspection no longer exists.');
+    const inspection = snapshot.data();
+    const from = inspectionStatus(inspection);
+    if (from !== expectedStatus) throw new Error('The inspection changed. Review its current stage and retry.');
+    let changes, historyText;
+    if (action === 'reject') {
+      if (!canRejectInspection(currentUser, inspection)) throw new Error('Only the RE or RTO at this stage can reject the inspection.');
+      changes = { status: 'rejected', rejectedFrom: from }; historyText = rfiRejectHistory(from);
+    } else if (action === 'closeRejected') {
+      if (!canResolveRejectedInspection(currentUser, inspection)) throw new Error('Only engineers, managers and admins can close a rejected RFI.');
+      changes = { status: 'closed' }; historyText = RFI_CLOSE_REJECTED_HISTORY;
+    } else if (action === 'rollback') {
+      const closed = from === 'closed';
+      if (closed ? !canRollbackClosedInspection(currentUser, inspection) : !canResolveRejectedInspection(currentUser, inspection)) {
+        throw new Error(closed ? 'Only the site owner can roll back a closed RFI.' : 'Only engineers, managers and admins can roll back a rejected RFI.');
+      }
+      if (!rfiRollbackTargets(inspection).includes(target)) throw new Error('Choose a stage to roll back to.');
+      changes = { status: target, ...('rejectedFrom' in inspection ? { rejectedFrom: deleteField() } : {}) };
+      historyText = closed ? rfiSiteOwnerRollbackHistory(target) : rfiRollbackHistory(target);
+    } else throw new Error('Unknown RFI action.');
+    const timestamp = new Date().toISOString();
+    transaction.update(ref, {
+      ...changes,
+      history: [...(inspection.history || []), { ...actorEntry(currentUser, email, timestamp), action: historyText, reason: reason.trim() }],
       updatedBy: email, updatedAt: timestamp,
     });
   });

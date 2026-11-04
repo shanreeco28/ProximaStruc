@@ -88,15 +88,15 @@ test('RFI search combines reference and zone with the discipline filter and a cl
   await open(page, 'inspections');
   const search = page.getByRole('searchbox', { name: 'Search RFIs' });
   await search.fill('test-rfi EAST');
-  await expect(page.getByRole('heading', { name: 'Test slab', exact: true })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'TEST-RFI' })).toBeVisible();
   await page.getByRole('button', { name: 'M&E Sleeve / Conduit', exact: true }).click();
   await expect(page.getByText('No RFI records for this selection.')).toBeVisible();
   await page.getByRole('button', { name: 'Structural', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Test slab', exact: true })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'TEST-RFI' })).toBeVisible();
   await search.fill('unmatched');
   await expect(page.getByText('No RFI records for this selection.')).toBeVisible();
   await page.getByRole('button', { name: 'Clear search rfis' }).click();
-  await expect(page.getByRole('heading', { name: 'Test slab', exact: true })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'TEST-RFI' })).toBeVisible();
 });
 
 test('diary search handles accents, details and combined date/category filters', async ({ page }) => {

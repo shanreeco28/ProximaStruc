@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import WorkspaceShell from './components/WorkspaceShell';
 import PMCommandDashboard from './components/PMCommandDashboard';
 import { RecordDeletionContext } from './contexts/RecordDeletionContext';
+import { PeopleContext } from './contexts/PeopleContext';
 import DeletionReviewPanel from './components/DeletionReviewPanel';
 import { submitRecordDeletion, reviewRecordDeletion } from './services/recordDeletion';
 import { isDeletionReviewer } from './utils/deletions';
@@ -21,7 +22,7 @@ import useSiteOwner from './hooks/useSiteOwner';
 import useProjectMembers from './hooks/useProjectMembers';
 import { grantProjectAccess, revokeProjectAccess, setProjectAccessRole } from './services/projectAccess';
 import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canCommentInspection, isInspectionClosed, isInspectionOpen, taskStatus, recordedDiaryEntries } from './utils/siteData';
-import { createInspection, updateInspectionDetails, advanceInspection, attachInspectionFile, readInspectionFile, removeInspectionFile } from './services/inspections';
+import { createInspection, updateInspectionDetails, advanceInspection, changeInspectionOutcome, attachInspectionFile, readInspectionFile, removeInspectionFile } from './services/inspections';
 import { saveDiaryEntry, readDiaryPhoto, deleteDiaryPhotoFiles } from './services/siteDiary';
 
 import { auth, db } from './firebase';
@@ -96,7 +97,7 @@ export default function App() {
 
   const ownProfile = personnel.find(p => p.id === user?.email?.toLowerCase());
   const currentUser = liveProject && (liveProject.ownerId === user?.uid || isSiteOwner)
-    ? { email: user?.email, name: ownProfile?.name || user?.displayName || user?.email, systemRole: 'admin' }
+    ? { email: user?.email, name: ownProfile?.name || user?.displayName || user?.email, systemRole: 'admin', siteOwner: isSiteOwner }
     : user?.emailVerified ? (personnel.find(p => p.id === user.email?.toLowerCase()) || personnel.find(p => p.email?.toLowerCase() === user.email?.toLowerCase())) : undefined;
   const isPrivileged = canPlan(currentUser);
   const isAdmin = currentUser?.systemRole === 'admin';
@@ -126,13 +127,15 @@ export default function App() {
     return arr.filter(item => item.zone === selectedZone);
   };
 
+  const creatorDisplayName = () => (currentUser?.name || user?.displayName || user?.email || '').trim().slice(0, 200);
   const assertPermission = (collectionName) => {
     if (!selectedProject || !user || !canWrite(currentUser, collectionName)) throw new Error('Your project role does not permit this change.');
   };
   const addRecord = async (collectionName, record) => {
     assertPermission(collectionName);
     if (record.id && (record.id.includes('/') || !record.id.trim())) throw new Error('Record references must be nonempty and cannot contain a slash.');
-    const recordWithMeta = { ...record, createdBy: user.email, createdAt: new Date().toISOString() };
+    // createdByName records who opened the record so every view can show "Created by <name>".
+    const recordWithMeta = { ...record, createdBy: user.email, createdByName: creatorDisplayName(), createdAt: new Date().toISOString() };
     const ref = record.id
       ? doc(db, `artifacts/${selectedProject.id}/${collectionName}`, record.id)
       : doc(collection(db, `artifacts/${selectedProject.id}/${collectionName}`));
@@ -146,8 +149,8 @@ export default function App() {
   const updateRecord = async (collectionName, id, updates) => {
     assertPermission(collectionName);
     if (collectionName === 'inspections') throw new Error('Use the inspection workflow to change RFIs.');
-    const { id: ignoredId, createdBy: ignoredCreator, createdAt: ignoredDate, ...fields } = updates;
-    void ignoredId; void ignoredCreator; void ignoredDate;
+    const { id: ignoredId, createdBy: ignoredCreator, createdByName: ignoredCreatorName, createdAt: ignoredDate, ...fields } = updates;
+    void ignoredId; void ignoredCreator; void ignoredCreatorName; void ignoredDate;
     await updateDoc(doc(db, `artifacts/${selectedProject.id}/${collectionName}`, id), {
       ...fields, updatedBy: user.email, updatedAt: new Date().toISOString()
     });
@@ -210,13 +213,14 @@ export default function App() {
   };
   const inspectionContext = () => {
     if (!selectedProject || !user) throw new Error('Select a project first.');
-    return { projectId: selectedProject.id, currentUser, email: user.email };
+    return { projectId: selectedProject.id, currentUser, email: user.email, creatorName: creatorDisplayName() };
   };
   const handleCreateInspection = (details, status) => createInspection(db, {
     ...inspectionContext(), projectName: liveProject?.name || selectedProject.name, details, status, knownIds: inspections.map(i => i.id),
   });
   const handleUpdateInspection = (id, details) => updateInspectionDetails(db, { ...inspectionContext(), id, details });
   const handleAdvanceInspection = (id, expectedStatus) => advanceInspection(db, { ...inspectionContext(), id, expectedStatus });
+  const handleInspectionOutcome = (id, expectedStatus, action, reason, target) => changeInspectionOutcome(db, { ...inspectionContext(), id, expectedStatus, action, reason, target });
   const handleAttachInspectionFile = (id, file, category, onProgress) => attachInspectionFile(db, { ...inspectionContext(), id, file, category, onProgress });
   const handleRemoveInspectionFile = (id, fileId) => removeInspectionFile(db, { ...inspectionContext(), id, fileId });
   const handleOpenInspectionFile = async attachment => {
@@ -352,6 +356,7 @@ export default function App() {
   };
   return (
     <RecordDeletionContext.Provider value={deletionContext}>
+    <PeopleContext.Provider value={personnel}>
     <WorkspaceShell project={liveProject} navGroups={dynamicNavGroups} activeTab={activeTab} onNavigate={setActiveTab}
       zones={zones} selectedZone={selectedZone} onZoneChange={setSelectedZone} onAddZone={handleAddZone} canAddZone={isPrivileged}
       observation={observation} user={user} profile={ownProfile} isAdmin={isAdmin} onSaveProfile={handleSaveProfile} onLogout={handleLogout}
@@ -420,6 +425,7 @@ export default function App() {
               allInspectionIds={inspections.map(i => i.id)}
               projectName={liveProject?.name || selectedProject.name}
               onAdvance={handleAdvanceInspection}
+              onOutcome={handleInspectionOutcome}
               onComment={handleCommentInspection}
               onAdd={handleCreateInspection}
               onUpdate={handleUpdateInspection}
@@ -473,6 +479,7 @@ export default function App() {
             /><DeletionReviewPanel /></div>
           )}
     </WorkspaceShell>
+    </PeopleContext.Provider>
       {isExecModalOpen && (
         <ExecutiveReportModal
           onClose={() => setIsExecModalOpen(false)}

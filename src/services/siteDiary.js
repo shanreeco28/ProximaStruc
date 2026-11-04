@@ -79,7 +79,7 @@ export async function readDiaryPhoto(db, { projectId, photo }) {
  * so an interrupted upload leaves a draft to finish rather than a submitted entry with missing photos.
  */
 export async function saveDiaryEntry(db, {
-  projectId, id = null, currentUser, email, entry, intent = 'submit', newPhotos = [], removedPhotoIds = [],
+  projectId, id = null, currentUser, email, creatorName = '', entry, intent = 'submit', newPhotos = [], removedPhotoIds = [],
   onEntryCreated, onPhotoSaved, onPhotoRemoved, onProgress,
 }) {
   if (!canRecordSite(currentUser)) throw new Error('Only supervisors, engineers, managers and admins can record site entries.');
@@ -93,7 +93,7 @@ export async function saveDiaryEntry(db, {
     const ref = doc(collection(db, `artifacts/${projectId}/weatherLogs`));
     entryId = ref.id;
     const initial = newPhotos.length ? 'draft' : status;
-    await setDoc(ref, { ...fields, status: initial, photos: [], createdBy: email, createdAt: timestamp });
+    await setDoc(ref, { ...fields, status: initial, photos: [], createdBy: email, createdByName: creatorName || currentUser.name || email, createdAt: timestamp });
     onEntryCreated?.(entryId);
     if (initial === status) return { id: entryId, status };
   } else {

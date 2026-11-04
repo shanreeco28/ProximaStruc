@@ -47,7 +47,7 @@ Each confirmation is a complete observation: blank fields remain unrecorded, rat
 | Add / edit diary and material records | Yes | Yes | Yes | Yes | No | No | No |
 | Draft/open RFIs, attach PDFs, submit for RE review, apply for closure | Yes | Yes | Yes | No | No | No | No |
 | Allow site inspection / approve RFI closure | Yes | No | No | No | Yes | No | No |
-| Allow next work after site inspection | Yes | No | No | No | No | Yes | No |
+| Allow next work after site inspection (any RTO on duty) | Yes | No | No | No | No | Yes | No |
 | Record lifting permits | Yes | Yes | Yes | No | No | No | No |
 | Delete operational records directly | Yes | No | No | No | No | No | No |
 | Request deletion of own records | Direct deletion | Yes | Yes | Yes | Yes | Yes | Yes |
@@ -69,9 +69,11 @@ Manager organisation updates are limited to that field and audit metadata; they 
 | 5 | Closure Applied | Apply for RFI closure | Engineer / manager |
 | 6 | Closed | Approve RFI closure | RE |
 
-Admins can perform any step. Supervisors no longer create RFIs or perform engineer/manager steps; they keep read and comment access. Each step is a transaction that rejects stale updates and appends an audit-history entry whose text the Firestore rules check. Only Closed clears a linked planning hold point; drafts are not counted as open RFIs.
+Admins can perform any step. No RTO is assigned to an RFI: RTO duty changes daily, so any project member with the RTO role can carry out the site inspection and allow next work. The RFI page shows which RTO did so (from the audit history). Supervisors no longer create RFIs or perform engineer/manager steps; they keep read and comment access. Each step is a transaction that rejects stale updates and appends an audit-history entry whose text the Firestore rules check. Only Closed clears a linked planning hold point; drafts are not counted as open RFIs.
 
-**RFI ID.** New RFIs are numbered automatically as `Project Name_Zone-Discipline-###`, for example `Marina Tower_Zone A-STR-001`. Discipline codes are STR (Structural), AR (Architectural) and ME (M&E Sleeve / Conduit). Slashes and unsupported characters in project or zone names become `-`. Each prefix has a counter document (`artifacts/{projectId}/rfiCounters/{prefix}`) that advances in the same transaction as the RFI, so concurrent users never receive the same number and numbers of deleted RFIs are not reused. Counters cannot be deleted. Zone and discipline are fixed once an RFI is numbered; the creator (engineer/manager) or an admin can still edit the element, RTO/RE, target cast and linked BBS.
+**RFI ID.** New RFIs are numbered automatically as `Project Name_Zone-Discipline-###`, for example `Marina Tower_Zone A-STR-001`. Discipline codes are STR (Structural), AR (Architectural) and ME (M&E Sleeve / Conduit). Slashes and unsupported characters in project or zone names become `-`. Each prefix has a counter document (`artifacts/{projectId}/rfiCounters/{prefix}`) that advances in the same transaction as the RFI, so concurrent users never receive the same number and numbers of deleted RFIs are not reused. Counters cannot be deleted. Zone and discipline are fixed once an RFI is numbered; the creator (engineer/manager) or an admin can still edit the description, assigned RE, target cast and linked BBS. The earlier *Assigned RTO* field is no longer shown or saved; values on existing RFIs are kept in storage untouched.
+
+**RFI register and RFI page.** The register lists one line per RFI: RFI number, description, stage and assigned RE, with search and discipline/status filters. Selecting an RFI opens its own page (`#rfi=<id>` in the address, so the browser or phone back button returns to the register) with all details: discipline, zone, assigned RE, RTO site inspection, target pour, linked BBS, created by/at, last update, PDFs, the seven-stage tracker, the next action, edit/delete, and comments & history. A newly saved RFI opens its page so PDFs can be attached.
 
 **PDF attachments.** While an RFI is Draft or Opened, engineers, managers and admins can upload PDFs (up to 10 MB each, 20 per RFI) marked as an *Inspection file* or a *Reference*. To stay on the free Firebase Spark plan, PDFs are stored in Firestore rather than Cloud Storage: each file is split into binary chunks of up to 900 KiB in `artifacts/{projectId}/rfiFileChunks/{fileId}_{n}`, then linked in the RFI's `attachments` list. The rules accept a link only when the upload is complete. Opening a PDF reassembles the chunks in the browser. Before RE submission, the uploader, the RFI creator or an admin can remove a PDF, which also deletes its chunks. After submission, the list and the stored chunks are locked, so documents the RE reviews cannot change. Every project member can open the PDFs.
 
@@ -81,6 +83,10 @@ Admins can perform any step. Supervisors no longer create RFIs or perform engine
 
 RTOs keep comment access. Deletion follows the verification policy above. Comments append atomically. Forms cannot bypass stage permissions or overwrite discussion history.
 
+
+## Created by
+
+Every operational record (planning activities, RFIs, materials, lifting permits, diary entries and site observations) shows **Created by** with the name of the person who opened it. New records store that name in `createdByName` next to the verified sign-in email in `createdBy`; the rules keep both unchanged on later edits. Records created before this change show the name from the project roster for their `createdBy` email, or the email if that person is no longer on the roster.
 
 ## Planning and progress
 

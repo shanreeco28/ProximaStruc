@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import DeleteRecordAction from './DeleteRecordAction';
+import CreatedBy from './CreatedBy';
 import { canRecordSite, validateMaterial } from '../utils/siteData';
 import { Field, SaveForm, RecordModal } from './RecordForm';
 import RecordSearch from './RecordSearch';
@@ -41,7 +42,7 @@ export default function MaterialsView({ materials = [], onAdd, onUpdate, current
         <tbody>
           {filtered.map(m => <tr key={m.id}>
             <td className="font-mono font-semibold whitespace-nowrap">{m.reference || m.id}<span className="block text-xs font-normal text-muted font-sans mt-0.5">{m.type || 'Unclassified'}</span></td>
-            <td><div className="font-semibold">{m.element}</div><div className="text-xs text-muted mt-0.5">{m.zone} · {m.supplier || 'Supplier not recorded'}</div></td>
+            <td><div className="font-semibold">{m.element}</div><div className="text-xs text-muted mt-0.5">{m.zone} · {m.supplier || 'Supplier not recorded'}</div><CreatedBy record={m} className="mt-1" /></td>
             <td className="whitespace-nowrap"><div className="tabular">{m.quantity} {m.unit}</div><div className="text-xs text-muted mt-0.5">DO: {m.doNumber || 'Not recorded'}</div>{m.linkedRecordId && <div className="text-xs mt-0.5">Linked: {materials.find(r => r.id === m.linkedRecordId)?.reference || m.linkedRecordId}</div>}</td>
             <td className="text-xs text-secondary space-y-0.5 min-w-[220px]"><div>Required: <span className="tabular">{m.deliveryDate || 'Not recorded'}</span></div><div>Received: <span className="tabular">{m.actualDate || 'Not recorded'}</span></div>{m.type === 'BBS' && <div>Drawing: {m.drawingRef || '—'} · Mark {m.barMark || '—'} · Ø {m.barDiameter || '—'} mm · {m.barCount || '—'} bars · {m.cuttingLength || '—'} mm</div>}{m.type === 'Concrete' && <div>Mix: {m.grade || '—'} · Pour: {m.pourLocation || '—'} · Batch: {m.batchTicket || '—'} · Slump: {m.slump || '—'} mm · Cube: {m.cubeRef || '—'} · Test: {m.testResult || 'Not recorded'}</div>}{m.taskId && <div>Activity: {tasks.find(t => t.id === m.taskId)?.activity || m.taskId}</div>}{m.notes && <p className="text-muted mt-1">{m.notes}</p>}</td>
             <td><span className="badge badge-dot" data-tone={STATUS_TONE[m.status]}>{m.status || 'Not recorded'}</span></td>

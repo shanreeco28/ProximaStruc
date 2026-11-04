@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertTriangle, CalendarCheck, CalendarRange, Link2, NotebookPen, Package, UserRound } from 'lucide-react';
 import DeleteRecordAction from './DeleteRecordAction';
+import CreatedBy from './CreatedBy';
 import { canPlan, taskProgress, taskConstraints, validateTask, taskStatus, TASK_STATUSES, projectProgress } from '../utils/siteData';
 import { Field, SaveForm, RecordModal } from './RecordForm';
 import ProjectTimeline from './ProjectTimeline';
@@ -66,6 +67,7 @@ export default function CalendarView({ tasks, allTasks = tasks, inspections = []
                     {t.materialId && <div className="flex items-center gap-1.5 text-secondary"><Package size={12} aria-hidden="true" />Material: {materials.find(m => m.id === t.materialId)?.reference || t.materialId}</div>}
                   </div>}
                   <div className="text-xs text-muted mt-2 flex items-center gap-1.5"><NotebookPen size={12} aria-hidden="true" />{diary.filter(d => d.taskId === t.id).length} linked diary entries</div>
+                  <CreatedBy record={t} className="mt-2" />
                   <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
                     {permitted && <select aria-label={`Move ${t.activity}`} disabled={saving} value={taskStatus(t)} onChange={e => moveTask(t, e.target.value)} className="field-control !mt-0 !min-h-[34px] !py-1 text-xs">{TASK_STATUSES.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select>}
                     <div className="flex flex-wrap items-center justify-between gap-2">

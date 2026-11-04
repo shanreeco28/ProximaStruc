@@ -222,3 +222,13 @@ export function createMemberProfile(user, details = {}, isOwner = false, timesta
     createdBy: user.email, createdAt: timestamp,
   };
 }
+
+// "Created by" shows the name of the person who opened a record. New records store that name as `createdByName`
+// alongside the verified sign-in email in `createdBy`; older records resolve the email through the project roster.
+export function personName(email, people = []) {
+  if (!email) return '';
+  const key = String(email).toLowerCase();
+  const person = people.find(p => p.id === key || p.email?.toLowerCase() === key);
+  return person?.name?.trim() || email;
+}
+export const creatorName = (record, people = []) => (typeof record?.createdByName === 'string' && record.createdByName.trim()) || personName(record?.createdBy, people);

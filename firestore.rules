@@ -22,11 +22,14 @@ service cloud.firestore {
     function planner(projectId) { return superuser(projectId) || role(projectId) in ['admin', 'manager', 'engineer']; }
     function siteRecorder(projectId) { return planner(projectId) || role(projectId) == 'supervisor'; }
     function member(projectId) { return superuser(projectId) || role(projectId) in ['guest', 'supervisor', 'engineer', 'manager', 'RE', 'RTO', 'admin']; }
+    // createdByName is the display name of the person who opened the record ("Created by" on every record).
     function auditCreate() {
-      return request.resource.data.createdBy == request.auth.token.email && request.resource.data.createdAt is string;
+      return request.resource.data.createdBy == request.auth.token.email && request.resource.data.createdAt is string
+        && request.resource.data.get('createdByName', '') is string && request.resource.data.get('createdByName', '').size() <= 200;
     }
     function auditUpdate() {
       return request.resource.data.get('createdBy', '') == resource.data.get('createdBy', '')
+        && request.resource.data.get('createdByName', '') == resource.data.get('createdByName', '')
         && request.resource.data.get('createdAt', '') == resource.data.get('createdAt', '')
         && request.resource.data.updatedBy == request.auth.token.email && request.resource.data.updatedAt is string;
     }

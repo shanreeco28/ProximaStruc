@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Camera, ChevronLeft, ChevronRight, Clock, ImagePlus, Link2, Lock, MapPin, UserRound } from 'lucide-react';
 import DeleteRecordAction from './DeleteRecordAction';
+import { usePeople } from '../contexts/PeopleContext';
 import {
-  canManageDiaryPhotos, canRecordSite, canRemoveDiaryPhoto, diaryEntryProblem, isDiaryDraft, today, validateDiaryPhotoSource, DIARY_PHOTO_MAX,
+  canManageDiaryPhotos, canRecordSite, canRemoveDiaryPhoto, creatorName, diaryEntryProblem, personName, isDiaryDraft, today, validateDiaryPhotoSource, DIARY_PHOTO_MAX,
 } from '../utils/siteData';
 import { preparePhoto } from '../utils/photos';
 import { Field, RecordModal, TextArea } from './RecordForm';
@@ -78,11 +79,12 @@ export default function SiteDiaryView({ weatherLogs = [], onSave, onLoadPhoto, c
   const [date, setDate] = useState('');
   const [search, setSearch] = useState('');
   const permitted = canRecordSite(currentUser);
+  const people = usePeople();
   // Drafts are working copies for the site team; other roles see submitted entries only.
   const visible = permitted ? weatherLogs : weatherLogs.filter(e => !isDiaryDraft(e));
   const statusMatch = STATUS_FILTERS.find(([name]) => name === statusFilter)[1];
   const change = key => e => setForm({ ...form, [key]: e.target.value });
-  const entries = visible.filter(e => (category === 'All' || e.category === category) && (!date || e.date === date) && (!permitted || statusMatch(e)) && matchesRecordSearch(search, [e.id, e.title, e.event, e.details, e.impact, e.zone, e.category, e.date, e.time, e.timeWindow, e.action, e.createdBy, e.updatedBy, e.taskId, isDiaryDraft(e) ? 'Draft' : '', tasks.find(t => t.id === e.taskId)?.activity, ...(e.photos || []).map(p => p.name)])).sort((a,b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
+  const entries = visible.filter(e => (category === 'All' || e.category === category) && (!date || e.date === date) && (!permitted || statusMatch(e)) && matchesRecordSearch(search, [e.id, e.title, e.event, e.details, e.impact, e.zone, e.category, e.date, e.time, e.timeWindow, e.action, e.createdBy, e.createdByName, e.updatedBy, e.taskId, isDiaryDraft(e) ? 'Draft' : '', tasks.find(t => t.id === e.taskId)?.activity, ...(e.photos || []).map(p => p.name)])).sort((a,b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
 
   const record = editing ? weatherLogs.find(e => e.id === editing) : null;
   const isDraft = !record || isDiaryDraft(record);
@@ -178,7 +180,7 @@ export default function SiteDiaryView({ weatherLogs = [], onSave, onLoadPhoto, c
               {!!photos.length && <ul className="mt-3 flex flex-wrap gap-2" aria-label={`Photos for ${title}`}>
                 {photos.map((photo, index) => <li key={photo.photoId}><PhotoThumb src={photo.thumb} label={`View photo ${index + 1} of ${photos.length}: ${photo.name}`} onClick={() => setViewer({ photos, index, title })} /></li>)}
               </ul>}
-              <p className="text-xs text-muted mt-3 flex items-center gap-1.5 [overflow-wrap:anywhere]"><UserRound size={12} aria-hidden="true" />{draft ? 'Draft by' : 'Recorded by'} {entry.createdBy || 'Not recorded'}{entry.submittedBy && entry.submittedBy !== entry.createdBy ? ` · Submitted by ${entry.submittedBy}` : ''}{entry.updatedBy ? ` · Updated by ${entry.updatedBy}` : ''}</p>
+              <p className="text-xs text-muted mt-3 flex items-center gap-1.5 [overflow-wrap:anywhere]"><UserRound size={12} aria-hidden="true" className="shrink-0" /><span>Created by <strong className="font-semibold" style={{ color: 'var(--text)' }}>{creatorName(entry, people) || 'Not recorded'}</strong>{entry.submittedBy && entry.submittedBy !== entry.createdBy ? ` · Submitted by ${personName(entry.submittedBy, people)}` : ''}{entry.updatedBy ? ` · Updated by ${personName(entry.updatedBy, people)}` : ''}</span></p>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:flex-nowrap sm:items-end sm:gap-1 shrink-0">
               {permitted && <button className="btn btn-secondary btn-sm" onClick={() => openForm(entry)} aria-label={`${draft ? 'Continue draft' : 'Edit'} ${title}`}>{draft ? 'Continue draft' : 'Edit'}</button>}

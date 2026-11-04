@@ -5,7 +5,8 @@ import {
   RFI_CHUNK_BYTES, RFI_FILE_CATEGORIES, RFI_MAX_FILES, validateRfiFile,
 } from '../utils/siteData.js';
 
-const DETAIL_FIELDS = ['zone', 'discipline', 'element', 'rtoName', 'reName', 'targetCast', 'bbsLinked'];
+// No RTO is assigned to an RFI: the RTO on duty that day carries out the site inspection (any RTO may advance it).
+const DETAIL_FIELDS = ['zone', 'discipline', 'element', 'reName', 'targetCast', 'bbsLinked'];
 const actorEntry = (currentUser, email, timestamp) => ({ user: currentUser.name || email, email, role: currentUser.systemRole, timestamp });
 
 /**
@@ -13,7 +14,7 @@ const actorEntry = (currentUser, email, timestamp) => ({ user: currentUser.name 
  * The per-prefix counter and the RFI are written in one transaction so concurrent
  * users never receive the same number and numbers of deleted RFIs are not reused.
  */
-export async function createInspection(db, { projectId, projectName, currentUser, email, details, status = 'draft', knownIds = [] }) {
+export async function createInspection(db, { projectId, projectName, currentUser, email, creatorName = '', details, status = 'draft', knownIds = [] }) {
   if (!canRaiseRfi(currentUser)) throw new Error('Only engineers, managers and admins can raise RFIs.');
   if (!['draft', 'opened'].includes(status)) throw new Error('New RFIs start as a draft or opened RFI.');
   if (!details.zone || !disciplineCode(details.discipline) || !details.element?.trim()) throw new Error('Select a zone and discipline and enter the element.');
@@ -34,7 +35,7 @@ export async function createInspection(db, { projectId, projectName, currentUser
     const timestamp = new Date().toISOString();
     transaction.set(doc(db, `artifacts/${projectId}/inspections`, id), {
       ...fields, status, rfiPrefix: prefix, rfiNumber: number,
-      attachments: [], history: [], comments: [], createdBy: email, createdAt: timestamp,
+      attachments: [], history: [], comments: [], createdBy: email, createdByName: creatorName || currentUser.name || email, createdAt: timestamp,
     });
     transaction.set(counterRef, counter.exists()
       ? { ...counter.data(), last: number, lastId: id, updatedBy: email, updatedAt: timestamp }

@@ -76,6 +76,16 @@ test('planner updates persist only valid progress and preserve creator audit',as
   await assertFails(updateDoc(doc(db,'artifacts/p/tasks/existing'),{progress:120,updatedBy:'engineer@example.test',updatedAt:'2026-10-01'}));
   await assertFails(updateDoc(doc(db,'artifacts/p/tasks/existing'),{createdBy:'engineer@example.test',updatedBy:'engineer@example.test',updatedAt:'2026-10-01'}));
 });
+test('the name of the person who created a record is kept on later edits',async()=>{
+  const db=client('engineer'),email='engineer@example.test',ref=doc(db,'artifacts/p/tasks/named');
+  await assertFails(setDoc(doc(db,'artifacts/p/tasks/named-bad'),{...task(email),createdByName:42}));
+  await assertSucceeds(setDoc(ref,{...task(email),createdByName:'Aisha Tan'}));
+  await assertFails(updateDoc(ref,{createdByName:'Someone else',updatedBy:email,updatedAt:'2026-01-02'}));
+  await assertSucceeds(updateDoc(ref,{progress:10,updatedBy:email,updatedAt:'2026-01-02'}));
+  assert.equal((await getDoc(ref)).data().createdByName,'Aisha Tan');
+  const id=await createInspection(db,{projectId:'p',projectName:'Test project',currentUser:{systemRole:'engineer',name:'Aisha Tan'},email,details:{zone:'Named',discipline:'Structural',element:'Slab'}});
+  assert.equal((await getDoc(doc(db,`artifacts/p/inspections/${id}`))).data().createdByName,'Aisha Tan');
+});
 test('observation confirmations cannot be silently overwritten',async()=>{
   await assertFails(updateDoc(doc(client('admin'),'artifacts/p/monitoring/admin'),{noise:1,updatedBy:'admin@example.test',updatedAt:'2026-10-01'}));
 });

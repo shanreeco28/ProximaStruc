@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canPlan, canRecordSite, canWrite, dayNumber, projectProgress, scheduleRows, taskConstraints, validateTask, validateMaterial, latestObservation, taskStatus, taskProgress, canAdvanceInspection, canEditInspection, isInspectionClosed, createMemberProfile, inspectionStatus, inspectionStatusLabel, isInspectionOpen, nextInspectionTransition, RFI_STATUSES, canManageInspectionFiles, canRemoveInspectionFile, validateRfiFile, rfiPrefix, formatRfiId, highestRfiNumber, rfiIdSegment, diaryStatus, isDiaryDraft, recordedDiaryEntries, diaryEntryProblem, validateDiaryPhotoSource, canManageDiaryPhotos, canRemoveDiaryPhoto, DIARY_PHOTO_MAX } from './siteData.js';
+import { canPlan, canRecordSite, canWrite, dayNumber, projectProgress, scheduleRows, taskConstraints, validateTask, validateMaterial, latestObservation, taskStatus, taskProgress, canAdvanceInspection, canEditInspection, isInspectionClosed, createMemberProfile, inspectionStatus, inspectionStatusLabel, isInspectionOpen, nextInspectionTransition, RFI_STATUSES, canManageInspectionFiles, canRemoveInspectionFile, validateRfiFile, rfiPrefix, formatRfiId, highestRfiNumber, rfiIdSegment, diaryStatus, isDiaryDraft, recordedDiaryEntries, diaryEntryProblem, validateDiaryPhotoSource, canManageDiaryPhotos, canRemoveDiaryPhoto, DIARY_PHOTO_MAX, creatorName, personName } from './siteData.js';
 
 test('role permissions deny unknown users, protect admin observations, and separate planning from site records', () => {
   for (const role of ['admin','manager','engineer','supervisor','guest','RE','RTO',undefined]) {
@@ -159,4 +159,13 @@ test('diary photos accept images within limits and are managed only while the en
   assert.equal(canRemoveDiaryPhoto({ systemRole: 'admin', email: 'other@x' }, draft, photo), true);
   assert.equal(canRemoveDiaryPhoto({ systemRole: 'manager', email: 'other@x' }, draft, photo), false);
   assert.equal(canRemoveDiaryPhoto({ systemRole: 'admin', email: 'other@x' }, { status: 'submitted' }, photo), false);
+});
+test('records show the name of the person who created them', () => {
+  const people = [{ id: 'eng@example.test', email: 'eng@example.test', name: 'Aisha Tan' }, { id: 'legacy', email: 'Old@Example.test', name: '  ' }];
+  assert.equal(creatorName({ createdBy: 'eng@example.test', createdByName: 'Aisha T.' }, people), 'Aisha T.');
+  assert.equal(creatorName({ createdBy: 'ENG@example.test' }, people), 'Aisha Tan');
+  assert.equal(creatorName({ createdBy: 'old@example.test' }, people), 'old@example.test');
+  assert.equal(creatorName({ createdBy: 'gone@example.test', createdByName: ' ' }, people), 'gone@example.test');
+  assert.equal(creatorName({}, people), '');
+  assert.equal(personName('', people), '');
 });

@@ -1,7 +1,7 @@
 import { Bytes, deleteDoc, deleteField, doc, getDoc, runTransaction, setDoc } from 'firebase/firestore';
 import {
   canAdvanceInspection, canEditInspection, canManageInspectionFiles, canRaiseRfi, canRemoveInspectionFile,
-  canRejectInspection, canResolveRejectedInspection, canRollbackClosedInspection, rfiRollbackTargets, rfiReasonProblem,
+  canCommentInspection, canRejectInspection, canResolveRejectedInspection, canRollbackClosedInspection, rfiRollbackTargets, rfiReasonProblem,
   rfiRejectHistory, rfiRollbackHistory, rfiSiteOwnerRollbackHistory, RFI_CLOSE_REJECTED_HISTORY,
   disciplineCode, formatRfiId, highestRfiNumber, inspectionStatus, nextInspectionTransition, rfiPrefix,
   RFI_CHUNK_BYTES, RFI_FILE_CATEGORIES, RFI_MAX_FILES, validateRfiFile,
@@ -75,6 +75,28 @@ export async function advanceInspection(db, { projectId, id, expectedStatus, cur
     transaction.update(ref, {
       status: transition.to,
       history: [...(inspection.history || []), { ...actorEntry(currentUser, email, timestamp), action: transition.history }],
+      updatedBy: email, updatedAt: timestamp,
+    });
+  });
+}
+
+/**
+ * Adds a comment filed under the RFI's current stage. If the RFI moved on since the comment was typed, nothing is
+ * written, so a comment is never filed under a stage its author did not see.
+ */
+export async function addInspectionComment(db, { projectId, id, expectedStatus, text, currentUser, email }) {
+  const body = String(text || '').trim();
+  if (!canCommentInspection(currentUser) || !body) throw new Error('Enter a comment using an assigned project account.');
+  const ref = doc(db, `artifacts/${projectId}/inspections`, id);
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists()) throw new Error('This inspection no longer exists.');
+    const inspection = snapshot.data();
+    const stage = inspectionStatus(inspection);
+    if (expectedStatus && stage !== expectedStatus) throw new Error('The RFI moved to another stage. Review it, then send your comment again.');
+    const timestamp = new Date().toISOString();
+    transaction.update(ref, {
+      comments: [...(inspection.comments || []), { ...actorEntry(currentUser, email, timestamp), text: body, ...(stage ? { stage } : {}) }],
       updatedBy: email, updatedAt: timestamp,
     });
   });

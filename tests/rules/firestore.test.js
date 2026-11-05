@@ -234,6 +234,9 @@ test('RFIs cannot skip stages, forge discussion identity or erase existing histo
   await assertSucceeds(updateDoc(doc(client('RTO'),path),{comments:arrayUnion(comment),...changed('RTO')}));
   await assertFails(updateDoc(doc(client('guest'),path),{comments:arrayUnion({...comment,text:'Forged'}),...changed('guest')}));
   await assertFails(updateDoc(doc(client('RTO'),path),{comments:[],...changed('RTO')}));
+  // A comment that names its stage must name the RFI's current stage (now site inspection).
+  await assertFails(updateDoc(doc(client('RTO'),path),{comments:arrayUnion({...comment,text:'Filed under old stage',stage:'re_review'}),...changed('RTO')}));
+  await assertSucceeds(updateDoc(doc(client('RTO'),path),{comments:arrayUnion({...comment,text:'Filed under current stage',stage:'site_inspection'}),...changed('RTO')}));
 });
 test('PDF chunks are written only by engineers/managers/admins before RE submission',async()=>{
   const id='chunk-rfi', path=`artifacts/p/inspections/${id}`, chunkPath=`artifacts/p/rfiFileChunks/${FILE_ID}_0`;

@@ -339,6 +339,13 @@ body { margin: 0; display: block; min-width: 320px; min-height: 100vh; min-heigh
   /* Activity feed */
   .feed-item { position: relative; padding: .7rem .9rem; border-radius: var(--radius-sm); border: 1px solid var(--border); border-left: 3px solid var(--border-strong); background: var(--surface-2); font-size: .8125rem; color: var(--text-2); }
   .feed-item[data-kind="comment"] { background: var(--surface); border-left-color: var(--info); color: var(--text); }
+  /* RFI comments and updates, separated by stage. */
+  .stage-log { display: flex; flex-direction: column; gap: .6rem; padding: .75rem .85rem; border: 1px solid var(--border); border-left: 3px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); }
+  .stage-log[data-current] { border-left-color: var(--accent); }
+  .stage-log[data-tone="danger"] { border-left-color: var(--danger-solid); }
+  .stage-log-head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+  .stage-log[data-current] .stage-log-head .step-index { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .stage-log[data-tone="danger"] .stage-log-head .step-index { background: var(--danger-solid); border-color: var(--danger-solid); color: #fff; }
 
   /* Kanban */
   .board-column { display: flex; flex-direction: column; flex: 1 1 0; min-width: 252px; max-height: 70vh; padding: .75rem; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border-strong); border-top: 3px solid var(--text); }
@@ -690,7 +697,8 @@ input[readonly] { background-color: var(--surface-3); color: var(--muted); }
   .record-delete-action, .skip-link, .theme-shortcut, .compact-zone-controls, .record-toolbar { display: none !important; }
   .dialog-backdrop { position: static !important; background: white !important; padding: 0 !important; }
   .dialog-panel { max-height: none !important; overflow: visible !important; box-shadow: none !important; border: 0 !important; color: #172b45; }
-  body:has(.executive-report-content) #root { display: none !important; }
+  body:has(.executive-report-content) #root, body:has(.print-sheet) #root { display: none !important; }
+  .print-sheet .feed-item, .executive-report-content li { break-inside: avoid; }
   .dialog-panel > div:first-child > button { display: none !important; }
 }
 

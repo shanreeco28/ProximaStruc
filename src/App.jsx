@@ -21,13 +21,13 @@ import useSelfRegistration from './hooks/useSelfRegistration';
 import useSiteOwner from './hooks/useSiteOwner';
 import useProjectMembers from './hooks/useProjectMembers';
 import { grantProjectAccess, revokeProjectAccess, setProjectAccessRole } from './services/projectAccess';
-import { canPlan, canWrite, latestObservation, projectProgress, ROLES, canCommentInspection, isInspectionClosed, isInspectionOpen, taskStatus, recordedDiaryEntries } from './utils/siteData';
-import { createInspection, updateInspectionDetails, advanceInspection, changeInspectionOutcome, attachInspectionFile, readInspectionFile, removeInspectionFile } from './services/inspections';
+import { canPlan, canWrite, latestObservation, projectProgress, ROLES, isInspectionClosed, isInspectionOpen, taskStatus, recordedDiaryEntries } from './utils/siteData';
+import { createInspection, updateInspectionDetails, advanceInspection, changeInspectionOutcome, attachInspectionFile, readInspectionFile, removeInspectionFile, addInspectionComment } from './services/inspections';
 import { saveDiaryEntry, readDiaryPhoto, deleteDiaryPhotoFiles } from './services/siteDiary';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, sendEmailVerification, updateProfile } from 'firebase/auth';
-import { collection, onSnapshot, doc, updateDoc, runTransaction, arrayUnion } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, runTransaction } from 'firebase/firestore';
 import LoginView from './components/LoginView';
 import ProjectSelection from './components/ProjectSelection';
 import { sheetCode } from './utils/sheets';
@@ -235,14 +235,7 @@ export default function App() {
   };
   const handleSaveDiaryEntry = options => saveDiaryEntry(db, { ...inspectionContext(), ...options });
   const handleLoadDiaryPhoto = photo => readDiaryPhoto(db, { projectId: selectedProject.id, photo });
-  const handleCommentInspection = async (id, text) => {
-    if (!canCommentInspection(currentUser) || !text.trim()) throw new Error('Enter a comment using an assigned project account.');
-    const timestamp = new Date().toISOString();
-    await updateDoc(doc(db, `artifacts/${selectedProject.id}/inspections`, id), {
-      comments: arrayUnion({ user: currentUser.name || user.email, email: user.email, role: currentUser.systemRole, text: text.trim(), timestamp }),
-      updatedBy: user.email, updatedAt: timestamp
-    });
-  };
+  const handleCommentInspection = (id, text, expectedStatus) => addInspectionComment(db, { ...inspectionContext(), id, text, expectedStatus });
   const handleToggleLift = async (id) => {
     const lift = lifts.find(p => p.id === id);
     if (!lift) return;
@@ -490,6 +483,7 @@ export default function App() {
           lifts={filteredLifts}
           weatherLogs={recordedWeatherLogs}
           materials={filteredMaterials}
+          people={personnel}
         />
       )}
     </RecordDeletionContext.Provider>

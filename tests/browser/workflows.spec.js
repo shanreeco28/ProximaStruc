@@ -274,15 +274,15 @@ test('engineers draft RFIs with automatic references and attach PDFs before RE s
 });
 test('RTO comments persist and rejected comments retain the input', async ({page}) => {
   await openRfi(page,'inspections','RTO');
-  await page.getByLabel('Comment on TEST-RFI').fill('Site inspection observation');
+  await page.getByLabel(/^Comment on TEST-RFI/).fill('Site inspection observation');
   await page.getByRole('button',{name:'Send',exact:true}).click();
   await expect(page.getByText('Site inspection observation',{exact:true})).toBeVisible();
-  await expect(page.getByLabel('Comment on TEST-RFI')).toHaveValue('');
+  await expect(page.getByLabel(/^Comment on TEST-RFI/)).toHaveValue('');
   await openRfi(page,'inspections','RTO','&fail=1');
-  await page.getByLabel('Comment on TEST-RFI').fill('Keep this comment');
+  await page.getByLabel(/^Comment on TEST-RFI/).fill('Keep this comment');
   await page.getByRole('button',{name:'Send',exact:true}).click();
   await expect(page.getByRole('alert')).toHaveText('Test write rejected');
-  await expect(page.getByLabel('Comment on TEST-RFI')).toHaveValue('Keep this comment');
+  await expect(page.getByLabel(/^Comment on TEST-RFI/)).toHaveValue('Keep this comment');
 });
 test('admins delete RFIs directly while creators request independent verification', async ({page}) => {
   await openRfi(page,'inspections','admin','&fail=1');
@@ -497,4 +497,37 @@ test('only the site owner can roll back a closed RFI', async ({page}) => {
   await expect(page.locator('.badge',{hasText:/^Closure Applied$/})).toBeVisible();
   await expect(page.getByText('Site owner rolled back to Closure Applied',{exact:true})).toBeVisible();
   await expect(page.getByText('Reason: Closure approved in error')).toBeVisible();
+});
+test('RFI comments are separated by stage and filed under the current stage', async ({page}) => {
+  await openRfi(page,'inspections','RE','&status=re_review&thread=1');
+  const stages = page.getByRole('list',{name:'TEST-RFI stages'});
+  const opened = stages.getByRole('listitem').filter({has:page.getByRole('heading',{name:'Opened'})});
+  const review = stages.getByRole('listitem').filter({has:page.getByRole('heading',{name:'Under RE Review'})});
+  await expect(opened.getByText('Formwork ready for checking')).toBeVisible();
+  await expect(opened.getByText('Submitted for RE review')).toHaveCount(0);
+  await expect(review.getByText('Submitted for RE review')).toBeVisible();
+  await expect(review.getByText('Fixture engineer').first()).toBeVisible();
+  await expect(review.getByText('Current stage')).toBeVisible();
+  await page.getByLabel(/^Comment on TEST-RFI · current stage: Under RE Review/).fill('Rebar schedule received');
+  await page.getByRole('button',{name:'Send',exact:true}).click();
+  await expect(review.getByText('Rebar schedule received')).toBeVisible();
+  await page.getByRole('button',{name:'Current stage only'}).click();
+  await expect(page.getByText('Formwork ready for checking')).toHaveCount(0);
+  await expect(review.getByText('Rebar schedule received')).toBeVisible();
+});
+test('an RFI prints with its current stage, who updated each stage and the comments per stage', async ({page}) => {
+  await openRfi(page,'inspections','admin','&status=re_review&thread=1');
+  await page.evaluate(()=>{window.print=()=>{document.body.dataset.printRequested='true';};});
+  await page.getByRole('button',{name:'Print RFI'}).click();
+  const dialog = page.getByRole('dialog',{name:'Print RFI TEST-RFI'});
+  await expect(dialog.getByText('Responsible now')).toBeVisible();
+  await expect(dialog.getByText('Fixture RE (RE)').first()).toBeVisible();
+  const review = dialog.getByRole('listitem').filter({has:page.getByRole('heading',{name:'Under RE Review'})});
+  await expect(review.getByText('Bring the rebar schedule')).toBeVisible();
+  await expect(review.getByText('Submitted for RE review')).toBeVisible();
+  await dialog.getByRole('button',{name:'Print RFI'}).click();
+  await expect(page.locator('body')).toHaveAttribute('data-print-requested','true');
+  const download = page.waitForEvent('download');
+  await dialog.getByRole('button',{name:'Download PDF'}).click();
+  expect((await download).suggestedFilename()).toBe('TEST-RFI-rfi.pdf');
 });

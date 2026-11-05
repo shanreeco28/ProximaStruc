@@ -1,94 +1,43 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Printer } from 'lucide-react';
 import { RecordModal } from './RecordForm';
 import ProjectTimeline from './ProjectTimeline';
 import { BRIEF_NOTE, BRIEF_SECTIONS, BRIEF_STORAGE_KEY, buildBrief, normaliseBriefSections } from '../utils/executiveBrief';
-import { briefFileName, createBriefPdf, isIosHomeScreenApp } from '../utils/briefPdf';
+import { briefFileName, createBriefPdf } from '../utils/briefPdf';
+import { usePdfExport } from '../hooks/usePdfExport';
 
 function readSavedSections() {
   try { return normaliseBriefSections(JSON.parse(localStorage.getItem(BRIEF_STORAGE_KEY))); }
   catch { return normaliseBriefSections(null); }
 }
 
-export default function ExecutiveReportModal({ onClose, projectName, tasks = [], inspections = [], weatherLogs = [], materials = [], lifts = [] }) {
+function BriefRecord({ title, children }) {
+  return <li className="rounded-xl border px-4 py-3 print-break-inside-avoid" style={{ borderColor: 'var(--border)' }}>
+    <p className="font-medium [overflow-wrap:anywhere]">{title}</p>
+    <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2 mt-2">{children}</dl>
+  </li>;
+}
+function BriefField({ label, wide = false, children }) {
+  return <div className={`min-w-0 ${wide ? 'sm:col-span-2' : ''}`}><dt className="meta-label !mb-0.5">{label}</dt><dd className="[overflow-wrap:anywhere]">{children}</dd></div>;
+}
+
+export default function ExecutiveReportModal({ onClose, projectName, tasks = [], inspections = [], weatherLogs = [], materials = [], lifts = [], people = [] }) {
   const [sections, setSections] = useState(readSavedSections);
-  const [status, setStatus] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [homeScreenApp] = useState(isIosHomeScreenApp);
-  const brief = useMemo(() => buildBrief({ projectName, tasks, inspections, diary: weatherLogs, materials, lifts }), [projectName, tasks, inspections, weatherLogs, materials, lifts]);
+  const brief = useMemo(() => buildBrief({ projectName, tasks, inspections, diary: weatherLogs, materials, lifts, people }), [projectName, tasks, inspections, weatherLogs, materials, lifts, people]);
   const include = id => sections.includes(id);
   const nothingSelected = !sections.length;
-
-  // iOS only opens the share sheet straight from a tap, so the home-screen app keeps the PDF ready
-  // in advance rather than building it after the tap.
-  const prepared = useRef({ key: '', file: null });
-  const key = `${sections.join(',')}|${JSON.stringify(brief)}`;
-  useEffect(() => {
-    if (!homeScreenApp || nothingSelected) return;
-    let live = true;
-    const timer = setTimeout(async () => {
-      try {
-        const blob = await createBriefPdf(brief, sections);
-        if (live) prepared.current = { key, file: new File([blob], briefFileName(brief), { type: 'application/pdf' }) };
-      } catch { /* built again on tap */ }
-    }, 250);
-    return () => { live = false; clearTimeout(timer); };
-  }, [homeScreenApp, nothingSelected, brief, sections, key]);
+  const { busy, status, homeScreenApp, print, downloadPdf } = usePdfExport({
+    build: () => createBriefPdf(brief, sections), fileName: briefFileName(brief), title: `${brief.projectName} executive brief`,
+    key: `${sections.join(',')}|${JSON.stringify(brief)}`, ready: !nothingSelected,
+  });
 
   useEffect(() => { try { localStorage.setItem(BRIEF_STORAGE_KEY, JSON.stringify(sections)); } catch { /* preference only */ } }, [sections]);
 
   const toggle = id => setSections(current => normaliseBriefSections(current.includes(id) ? current.filter(s => s !== id) : [...current, id]));
 
-  const pdfFile = async () => {
-    if (prepared.current.key === key && prepared.current.file) return prepared.current.file;
-    const blob = await createBriefPdf(brief, sections);
-    return new File([blob], briefFileName(brief), { type: 'application/pdf' });
-  };
-
-  const saveFile = file => {
-    const url = URL.createObjectURL(file);
-    const link = Object.assign(document.createElement('a'), { href: url, download: file.name, rel: 'noopener' });
-    document.body.append(link); link.click(); link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  };
-
-  // Share sheet first (it offers Print, Save to Files, Mail…); a plain download where sharing files is unsupported.
-  const sharePdf = async () => {
-    if (busy) return;
-    setBusy(true); setStatus('Preparing PDF…');
-    try {
-      const file = await pdfFile();
-      if (navigator.canShare?.({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file], title: `${brief.projectName} executive brief` });
-          setStatus('');
-          return;
-        } catch (error) {
-          if (error?.name === 'AbortError') { setStatus(''); return; }
-          if (error?.name === 'NotAllowedError') { setStatus('The PDF is ready. Tap the button again to open the share sheet, then choose Print.'); return; }
-        }
-      }
-      saveFile(file);
-      setStatus('PDF downloaded.');
-    } catch {
-      setStatus('The PDF could not be created. Please retry.');
-    } finally { setBusy(false); }
-  };
-
-  const downloadPdf = async () => {
-    if (busy) return;
-    setBusy(true); setStatus('Preparing PDF…');
-    try { saveFile(await pdfFile()); setStatus('PDF downloaded.'); }
-    catch { setStatus('The PDF could not be created. Please retry.'); }
-    finally { setBusy(false); }
-  };
-
-  const print = () => { if (homeScreenApp) sharePdf(); else window.print(); };
-
   const constraintRows = [
     include('blocked') && ['Blocked activities', brief.blocked.length ? brief.blocked.join('; ') : 'None recorded.'],
     include('materials') && ['Delayed / rejected materials', brief.materials.length ? brief.materials.join('; ') : 'None recorded.'],
-    include('inspections') && ['Open inspections (RFIs)', brief.openInspections.length ? brief.openInspections.join('; ') : 'No open RFIs recorded.'],
     include('lifting') && ['Lifting permits', brief.lifting],
   ].filter(Boolean);
 
@@ -115,17 +64,31 @@ export default function ExecutiveReportModal({ onClose, projectName, tasks = [],
 
       {include('gantt') && <ProjectTimeline compact tasks={tasks} inspections={inspections} materials={materials} diary={weatherLogs} lifts={lifts} />}
 
-      {(!!constraintRows.length || include('diary')) && <div className="space-y-4 text-sm">
+      {(!!constraintRows.length || include('inspections') || include('diary')) && <div className="space-y-5 text-sm">
         {!!constraintRows.length && <>
           <h3 className="font-semibold text-base">Recorded constraints & site activity</h3>
           <dl className="rounded-xl border divide-y" style={{ borderColor: 'var(--border)' }}>
             {constraintRows.map(([label, value]) => <div key={label} className="grid sm:grid-cols-[200px_1fr] gap-1 sm:gap-4 px-4 py-3" style={{ borderColor: 'var(--border)' }}><dt className="text-muted font-medium">{label}</dt><dd>{value}</dd></div>)}
           </dl>
         </>}
-        {include('diary') && <div>
-          <p className="font-medium mb-2">Recent diary entries:</p>
-          {brief.diary.length ? <ul className="space-y-1.5 list-disc pl-5 marker:text-[var(--muted)]">{brief.diary.map(d => <li key={d.id}><span className="tabular text-muted">{d.date}</span> · <span className="font-medium">{d.title}</span>{d.details ? `: ${d.details}` : ''}</li>)}</ul> : <p className="text-muted">No site diary entries recorded.</p>}
-        </div>}
+        {include('inspections') && <section aria-labelledby="brief-rfis" className="space-y-2">
+          <h3 id="brief-rfis" className="font-semibold text-base">Open inspections (RFIs) <span className="text-muted font-normal">({brief.openInspections.length})</span></h3>
+          {brief.openInspections.length ? <ul className="space-y-2">{brief.openInspections.map(rfi => <BriefRecord key={rfi.id} title={<><span className="font-mono">{rfi.id}</span> · {rfi.element}</>}>
+            <BriefField label="Current stage">{rfi.stage}</BriefField>
+            <BriefField label="Responsible">{rfi.responsible}</BriefField>
+            <BriefField label="Last updated" wide><span className="tabular">{rfi.lastUpdated}</span></BriefField>
+            <BriefField label="Last comment" wide>{rfi.lastComment ? <>&ldquo;{rfi.lastComment.text}&rdquo; <span className="block text-xs text-muted mt-0.5">{rfi.lastComment.meta}</span></> : <span className="text-muted">No comments recorded.</span>}</BriefField>
+          </BriefRecord>)}</ul> : <p className="text-muted">No open RFIs recorded.</p>}
+        </section>}
+        {include('diary') && <section aria-labelledby="brief-diary" className="space-y-2">
+          <h3 id="brief-diary" className="font-semibold text-base">Recent diary entries</h3>
+          {brief.diary.length ? <ul className="space-y-2">{brief.diary.map(d => <BriefRecord key={d.id} title={d.title}>
+            <BriefField label="Date / time"><span className="tabular">{d.date} · {d.time}</span></BriefField>
+            <BriefField label="Created by">{d.createdBy}</BriefField>
+            <BriefField label="Follow-up / responsible" wide>{d.followUp}</BriefField>
+            {d.details && <BriefField label="Details" wide><span className="whitespace-pre-wrap">{d.details}</span></BriefField>}
+          </BriefRecord>)}</ul> : <p className="text-muted">No site diary entries recorded.</p>}
+        </section>}
       </div>}
       {!nothingSelected && <p className="form-hint">{BRIEF_NOTE}</p>}
 

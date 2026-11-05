@@ -71,7 +71,9 @@ service cloud.firestore {
       let comments = request.resource.data.get('comments', []);
       return member(projectId) && changes.hasOnly(['comments', 'updatedBy', 'updatedAt'])
         && appendOnly('comments') && validDiscussionAuthor(projectId, comments[comments.size() - 1])
-        && comments[comments.size() - 1].text is string && comments[comments.size() - 1].text.size() > 0;
+        && comments[comments.size() - 1].text is string && comments[comments.size() - 1].text.size() > 0
+        // A comment is filed under the RFI's current stage; older clients send no stage.
+        && (!('stage' in comments[comments.size() - 1]) || comments[comments.size() - 1].stage == rfiStatusOf(resource.data));
     }
     // RFI workflow. Statuses: draft → opened → re_review → site_inspection → next_work → closure_applied → closed.
     // Records from the earlier five-stage workflow keep a numeric `stage` until their first transition.

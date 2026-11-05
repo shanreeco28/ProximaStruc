@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarClock, ChevronRight, FileText, HardHat, Lock, MapPin, MessageSquare, Paperclip, RotateCcw, UserRound, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarClock, ChevronRight, FileText, HardHat, Lock, MapPin, Paperclip, Printer, RotateCcw, UserRound, XCircle } from 'lucide-react';
 import { Field, RecordModal, SaveForm, TextArea } from './RecordForm';
 import DeleteRecordAction from './DeleteRecordAction';
 import CreatedBy from './CreatedBy';
+import { RfiPrintModal, RfiStageComments } from './RfiStageRecord';
 import {
   RFI_STATUSES, RFI_DISCIPLINES, RFI_FILE_CATEGORIES, RFI_TRANSITIONS, canRaiseRfi, canAdvanceInspection, canEditInspection, canCommentInspection,
   canManageInspectionFiles, canRemoveInspectionFile, inspectionStatus, inspectionStatusIndex, inspectionStatusLabel,
@@ -113,9 +114,10 @@ function OutcomeDialog({ dialog, onClose, onSubmit }) {
   </RecordModal>;
 }
 
-function RfiDetail({ rfi, currentUser, saving, uploading, uploadProgress, onBack, onAdvance, onOutcome, onEdit, onUpload, onRemoveFile, onOpenFile, comment, onCommentChange, onComment }) {
+function RfiDetail({ rfi, projectName, currentUser, saving, uploading, uploadProgress, onBack, onAdvance, onOutcome, onEdit, onUpload, onRemoveFile, onOpenFile, comment, onCommentChange, onComment }) {
   const headingRef = useRef(null);
   const [dialog, setDialog] = useState(null);
+  const [printing, setPrinting] = useState(false);
   useEffect(() => { headingRef.current?.focus(); }, [rfi.id]);
   const statusIndex = inspectionStatusIndex(rfi);
   const isCleared = isInspectionClosed(rfi);
@@ -125,8 +127,6 @@ function RfiDetail({ rfi, currentUser, saving, uploading, uploadProgress, onBack
   const busy = saving || !!uploading;
   const status = inspectionStatus(rfi);
   const openDialog = (action, extra = {}) => setDialog({ action, ...extra });
-  const feed = [...(rfi.history || []).map(h => ({ ...h, type: 'history' })), ...(rfi.comments || []).map(c => ({ ...c, type: 'comment' }))]
-    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
   return (
     <div className="space-y-5">
       <button type="button" onClick={onBack} className="link-action"><ArrowLeft size={15} aria-hidden="true" />Back to RFI register</button>
@@ -157,6 +157,7 @@ function RfiDetail({ rfi, currentUser, saving, uploading, uploadProgress, onBack
               : <span className="text-xs text-muted px-1">{transition ? AWAITING[transition.actor] : 'Awaiting authorised stage review'}</span>}
               {canRejectInspection(currentUser, rfi) && <button disabled={busy} className="btn btn-danger-soft" onClick={() => openDialog('reject', { title: status === 'closure_applied' ? 'Reject RFI closure' : 'Reject inspection', submitLabel: 'Reject', description: `${rfi.id} stops at ${rfiStatusLabel(status)}. An engineer or manager then rolls it back or closes it.` })}><XCircle size={14} aria-hidden="true" />{status === 'closure_applied' ? 'Reject closure' : `Reject (${RFI_REJECTERS[status]})`}</button>}
               {canRollbackClosedInspection(currentUser, rfi) && <button disabled={busy} className="btn btn-secondary" onClick={() => openDialog('rollback', { title: 'Roll back closed RFI', submitLabel: 'Roll back RFI', targets: rfiRollbackTargets(rfi).reverse(), description: `Site owner only. ${rfi.id} reopens at the chosen stage${isCleared ? ' and no longer clears a linked planning hold point' : ''}.` })}><RotateCcw size={14} aria-hidden="true" />Roll back (site owner)…</button>}
+              <button type="button" onClick={() => setPrinting(true)} className="btn btn-secondary"><Printer size={14} aria-hidden="true" />Print RFI</button>
               {canEditInspection(currentUser, rfi) && <button onClick={() => onEdit(rfi)} className="btn btn-secondary">Edit</button>}
               <DeleteRecordAction collection="inspections" record={rfi} />
             </div>
@@ -192,33 +193,9 @@ function RfiDetail({ rfi, currentUser, saving, uploading, uploadProgress, onBack
           </ol>
         </div>
 
-        <section aria-label={`${rfi.id} comments and history`} className="border-t px-5 py-4 space-y-3" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-          <h3 className="meta-label !mb-0 flex items-center gap-1.5"><MessageSquare size={13} aria-hidden="true" />Comments & History ({feed.length})</h3>
-          <div className="space-y-2">
-            {feed.map((item, idx) => (
-              <div key={idx} className="feed-item" data-kind={item.type}>
-                <div className="flex flex-wrap justify-between items-center gap-2 mb-1">
-                  <span className="font-semibold text-xs">{item.user} <span className="badge ml-1">{item.role}</span></span>
-                  <span className="text-[11px] text-muted">{formatStamp(item.timestamp)}</span>
-                </div>
-                <div>{item.type === 'history' ? <><span className="italic">{item.action}</span>{item.reason && <span className="block mt-0.5">Reason: {item.reason}</span>}</> : item.text}</div>
-              </div>
-            ))}
-            {!feed.length && <p className="text-xs text-muted italic">No comments or history yet.</p>}
-          </div>
-          {canCommentInspection(currentUser) && <div className="flex gap-2 items-center">
-            <input
-              type="text"
-              aria-label={`Comment on ${rfi.id}`} placeholder="Add a comment…"
-              value={comment}
-              onChange={e => onCommentChange(e.target.value)}
-              className="field-control !mt-0 flex-1 min-w-0"
-              onKeyDown={e => { if (e.key === 'Enter') onComment(rfi.id); }}
-            />
-            <button disabled={saving} onClick={() => onComment(rfi.id)} className="btn btn-dark">Send</button>
-          </div>}
-        </section>
+        <RfiStageComments rfi={rfi} canComment={canCommentInspection(currentUser)} comment={comment} saving={saving} onCommentChange={onCommentChange} onComment={onComment} />
       </article>
+      {printing && <RfiPrintModal rfi={rfi} projectName={projectName} onClose={() => setPrinting(false)} />}
       {dialog && <OutcomeDialog dialog={dialog} onClose={() => setDialog(null)} onSubmit={(action, reason, target) => onOutcome(rfi, action, reason, target)} />}
     </div>
   );
@@ -289,11 +266,12 @@ export default function InspectionsView({ inspections, allInspectionIds, project
     await onOutcome(rfi.id, inspectionStatus(rfi), action, reason, target);
     setNotice(action === 'reject' ? `${rfi.id} rejected.` : action === 'closeRejected' ? `${rfi.id} closed as rejected.` : `${rfi.id} rolled back to ${rfiStatusLabel(target)}.`);
   };
-  const handleAddComment = async id => {
-    const text = commentInputs[id]?.trim();
+  // The comment is filed under the stage shown to its author; it is not sent if the RFI has moved on meanwhile.
+  const handleAddComment = async rfi => {
+    const id = rfi.id, text = commentInputs[id]?.trim();
     if (!text || saving || !canCommentInspection(currentUser)) return;
     setSaving(true); setError('');
-    try { await onComment(id, text); setCommentInputs(prev => ({ ...prev, [id]: '' })); }
+    try { await onComment(id, text, inspectionStatus(rfi)); setCommentInputs(prev => ({ ...prev, [id]: '' })); }
     catch (e) { setError(e.message); } finally { setSaving(false); }
   };
   const handleUpload = async (rfi, files, category) => {
@@ -394,7 +372,7 @@ export default function InspectionsView({ inspections, allInspectionIds, project
       <div className="space-y-6">
         {messages}
         {selected
-          ? <RfiDetail rfi={selected} currentUser={currentUser} saving={saving} uploading={uploading} uploadProgress={uploadProgress}
+          ? <RfiDetail rfi={selected} projectName={projectName} currentUser={currentUser} saving={saving} uploading={uploading} uploadProgress={uploadProgress}
             onBack={closeRfi} onAdvance={handleAdvance} onOutcome={handleOutcome} onEdit={handleOpenModal} onUpload={handleUpload} onRemoveFile={handleRemoveFile}
             onOpenFile={onOpenFile ? handleOpenFile : null} comment={commentInputs[selected.id] || ''}
             onCommentChange={value => setCommentInputs(prev => ({ ...prev, [selected.id]: value }))} onComment={handleAddComment} />

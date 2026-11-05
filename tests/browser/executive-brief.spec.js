@@ -36,3 +36,22 @@ test('an iPhone Home Screen app prints through the share sheet with a PDF', asyn
   await expect(page.locator('body')).toHaveAttribute('data-shared', /executive-brief-\d{4}-\d{2}-\d{2}\.pdf\|application\/pdf\|true$/);
   await expect(page.locator('body')).not.toHaveAttribute('data-print-requested', 'true');
 });
+
+test('the brief shows each open RFI stage, responsible person, last update and comment, and diary authorship', async ({ page }) => {
+  await page.goto('/tests/browser/harness.html?view=calendar&seed=1&status=re_review&thread=1&briefDiary=1');
+  await page.getByRole('button', { name: 'Actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Generate Executive Brief' }).click();
+  const rfis = page.getByRole('dialog').getByRole('region', { name: /Open inspections/ });
+  await expect(rfis.getByText('Under RE Review', { exact: true })).toBeVisible();
+  await expect(rfis.getByText('Fixture RE (RE)', { exact: true })).toBeVisible();
+  await expect(rfis.getByText('2026-11-01 10:15 by Fixture RE')).toBeVisible();
+  await expect(rfis.getByText('“Bring the rebar schedule”')).toBeVisible();
+  await expect(rfis.getByText('Fixture RE (RE) · 2026-11-01 10:15 · Under RE Review')).toBeVisible();
+  const diary = page.getByRole('dialog').getByRole('region', { name: 'Recent diary entries' });
+  await expect(diary.getByText('2026-11-02 · 16:20')).toBeVisible();
+  await expect(diary.getByText('Fixture Creator', { exact: true })).toBeVisible();
+  await expect(diary.getByText('Supervisor to cure slab')).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('dialog').getByRole('button', { name: 'Download PDF' }).click();
+  expect((await download).suggestedFilename()).toMatch(/^Test-project-executive-brief-\d{4}-\d{2}-\d{2}\.pdf$/);
+});

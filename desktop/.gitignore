@@ -1,0 +1,5 @@
+node_modules
+src-tauri/target
+src-tauri/gen
+# Generated from public/icons/icon-512.png by `npm run icons`
+src-tauri/icons

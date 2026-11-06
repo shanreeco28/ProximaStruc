@@ -1,0 +1,14 @@
+{
+  "name": "proximastruc-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "icons": "tauri icon ../public/icons/icon-512.png",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

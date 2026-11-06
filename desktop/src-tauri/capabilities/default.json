@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Lets the ProximaStruc site drive its own window controls (minimise, maximise, close, drag).",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["https://proximastruc.vercel.app/*"]
+  },
+  "permissions": [
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-is-maximized",
+    "core:window:allow-start-dragging"
+  ]
+}
